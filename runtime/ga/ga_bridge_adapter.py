@@ -18,8 +18,10 @@ from typing import Any, Iterable
 
 from aiohttp import web
 
-ADAPTER_VERSION = "1.0.0"
+ADAPTER_VERSION = "1.1.0"
 API_VERSION = "v1"
+COMMAND_API_VERSION = "1"
+MAX_COMMAND_ARGUMENT_CHARS = 32_768
 MANIFEST_PATH = Path(__file__).with_name("runtime_manifest.json")
 DEFAULT_ORIGINS = ("http://tauri.localhost", "https://tauri.localhost", "tauri://localhost")
 SENSITIVE_KEYS = re.compile(r"authorization|cookie|token|secret|password|passwd|api[_-]?key|private[_-]?key|mykey|credential", re.I)
@@ -173,7 +175,61 @@ def load_official_module(root: Path, manifest: dict[str, Any]):
     return module
 
 
-def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[str], manifest: dict[str, Any]) -> web.Application:
+def load_command_registry(root: Path) -> tuple[Any, list[dict[str, Any]]]:
+    """Reflect GA-owned slash metadata without copying command logic into the adapter."""
+    path = root / "frontends" / "slash_cmds.py"
+    spec = importlib.util.spec_from_file_location(
+        f"liveagent_ga_slash_cmds_{manifest_safe_version(root)}", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Unable to load GenericAgent command registry")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    entries = getattr(module, "PALETTE_ENTRIES", ())
+    prompt_for = getattr(module, "prompt_for", None)
+    if not callable(prompt_for) or not isinstance(entries, (list, tuple)):
+        raise RuntimeError("GenericAgent command registry contract is unavailable")
+    commands: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for raw in entries:
+        if not isinstance(raw, (list, tuple)) or len(raw) != 3:
+            continue
+        slash_name, arg_hint, description = (str(value).strip() for value in raw)
+        command_id = slash_name.removeprefix("/")
+        if not command_id or command_id in seen or not re.fullmatch(r"[a-z][a-z0-9_-]*", command_id):
+            continue
+        # Only prompt commands are executable through this first registry slice.
+        # TUI-local pickers such as scheduler remain undiscoverable until they have
+        # a real GA plugin rather than silently acquiring different semantics.
+        if prompt_for(slash_name, "") is None:
+            continue
+        seen.add(command_id)
+        commands.append({
+            "id": command_id,
+            "name": slash_name,
+            "aliases": [],
+            "title": slash_name,
+            "description": description,
+            "arg_hint": arg_hint,
+            "argument_schema": {"type": "object", "properties": {
+                "args_text": {"type": "string", "maxLength": MAX_COMMAND_ARGUMENT_CHARS}},
+                                "additionalProperties": False},
+            "owner": "ga",
+            "kind": "prompt",
+            "api_version": COMMAND_API_VERSION,
+            "plugin_version": manifest_safe_version(root),
+            "requires_capabilities": [],
+            "permissions": [],
+        })
+    return module, commands
+
+
+def manifest_safe_version(root: Path) -> str:
+    """Stable non-secret plugin version for a pinned GA checkout."""
+    return hashlib.sha256((root / "frontends" / "slash_cmds.py").read_bytes()).hexdigest()[:12]
+
+
+def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[str], manifest: dict[str, Any],
+               ga_root: Path | None = None) -> web.Application:
     if len(token) < 32:
         raise ValueError("Bridge token must contain at least 32 characters")
     app = official_module.create_app()
@@ -190,9 +246,61 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
     async def health_handler(request: web.Request) -> web.Response:
         return _json("bridge.health", {"status": "ready", "official_bridge": "compatible"}, 200, request.headers.get("X-Request-Id", ""))
 
+    def command_registry_error(request: web.Request) -> web.Response:
+        return _json("error", {"code": "command_registry_unavailable",
+                               "message": "GenericAgent command registry is unavailable"}, 503,
+                     request.headers.get("X-Request-Id", ""))
+
+    async def commands_handler(request: web.Request) -> web.Response:
+        if ga_root is None:
+            return command_registry_error(request)
+        try:
+            _, commands = load_command_registry(ga_root)
+        except Exception:
+            return command_registry_error(request)
+        return _json("commands.list", {"commands": commands}, 200,
+                     request.headers.get("X-Request-Id", ""))
+
+    async def execute_command_handler(request: web.Request) -> web.Response:
+        if ga_root is None:
+            return command_registry_error(request)
+        command_id = request.match_info["command_id"]
+        try:
+            module, commands = load_command_registry(ga_root)
+        except Exception:
+            return command_registry_error(request)
+        command = next((item for item in commands if item["id"] == command_id), None)
+        if command is None:
+            return _json("error", {"code": "command_not_found", "message": "Command not found"}, 404,
+                         request.headers.get("X-Request-Id", ""))
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            body = None
+        if not isinstance(body, dict):
+            return _json("error", {"code": "invalid_command_input", "message": "JSON object required"}, 400,
+                         request.headers.get("X-Request-Id", ""))
+        args_text = body.get("args_text", "")
+        if not isinstance(args_text, str) or len(args_text) > MAX_COMMAND_ARGUMENT_CHARS:
+            return _json("error", {"code": "invalid_command_input",
+                                    "message": f"args_text must be a string of at most {MAX_COMMAND_ARGUMENT_CHARS} characters"}, 400,
+                         request.headers.get("X-Request-Id", ""))
+        try:
+            prompt = module.prompt_for(command["name"], args_text)
+        except Exception:
+            prompt = None
+        if not isinstance(prompt, str) or not prompt.strip():
+            return _json("error", {"code": "command_execution_failed",
+                                    "message": "Command did not produce a prompt"}, 500,
+                         request.headers.get("X-Request-Id", ""))
+        return _json("command.completed", {"command_id": command_id, "result": {"type": "prompt", "prompt": prompt}},
+                     200, request.headers.get("X-Request-Id", ""))
+
     app.router.add_get("/api/v1/version", version_handler)
     app.router.add_get("/api/v1/capabilities", capabilities_handler)
     app.router.add_get("/api/v1/health", health_handler)
+    app.router.add_get("/api/v1/commands", commands_handler)
+    app.router.add_post("/api/v1/commands/{command_id}/execute", execute_command_handler)
     return app
 
 
@@ -216,7 +324,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("GA_BRIDGE_TOKEN must contain at least 32 characters")
     module = load_official_module(root, manifest)
     app = create_app(official_module=module, token=token,
-                     allowed_origins=parse_origins(os.environ.get("GA_BRIDGE_ALLOWED_ORIGINS")), manifest=manifest)
+                     allowed_origins=parse_origins(os.environ.get("GA_BRIDGE_ALLOWED_ORIGINS")), manifest=manifest,
+                     ga_root=root)
     web.run_app(app, host="127.0.0.1", port=args.port, print=None)
     return 0
 

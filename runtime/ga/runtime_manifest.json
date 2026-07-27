@@ -10,6 +10,7 @@
     "history",
     "model_profiles",
     "services",
+    "command_registry",
     "http_commands",
     "websocket_events"
   ],

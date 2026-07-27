@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -53,6 +54,100 @@ async def client():
         yield test_client
 
 
+@pytest_asyncio.fixture
+async def command_client(tmp_path):
+    frontends = tmp_path / "frontends"
+    frontends.mkdir()
+    (frontends / "slash_cmds.py").write_text(
+        "PALETTE_ENTRIES = [('/goal', '<objective>', 'Run a goal'), ('/scheduler', '', 'Local picker')]\n"
+        "def prompt_for(cmd, args_text):\n"
+        "    return f'GOAL:{args_text}' if cmd == '/goal' else None\n",
+        encoding="utf-8",
+    )
+    manifest = adapter.load_manifest()
+    app = adapter.create_app(
+        official_module=fake_official_module(),
+        token=TOKEN,
+        allowed_origins=(ORIGIN,),
+        manifest=manifest,
+        ga_root=tmp_path,
+    )
+    async with TestClient(TestServer(app)) as test_client:
+        yield test_client
+
+
+@pytest.mark.asyncio
+async def test_command_registry_requires_a_verified_ga_root(client):
+    listed = await client.get("/api/v1/commands", headers=AUTH)
+    assert listed.status == 503
+    assert (await listed.json())["payload"]["code"] == "command_registry_unavailable"
+
+
+@pytest.mark.asyncio
+async def test_command_registry_discovers_ga_metadata_and_executes_prompt(command_client):
+    listed = await command_client.get("/api/v1/commands", headers=AUTH)
+    assert listed.status == 200
+    commands = (await listed.json())["payload"]["commands"]
+    assert [command["id"] for command in commands] == ["goal"]
+    assert commands[0]["name"] == "/goal"
+    assert commands[0]["arg_hint"] == "<objective>"
+    assert commands[0]["argument_schema"]["properties"]["args_text"] == {
+        "type": "string",
+        "maxLength": adapter.MAX_COMMAND_ARGUMENT_CHARS,
+    }
+    assert commands[0]["plugin_version"]
+
+    executed = await command_client.post(
+        "/api/v1/commands/goal/execute", headers=AUTH, json={"args_text": "ship it"})
+    assert executed.status == 200
+    result = (await executed.json())["payload"]
+    assert result == {"command_id": "goal", "result": {"type": "prompt", "prompt": "GOAL:ship it"}}
+
+    missing = await command_client.post(
+        "/api/v1/commands/not-there/execute", headers=AUTH, json={})
+    assert missing.status == 404
+    assert (await missing.json())["payload"]["code"] == "command_not_found"
+
+    invalid = await command_client.post(
+        "/api/v1/commands/goal/execute", headers=AUTH, json={"args_text": 7})
+    assert invalid.status == 400
+    assert (await invalid.json())["payload"]["code"] == "invalid_command_input"
+
+    too_long = await command_client.post(
+        "/api/v1/commands/goal/execute", headers=AUTH,
+        json={"args_text": "x" * (adapter.MAX_COMMAND_ARGUMENT_CHARS + 1)})
+    assert too_long.status == 400
+    assert (await too_long.json())["payload"]["code"] == "invalid_command_input"
+
+
+@pytest.mark.asyncio
+async def test_command_registry_failures_are_isolated_and_redacted(monkeypatch, client):
+    def fail_registry(_root):
+        raise RuntimeError("sensitive-plugin-detail")
+
+    monkeypatch.setattr(adapter, "load_command_registry", fail_registry)
+    # The default test app has no root, so build an isolated app with any root
+    # to exercise the plugin failure path rather than the missing-root path.
+    manifest = adapter.load_manifest()
+    app = adapter.create_app(
+        official_module=fake_official_module(),
+        token=TOKEN,
+        allowed_origins=(ORIGIN,),
+        manifest=manifest,
+        ga_root=Path("."),
+    )
+    async with TestClient(TestServer(app)) as isolated:
+        for method, path, kwargs in (
+            (isolated.get, "/api/v1/commands", {}),
+            (isolated.post, "/api/v1/commands/goal/execute", {"json": {}}),
+        ):
+            response = await method(path, headers=AUTH, **kwargs)
+            assert response.status == 503
+            body = await response.json()
+            assert body["payload"]["code"] == "command_registry_unavailable"
+            assert "sensitive-plugin-detail" not in json.dumps(body)
+
+
 @pytest.mark.asyncio
 async def test_v1_envelope_version_capabilities_and_health(client):
     for path, expected_type in (("/api/v1/version", "bridge.version"),
@@ -67,7 +162,9 @@ async def test_v1_envelope_version_capabilities_and_health(client):
         assert body["event_id"]
     capabilities = (await (await client.get("/api/v1/capabilities", headers=AUTH)).json())["payload"]
     assert capabilities["unknown_events_preserved"] is True
+    assert "command_registry" in capabilities["capabilities"]
     assert "ask_user.requested" in capabilities["events"]
+    assert not any(event.startswith("command.") for event in capabilities["events"])
 
 
 @pytest.mark.asyncio
@@ -135,8 +232,11 @@ def test_token_strength_origin_defaults_and_websocket_credential():
 
 
 def test_pinned_official_bridge_contract_without_importing_user_runtime():
+    configured_root = os.environ.get("GA_TEST_ROOT", "").strip()
+    if not configured_root:
+        pytest.skip("set GA_TEST_ROOT to a checkout matching runtime_manifest.json")
     manifest = adapter.load_manifest()
-    ga_root = Path(r"D:\GenericAgent")
+    ga_root = Path(configured_root).expanduser().resolve()
     adapter.verify_official_bridge(ga_root, manifest)
     source = (ga_root / manifest["official_bridge"]["path"]).read_text(encoding="utf-8")
     tree = ast.parse(source)
