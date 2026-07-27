@@ -3,6 +3,9 @@ import type {
   GaBridgeEvent,
   GaEnvelope,
   GaMessageDto,
+  GaMessagesSnapshot,
+  GaPromptAccepted,
+  GaPromptRequest,
   GaRuntimeStartResponse,
   GaSessionDto,
   GaSessionSnapshot,
@@ -99,18 +102,42 @@ export class GaBridgeClient {
   getSession(id: string) {
     return this.request<GaSessionSnapshot>(`/session/${encodeURIComponent(id)}`);
   }
-  async renameSession(id: string, title: string): Promise<GaSessionDto> {
-    const result = await this.request<{ session: GaSessionDto }>(`/session/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ title }),
+  async getSessionMessages(id: string, after = 0, limit = 200): Promise<GaMessagesSnapshot> {
+    const query = new URLSearchParams({ after: String(after), limit: String(limit) });
+    return this.request<GaMessagesSnapshot>(
+      `/session/${encodeURIComponent(id)}/messages?${query.toString()}`,
+    );
+  }
+  async promptSession(id: string, prompt: GaPromptRequest): Promise<GaPromptAccepted> {
+    return this.request<GaPromptAccepted>(`/session/${encodeURIComponent(id)}/prompt`, {
+      method: "POST",
+      body: JSON.stringify(prompt),
     });
+  }
+  async cancelSession(id: string): Promise<{ ok: boolean; sessionId: string }> {
+    return this.request(`/session/${encodeURIComponent(id)}/cancel`, { method: "POST" });
+  }
+  async restoreSession(id: string): Promise<Record<string, unknown>> {
+    return this.request(`/session/${encodeURIComponent(id)}/restore`, { method: "POST" });
+  }
+  async renameSession(id: string, title: string): Promise<GaSessionDto> {
+    const result = await this.request<{ session: GaSessionDto }>(
+      `/session/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ title }),
+      },
+    );
     return result.session;
   }
   async setSessionPinned(id: string, pinned: boolean): Promise<GaSessionDto> {
-    const result = await this.request<{ session: GaSessionDto }>(`/session/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ pinned }),
-    });
+    const result = await this.request<{ session: GaSessionDto }>(
+      `/session/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ pinned }),
+      },
+    );
     return result.session;
   }
   async deleteSession(id: string): Promise<void> {
@@ -171,44 +198,46 @@ export class GaWebSocketManager {
   private connect() {
     this.stopped = false;
     if (this.ws || this.eventListeners.size === 0) return;
-    void this.runtime().then((runtime) => {
-      if (this.stopped || this.ws) return;
-      const socket = new WebSocket(runtime.baseUrl.replace(/^http/, "ws") + "/ws", [
-        `ga-token.${runtime.token}`,
-      ]);
-      this.ws = socket;
-      socket.onopen = () => {
-        this.reconnectAttempt = 0;
-        this.publishConnection(true);
-      };
-      socket.onmessage = (message) => {
-        let event: GaBridgeEvent;
-        try {
-          event = JSON.parse(String(message.data)) as GaBridgeEvent;
-        } catch {
-          return;
-        }
-        const key = eventKey(event);
-        if (key && this.seenEvents.has(key)) return;
-        if (key) {
-          this.seenEvents.add(key);
-          if (this.seenEvents.size > 4096) {
-            const oldest = this.seenEvents.values().next().value;
-            if (oldest) this.seenEvents.delete(oldest);
+    void this.runtime()
+      .then((runtime) => {
+        if (this.stopped || this.ws) return;
+        const socket = new WebSocket(`${runtime.baseUrl.replace(/^http/, "ws")}/ws`, [
+          `ga-token.${runtime.token}`,
+        ]);
+        this.ws = socket;
+        socket.onopen = () => {
+          this.reconnectAttempt = 0;
+          this.publishConnection(true);
+        };
+        socket.onmessage = (message) => {
+          let event: GaBridgeEvent;
+          try {
+            event = JSON.parse(String(message.data)) as GaBridgeEvent;
+          } catch {
+            return;
           }
-        }
-        for (const listener of this.eventListeners) listener(event);
-      };
-      socket.onclose = () => {
-        if (this.ws === socket) this.ws = null;
+          const key = eventKey(event);
+          if (key && this.seenEvents.has(key)) return;
+          if (key) {
+            this.seenEvents.add(key);
+            if (this.seenEvents.size > 4096) {
+              const oldest = this.seenEvents.values().next().value;
+              if (oldest) this.seenEvents.delete(oldest);
+            }
+          }
+          for (const listener of this.eventListeners) listener(event);
+        };
+        socket.onclose = () => {
+          if (this.ws === socket) this.ws = null;
+          this.publishConnection(false);
+          this.scheduleReconnect();
+        };
+        socket.onerror = () => socket.close();
+      })
+      .catch(() => {
         this.publishConnection(false);
         this.scheduleReconnect();
-      };
-      socket.onerror = () => socket.close();
-    }).catch(() => {
-      this.publishConnection(false);
-      this.scheduleReconnect();
-    });
+      });
   }
   stop() {
     this.stopped = true;

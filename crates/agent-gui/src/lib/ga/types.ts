@@ -1,4 +1,10 @@
-export type GaRuntimePhase = "stopped" | "starting" | "running" | "restarting" | "stopping" | "failed";
+export type GaRuntimePhase =
+  | "stopped"
+  | "starting"
+  | "running"
+  | "restarting"
+  | "stopping"
+  | "failed";
 export type GaRuntimeStatus = {
   phase: GaRuntimePhase;
   pid?: number | null;
@@ -25,7 +31,39 @@ export type GaSessionDto = {
   message_count?: number;
   [key: string]: unknown;
 };
-export type GaMessageDto = Record<string, unknown> & { id?: string | number; event_id?: string };
+export type GaMessageDto = Record<string, unknown> & {
+  id?: string | number;
+  role?: string;
+  content?: string;
+  ts?: number;
+  timestamp?: number;
+  turn_segs?: string[];
+  stopped?: boolean;
+  event_id?: string;
+};
+export type GaMessagesSnapshot = {
+  sessionId: string;
+  status: string;
+  messages: GaMessageDto[];
+  partial?: GaMessageDto | null;
+  msgSeq: number;
+  updatedAt?: number;
+  lastError?: string;
+  model?: unknown;
+};
+export type GaPromptRequest = {
+  prompt: string;
+  display?: string;
+  files?: Array<{ name: string; path: string }>;
+  imageMetas?: Array<{ name: string; path: string }>;
+};
+export type GaPromptAccepted = {
+  ok: boolean;
+  sessionId: string;
+  accepted: boolean;
+  userMessageId: number;
+  seq: number;
+};
 export type GaSessionSnapshot = {
   sessionId: string;
   session: GaSessionDto;

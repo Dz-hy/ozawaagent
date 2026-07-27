@@ -40,6 +40,7 @@ import {
 } from "../../../lib/chat/page/chatPageHelpers";
 import type { ScrollFollowHandle } from "../../../lib/chat-scroll/useScrollFollow";
 import { createStreamDebugLogger } from "../../../lib/debug/agentDebug";
+import { gaBridgeClient } from "../../../lib/ga/GaBridgeClient";
 import { buildMemoryOverviewSection } from "../../../lib/memory/prompts/injection";
 import { createModelFromConfig } from "../../../lib/providers/llm";
 import {
@@ -94,6 +95,7 @@ import {
   resolveMemorySummaryModelSelection,
   selectedModelsMatch,
 } from "./providerRuntimeConfig";
+import { runGaChatTurn } from "./runGaChatTurn";
 
 type LiveTranscriptController = ReturnType<typeof useLiveTranscriptController>;
 type ChatPageRuntimeStore = ReturnType<typeof useChatPageRuntimeStore>;
@@ -387,6 +389,122 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
       }));
     }
 
+    // GenericAgent is the sole owner of chat semantics. This runtime predicate
+    // keeps the legacy branch type-checkable until its Phase 6 deletion.
+    if (gaBridgeClient) {
+      const textOverride =
+        typeof overrides?.textOverride === "string" ? overrides.textOverride : null;
+      const hasTextOverride = textOverride !== null;
+      const composerDraft = hasTextOverride
+        ? null
+        : (overrides?.composerDraftOverride ?? composerRef.current?.getDraft() ?? null);
+      let text = hasTextOverride
+        ? textOverride.trim()
+        : composerDraft
+          ? (effectiveIsAgentMode && composerDraft.largePastes.length > 0
+              ? composerDraft.textWithoutLargePastes
+              : buildTextFromComposerDraft(composerDraft)
+            ).trim()
+          : "";
+      let uploadedFiles = overrides?.uploadedFilesOverride ?? pendingUploadedFiles;
+
+      if (
+        effectiveIsAgentMode &&
+        composerDraft &&
+        composerDraft.largePastes.length > 0 &&
+        !hasTextOverride
+      ) {
+        isImportingPastedTextRef.current = true;
+        setIsImportingPastedText(true);
+        try {
+          const imported = await importPastedTextsAsFiles(
+            effectiveWorkdir,
+            composerDraft.largePastes,
+          );
+          text = buildTextFromComposerDraft(composerDraft, imported.fileByPasteId).trim();
+          uploadedFiles = mergePendingUploadedFiles(uploadedFiles, imported.files);
+        } catch (error) {
+          const message = asErrorMessage(error, "大段粘贴内容导入附件失败");
+          setConversationErrorState(message);
+          setErrorMessage(message);
+          gatewayBridgeEvents.emitError(message, conversationId);
+          await gatewayBridgeEvents.close();
+          return false;
+        } finally {
+          isImportingPastedTextRef.current = false;
+          setIsImportingPastedText(false);
+        }
+      }
+      if (!text && uploadedFiles.length === 0) return false;
+
+      const abortController = new AbortController();
+      const baseState = runtimeEntry.state;
+      const visible = currentConversationIdRef.current === conversationId;
+      const savedDraft = composerDraft && !composerDraft.isEmpty ? composerDraft : null;
+      const savedUploads = uploadedFiles.slice();
+      if (!hasTextOverride && !overrides?.composerDraftOverride) {
+        clearCachedComposerDraft(conversationId);
+      }
+      if (!overrides?.preserveComposerOnStart) resetVisibleTransientState(conversationId);
+      setConversationErrorState(null);
+      setConversationAbortController(conversationId, abortController);
+      setConversationSendingState(conversationId, true);
+      if (visible) scrollFollowRef.current?.stickToBottom();
+
+      const files = uploadedFiles.flatMap((file) => {
+        const path = file.absolutePath?.trim();
+        return file.kind !== "image" && path ? [{ name: file.fileName, path }] : [];
+      });
+      const imageMetas = uploadedFiles.flatMap((file) => {
+        const path = file.absolutePath?.trim();
+        return file.kind === "image" && path ? [{ name: file.fileName, path }] : [];
+      });
+      const attachmentPaths = [...files, ...imageMetas].map((file) => file.path);
+      const gaPrompt = [text, ...attachmentPaths].filter(Boolean).join("\n");
+      try {
+        await runGaChatTurn({
+          conversationId,
+          prompt: {
+            prompt: gaPrompt,
+            display: text,
+            ...(files.length > 0 ? { files } : {}),
+            ...(imageMetas.length > 0 ? { imageMetas } : {}),
+          },
+          baseState,
+          signal: abortController.signal,
+          applyState: (state) =>
+            updateConversationRuntimeEntry(conversationId, (prev) => ({
+              ...prev,
+              state,
+              errorMessage: null,
+            })),
+        });
+        return true;
+      } catch (error) {
+        const message = asErrorMessage(error, "GenericAgent request failed");
+        setConversationErrorState(message);
+        if (!abortController.signal.aborted) {
+          if (visible && savedDraft && composerRef.current && !composerRef.current.hasContent()) {
+            composerRef.current.setDraft(savedDraft);
+          } else if (savedDraft && !composerDraftCacheRef.current.has(conversationId)) {
+            composerDraftCacheRef.current.set(conversationId, savedDraft);
+          }
+          if (
+            savedUploads.length > 0 &&
+            getPendingUploadsForConversation(conversationId).length === 0
+          ) {
+            setPendingUploadsForConversation(conversationId, savedUploads);
+          }
+        }
+        return true;
+      } finally {
+        setConversationAbortController(conversationId, null);
+        setConversationSendingState(conversationId, false);
+        requestQueuedChatTurnProcessing(conversationId);
+      }
+    }
+
+    /* Phase 6 removal boundary: legacy LiveAgent semantic pipeline below. */
     let effectiveSelectedModel: EffectiveChatModelSelection;
     try {
       effectiveSelectedModel = resolveEffectiveChatModelSelection({
