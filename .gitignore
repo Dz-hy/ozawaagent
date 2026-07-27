@@ -49,3 +49,8 @@ chatroom
 *.sw?
 .pnpm-store
 workspace.zip
+
+# Python runtime caches
+__pycache__/
+*.py[cod]
+.pytest_cache/

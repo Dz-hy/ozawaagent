@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "ga_commit": "51f769295b3f20c9be62edc658b4462dae97525a",
+  "official_bridge": {
+    "path": "frontends/desktop_bridge.py",
+    "sha256": "a1eb52870dc006cc43e96253f9c8138001eb9cd87a6b041584bfbbfab979fd5f"
+  },
+  "capabilities": [
+    "sessions",
+    "history",
+    "model_profiles",
+    "services",
+    "http_commands",
+    "websocket_events"
+  ],
+  "events": [
+    "session.state_changed",
+    "turn.started",
+    "assistant.delta",
+    "assistant.final",
+    "reasoning.delta",
+    "tool.started",
+    "tool.progress",
+    "tool.completed",
+    "tool.failed",
+    "ask_user.requested",
+    "ask_user.resolved"
+  ]
+}
