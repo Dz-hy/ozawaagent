@@ -20,7 +20,7 @@ from typing import Any, Iterable
 
 from aiohttp import web
 
-ADAPTER_VERSION = "1.2.1"
+ADAPTER_VERSION = "1.3.0"
 API_VERSION = "v1"
 COMMAND_API_VERSION = "1"
 MAX_COMMAND_ARGUMENT_CHARS = 32_768
@@ -28,6 +28,11 @@ MAX_AUTOMATION_PROMPT_CHARS = 32_768
 AUTOMATION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 AUTOMATION_SCHEDULE = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 AUTOMATION_REPEAT = re.compile(r"^(?:daily|weekday|weekly|monthly|once|every_[1-9]\d*[mhd])$")
+MODEL_PROFILE_FIELDS = {
+    "protocol", "name", "model", "apibase", "api_key",
+    "max_retries", "connect_timeout", "read_timeout", "stream",
+}
+MODEL_PROFILE_LIMITS = {"name": 256, "model": 512, "apibase": 2048, "api_key": 16_384}
 HOOK_EVENTS = ["agent_before", "turn_before", "llm_before", "llm_after",
                "tool_before", "tool_after", "turn_after", "agent_after"]
 MANIFEST_PATH = Path(__file__).with_name("runtime_manifest.json")
@@ -51,7 +56,7 @@ def envelope(event_type: str, payload: Any, *, request_id: str = "", session_id:
 def redact(value: Any, key: str = "") -> Any:
     """Return a JSON-safe recursively redacted copy."""
     if SENSITIVE_KEYS.search(key):
-        return "[REDACTED]"
+        return value if isinstance(value, bool) else "[REDACTED]"
     if PATH_KEYS.search(key) and isinstance(value, str):
         return "[REDACTED_PATH]"
     if isinstance(value, dict):
@@ -247,6 +252,94 @@ def hook_snapshot() -> dict[str, Any]:
             "registrations": registrations, "observations": hook_observations_snapshot()}
 
 
+def model_protocol(var_name: Any) -> tuple[str, str]:
+    value = str(var_name or "").lower()
+    if "claude" in value:
+        return "claude", "var_name_heuristic"
+    return "unknown", "unknown"
+
+
+def safe_model_profile(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("invalid model profile")
+    profile_id = value.get("id")
+    if not isinstance(profile_id, int) or isinstance(profile_id, bool) or profile_id < 0:
+        raise ValueError("invalid model profile id")
+    var_name = safe_hook_label(value.get("varName"))
+    kind = "mixin" if value.get("kind") == "mixin" else "native"
+    result: dict[str, Any] = {
+        "id": profile_id, "kind": kind, "var_name": var_name,
+        "name": str(value.get("name") or "")[:256],
+        "model": str(value.get("model") or "")[:512],
+        "active": value.get("active") is True,
+    }
+    if kind == "mixin":
+        members = value.get("members")
+        result["members"] = [str(item)[:256] for item in members[:100]] if isinstance(members, list) else []
+    else:
+        protocol, protocol_source = model_protocol(var_name)
+        result.update({"protocol": protocol, "protocol_source": protocol_source,
+                       "group": "native" if value.get("group") == "native" else "std",
+                       "in_mixin": value.get("inMixin") is True})
+    return result
+
+
+def normalize_model_profile_input(value: Any, *, creating: bool) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) - MODEL_PROFILE_FIELDS:
+        raise ValueError("invalid model profile")
+    required = {"protocol", "model", "apibase"} if creating else set()
+    if not required <= set(value) or (not creating and not value):
+        raise ValueError("missing model profile fields")
+    result: dict[str, Any] = {}
+    for key in ("name", "model", "apibase"):
+        if key in value:
+            item = value[key]
+            if not isinstance(item, str) or len(item) > MODEL_PROFILE_LIMITS[key]:
+                raise ValueError("invalid model profile field")
+            result[key] = item.strip()
+    if ("model" in value and not result.get("model")) or ("apibase" in value and not result.get("apibase")):
+        raise ValueError("model and API base cannot be empty")
+    if "protocol" in value:
+        protocol = value["protocol"]
+        if not creating or protocol not in ("oai", "claude"):
+            raise ValueError("invalid model protocol")
+        result["protocol"] = protocol
+    if "api_key" in value:
+        api_key = value["api_key"]
+        if not isinstance(api_key, str) or len(api_key) > MODEL_PROFILE_LIMITS["api_key"]:
+            raise ValueError("invalid API key")
+        api_key = api_key.strip()
+        if api_key:
+            result["apikey"] = api_key
+    for key, low, high in (("max_retries", 0, 100), ("connect_timeout", 1, 3600),
+                           ("read_timeout", 1, 86400)):
+        if key in value:
+            item = value[key]
+            if not isinstance(item, int) or isinstance(item, bool) or not low <= item <= high:
+                raise ValueError("invalid model profile limit")
+            result[key] = item
+    if "stream" in value:
+        if not isinstance(value["stream"], bool):
+            raise ValueError("invalid stream setting")
+        result["stream"] = value["stream"]
+    return result
+
+
+def safe_editable_model_profile(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("invalid model profile")
+    result = safe_model_profile({**value, "kind": "native"})
+    result.update({
+        "apibase": str(value.get("apibase") or "")[:2048],
+        "api_key_configured": bool(value.get("apikey")),
+        "max_retries": int(value.get("max_retries", 5)),
+        "connect_timeout": int(value.get("connect_timeout", 15)),
+        "read_timeout": int(value.get("read_timeout", 300)),
+        "stream": value.get("stream") is not False,
+    })
+    return result
+
+
 def normalize_automation(value: Any, *, automation_id: str | None = None) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("definition must be an object")
@@ -373,6 +466,144 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
 
     async def health_handler(request: web.Request) -> web.Response:
         return _json("bridge.health", {"status": "ready", "official_bridge": "compatible"}, 200, request.headers.get("X-Request-Id", ""))
+
+    def model_profiles_error(request: web.Request, code: str, status: int) -> web.Response:
+        messages = {
+            "model_profiles_unavailable": "GenericAgent model profiles are unavailable",
+            "invalid_model_profile": "Invalid model profile",
+            "model_profile_not_found": "Model profile not found",
+            "model_profile_conflict": "Model profile operation is not allowed",
+        }
+        return _json("error", {"code": code, "message": messages[code]}, status,
+                     request.headers.get("X-Request-Id", ""))
+
+    def model_manager() -> Any:
+        manager = getattr(official_module, "manager", None)
+        methods = ("list_model_profiles", "get_model_profile", "add_model_profile",
+                   "update_model_profile", "delete_model_profile")
+        if manager is None or not all(callable(getattr(manager, method, None)) for method in methods):
+            raise RuntimeError("model manager unavailable")
+        return manager
+
+    async def model_profiles_handler(request: web.Request) -> web.Response:
+        try:
+            manager = model_manager()
+            profiles = [safe_model_profile(item) for item in manager.list_model_profiles()]
+        except Exception:
+            return model_profiles_error(request, "model_profiles_unavailable", 503)
+        return _json("model_profiles.list", {"profiles": profiles}, 200,
+                     request.headers.get("X-Request-Id", ""))
+
+    def persist_default_model(manager: Any, profile_id: int) -> None:
+        read_settings = getattr(official_module, "_settings_doc", None)
+        write_settings = getattr(official_module, "_write_settings_doc", None)
+        if not callable(read_settings) or not callable(write_settings):
+            raise RuntimeError("settings persistence unavailable")
+        document = read_settings()
+        if not isinstance(document, dict):
+            raise RuntimeError("settings persistence unavailable")
+        old_profile_id = manager.config.get("llmNo", 0)
+        updated = dict(document)
+        updated["ui"] = dict(document.get("ui") if isinstance(document.get("ui"), dict) else {})
+        updated["ui"]["llmNo"] = profile_id
+        write_settings(updated)
+        try:
+            manager.config["llmNo"] = profile_id
+        except Exception:
+            try:
+                write_settings(document)
+                manager.config["llmNo"] = old_profile_id
+            finally:
+                raise
+
+    async def model_profile_handler(request: web.Request) -> web.Response:
+        try:
+            profile_id = int(request.match_info["profile_id"])
+            if profile_id < 0:
+                raise ValueError("invalid id")
+            manager = model_manager()
+            if request.method == "GET":
+                profile = safe_editable_model_profile(manager.get_model_profile(profile_id))
+                return _json("model_profile.get", {"profile": profile}, 200,
+                             request.headers.get("X-Request-Id", ""))
+            if request.method == "PATCH":
+                body = normalize_model_profile_input(await request.json(), creating=False)
+                existing = safe_editable_model_profile(manager.get_model_profile(profile_id))
+                body.setdefault("model", existing["model"])
+                body.setdefault("apibase", existing["apibase"])
+                manager.update_model_profile(profile_id, body)
+                profile = safe_editable_model_profile(manager.get_model_profile(profile_id))
+                return _json("model_profile.updated", {"profile": profile}, 200,
+                             request.headers.get("X-Request-Id", ""))
+            profiles_before = manager.list_model_profiles()
+            if not any(item.get("id") == profile_id for item in profiles_before):
+                raise ValueError("profile not found")
+            old_default = manager.config.get("llmNo", 0)
+            if not isinstance(old_default, int) or isinstance(old_default, bool):
+                old_default = 0
+            last_index_after_delete = len(profiles_before) - 2
+            if profile_id < old_default:
+                new_default = old_default - 1
+            elif profile_id == old_default:
+                new_default = min(profile_id, last_index_after_delete)
+            else:
+                new_default = old_default
+            new_default = max(0, min(new_default, last_index_after_delete))
+            default_changed = new_default != old_default
+            if default_changed:
+                persist_default_model(manager, new_default)
+            try:
+                manager.delete_model_profile(profile_id)
+            except Exception:
+                if default_changed:
+                    persist_default_model(manager, old_default)
+                raise
+            profiles = [safe_model_profile(item) for item in manager.list_model_profiles()]
+            return _json("model_profile.deleted", {"id": profile_id, "profiles": profiles}, 200,
+                         request.headers.get("X-Request-Id", ""))
+        except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
+            return model_profiles_error(request, "invalid_model_profile", 400)
+        except ValueError as error:
+            message = str(error).lower()
+            if "not found" in message:
+                return model_profiles_error(request, "model_profile_not_found", 404)
+            if "last profile" in message or "mixin" in message:
+                return model_profiles_error(request, "model_profile_conflict", 409)
+            return model_profiles_error(request, "invalid_model_profile", 400)
+        except Exception:
+            return model_profiles_error(request, "model_profiles_unavailable", 503)
+
+    async def set_default_model_profile_handler(request: web.Request) -> web.Response:
+        try:
+            profile_id = int(request.match_info["profile_id"])
+            manager = model_manager()
+            profiles = manager.list_model_profiles()
+            if profile_id < 0 or not any(item.get("id") == profile_id for item in profiles):
+                raise ValueError("profile not found")
+            persist_default_model(manager, profile_id)
+            safe_profiles = [safe_model_profile(item) for item in manager.list_model_profiles()]
+        except (TypeError, ValueError) as error:
+            if "profile not found" in str(error).lower():
+                return model_profiles_error(request, "model_profile_not_found", 404)
+            return model_profiles_error(request, "invalid_model_profile", 400)
+        except Exception:
+            return model_profiles_error(request, "model_profiles_unavailable", 503)
+        return _json("model_profile.default_updated", {"profiles": safe_profiles}, 200,
+                     request.headers.get("X-Request-Id", ""))
+
+    async def create_model_profile_handler(request: web.Request) -> web.Response:
+        try:
+            manager = model_manager()
+            body = normalize_model_profile_input(await request.json(), creating=True)
+            result = manager.add_model_profile(body)
+            profile_id = result.get("profileId")
+            profile = safe_editable_model_profile(manager.get_model_profile(profile_id))
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TypeError):
+            return model_profiles_error(request, "invalid_model_profile", 400)
+        except Exception:
+            return model_profiles_error(request, "model_profiles_unavailable", 503)
+        return _json("model_profile.created", {"profile": profile}, 201,
+                     request.headers.get("X-Request-Id", ""))
 
     def command_registry_error(request: web.Request) -> web.Response:
         return _json("error", {"code": "command_registry_unavailable",
@@ -534,6 +765,12 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
     app.router.add_get("/api/v1/version", version_handler)
     app.router.add_get("/api/v1/capabilities", capabilities_handler)
     app.router.add_get("/api/v1/health", health_handler)
+    app.router.add_get("/api/v1/model-profiles", model_profiles_handler)
+    app.router.add_post("/api/v1/model-profiles", create_model_profile_handler)
+    app.router.add_get("/api/v1/model-profiles/{profile_id}", model_profile_handler)
+    app.router.add_patch("/api/v1/model-profiles/{profile_id}", model_profile_handler)
+    app.router.add_delete("/api/v1/model-profiles/{profile_id}", model_profile_handler)
+    app.router.add_post("/api/v1/model-profiles/{profile_id}/default", set_default_model_profile_handler)
     app.router.add_get("/api/v1/commands", commands_handler)
     app.router.add_post("/api/v1/commands/{command_id}/execute", execute_command_handler)
     app.router.add_get("/api/v1/hooks", hooks_handler)

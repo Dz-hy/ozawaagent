@@ -46,6 +46,78 @@ def fake_official_module():
     return SimpleNamespace(create_app=create_app)
 
 
+def fake_model_manager():
+    secret = "sentinel-model-api-key-never-return"
+
+    class Manager:
+        def __init__(self):
+            self.config = {"llmNo": 0}
+            self.items = [{
+                "id": 0, "varName": "native_oai_config", "kind": "native",
+                "name": "Primary", "model": "model-a", "group": "native",
+                "inMixin": False, "active": True,
+                "apibase": "https://api.example/v1", "apikey": secret,
+                "max_retries": 5, "connect_timeout": 15, "read_timeout": 300,
+                "stream": True,
+            }]
+            self.calls = []
+            self.fail_delete = False
+
+        def list_model_profiles(self):
+            return [{**item, "active": item["id"] == self.config.get("llmNo", 0)}
+                    for item in self.items]
+
+        def get_model_profile(self, profile_id):
+            if profile_id >= len(self.items):
+                raise ValueError("profile not found")
+            return dict(self.items[profile_id])
+
+        def add_model_profile(self, value):
+            self.calls.append(("add", dict(value)))
+            item = {**self.items[0], **value, "id": len(self.items),
+                    "varName": "native_claude_config2" if value["protocol"] == "claude" else "native_oai_config2",
+                    "active": False}
+            self.items.append(item)
+            return {"profileId": item["id"], "profiles": self.list_model_profiles()}
+
+        def update_model_profile(self, profile_id, value):
+            self.calls.append(("update", profile_id, dict(value)))
+            self.items[profile_id].update(value)
+            return {"profileId": profile_id, "profiles": self.list_model_profiles()}
+
+        def delete_model_profile(self, profile_id):
+            self.calls.append(("delete", profile_id))
+            if self.fail_delete:
+                raise RuntimeError("injected delete failure")
+            if len(self.items) <= 1:
+                raise ValueError("cannot delete the last profile")
+            self.items.pop(profile_id)
+            for index, item in enumerate(self.items):
+                item["id"] = index
+            return {"profileId": profile_id, "profiles": self.list_model_profiles()}
+
+    return Manager(), secret
+
+
+@pytest_asyncio.fixture
+async def model_client():
+    manager, secret = fake_model_manager()
+    official = fake_official_module()
+    official.manager = manager
+    settings_document = {"ui": {"theme": "dark"}}
+    official._settings_doc = lambda: {"ui": dict(settings_document["ui"])}
+
+    def write_settings(value):
+        settings_document.clear()
+        settings_document.update(value)
+
+    official._write_settings_doc = write_settings
+    app = adapter.create_app(official_module=official, token=TOKEN,
+                             allowed_origins=(ORIGIN,), manifest=adapter.load_manifest())
+    async with TestClient(TestServer(app)) as test_client:
+        yield test_client, manager, secret, settings_document
+
+
 @pytest_asyncio.fixture
 async def client():
     manifest = adapter.load_manifest()
@@ -75,6 +147,111 @@ async def command_client(tmp_path):
     )
     async with TestClient(TestServer(app)) as test_client:
         yield test_client
+
+
+@pytest.mark.asyncio
+async def test_model_profiles_crud_never_returns_api_keys(model_client):
+    client, manager, secret, settings_document = model_client
+    listed = await client.get("/api/v1/model-profiles", headers=AUTH)
+    assert listed.status == 200
+    first_profile = (await listed.json())["payload"]["profiles"][0]
+    assert first_profile["protocol"] == "unknown"
+    assert first_profile["protocol_source"] == "unknown"
+
+    detail = await client.get("/api/v1/model-profiles/0", headers=AUTH)
+    assert detail.status == 200
+    assert (await detail.json())["payload"]["profile"]["api_key_configured"] is True
+
+    created = await client.post("/api/v1/model-profiles", headers=AUTH, json={
+        "protocol": "claude", "name": "Claude", "model": "claude-test",
+        "apibase": "https://claude.example", "api_key": "new-secret-key",
+        "max_retries": 3, "connect_timeout": 20, "read_timeout": 600, "stream": False,
+    })
+    assert created.status == 201
+    assert manager.calls[-1][1]["apikey"] == "new-secret-key"
+    assert (await created.json())["payload"]["profile"]["protocol"] == "claude"
+
+    patched = await client.patch("/api/v1/model-profiles/1", headers=AUTH, json={
+        "name": "Claude Renamed", "api_key": "",
+    })
+    assert patched.status == 200
+    assert "apikey" not in manager.calls[-1][2]
+    assert manager.calls[-1][2]["model"] == "claude-test"
+    assert manager.calls[-1][2]["apibase"] == "https://claude.example"
+    selected = await client.post("/api/v1/model-profiles/1/default", headers=AUTH)
+    assert selected.status == 200
+    assert settings_document["ui"] == {"theme": "dark", "llmNo": 1}
+    assert manager.config["llmNo"] == 1
+    assert (await selected.json())["payload"]["profiles"][1]["active"] is True
+    manager.config["llmNo"] = 0
+    deleted = await client.delete("/api/v1/model-profiles/1", headers=AUTH)
+    assert deleted.status == 200
+
+    bodies = json.dumps([await listed.json(), await detail.json(), await created.json(),
+                         await patched.json(), await deleted.json()])
+    assert secret not in bodies
+    assert "new-secret-key" not in bodies
+    assert "apikey" not in bodies
+
+
+@pytest.mark.asyncio
+async def test_model_profiles_reject_unknown_fields_and_protect_last_profile(model_client):
+    client, _, _, _ = model_client
+    invalid = await client.post("/api/v1/model-profiles", headers=AUTH, json={
+        "protocol": "oai", "model": "x", "apibase": "https://example",
+        "api_key": "secret", "headers": {"Authorization": "secret"},
+    })
+    assert invalid.status == 400
+    assert (await invalid.json())["payload"]["code"] == "invalid_model_profile"
+
+    missing = await client.get("/api/v1/model-profiles/99", headers=AUTH)
+    assert missing.status == 404
+    last = await client.delete("/api/v1/model-profiles/0", headers=AUTH)
+    assert last.status == 409
+    assert (await last.json())["payload"]["code"] == "model_profile_conflict"
+
+
+@pytest.mark.asyncio
+async def test_model_profile_delete_remaps_default_index(model_client):
+    client, manager, _, settings_document = model_client
+    for name in ("Second", "Third"):
+        created = await client.post("/api/v1/model-profiles", headers=AUTH, json={
+            "protocol": "oai", "name": name, "model": name.lower(),
+            "apibase": "https://api.example/v1", "api_key": "",
+        })
+        assert created.status == 201
+
+    selected = await client.post("/api/v1/model-profiles/2/default", headers=AUTH)
+    assert selected.status == 200
+    deleted_before = await client.delete("/api/v1/model-profiles/0", headers=AUTH)
+    assert deleted_before.status == 200
+    assert manager.config["llmNo"] == 1
+    assert settings_document["ui"]["llmNo"] == 1
+    assert (await deleted_before.json())["payload"]["profiles"][1]["active"] is True
+
+    deleted_default = await client.delete("/api/v1/model-profiles/1", headers=AUTH)
+    assert deleted_default.status == 200
+    assert manager.config["llmNo"] == 0
+    assert settings_document["ui"]["llmNo"] == 0
+    assert (await deleted_default.json())["payload"]["profiles"][0]["active"] is True
+
+
+@pytest.mark.asyncio
+async def test_model_profile_delete_failure_restores_default(model_client):
+    client, manager, _, settings_document = model_client
+    created = await client.post("/api/v1/model-profiles", headers=AUTH, json={
+        "protocol": "oai", "name": "Second", "model": "second",
+        "apibase": "https://api.example/v1", "api_key": "",
+    })
+    assert created.status == 201
+    assert (await client.post("/api/v1/model-profiles/1/default", headers=AUTH)).status == 200
+    manager.fail_delete = True
+
+    failed = await client.delete("/api/v1/model-profiles/0", headers=AUTH)
+    assert failed.status == 503
+    assert manager.config["llmNo"] == 1
+    assert settings_document["ui"]["llmNo"] == 1
+    assert len(manager.items) == 2
 
 
 @pytest.mark.asyncio
@@ -254,6 +431,20 @@ def test_pinned_official_bridge_contract_without_importing_user_runtime():
         ("add_get", "/ws"), ("add_get", "/status"), ("add_get", "/sessions"),
         ("add_post", "/session/new"), ("add_post", "/session/{sid}/prompt"),
         ("add_get", "/session/{sid}/messages"), ("add_post", "/session/{sid}/cancel"),
+    }
+    assert required <= routes
+
+
+@pytest.mark.asyncio
+async def test_adapter_exposes_model_profile_routes(model_client):
+    client, _, _, _ = model_client
+    routes = {(route.method, route.resource.canonical) for route in client.app.router.routes()}
+    required = {
+        ("GET", "/api/v1/model-profiles"), ("POST", "/api/v1/model-profiles"),
+        ("GET", "/api/v1/model-profiles/{profile_id}"),
+        ("PATCH", "/api/v1/model-profiles/{profile_id}"),
+        ("DELETE", "/api/v1/model-profiles/{profile_id}"),
+        ("POST", "/api/v1/model-profiles/{profile_id}/default"),
     }
     assert required <= routes
 
