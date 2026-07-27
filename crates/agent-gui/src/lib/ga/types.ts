@@ -80,6 +80,37 @@ export type GaCommandResult = {
   command_id: string;
   result: { type: "prompt"; prompt: string };
 };
+export type GaHookRegistration = { event: string; module: string; handler: string };
+export type GaHookObservation = { id: string; event: string; timestamp: string };
+export type GaHooksSnapshot = {
+  registry_state: "loaded" | "not_loaded";
+  events: string[];
+  registrations: GaHookRegistration[];
+  observations: GaHookObservation[];
+};
+export type GaAutomation = {
+  id: string;
+  schedule: string;
+  repeat: string;
+  enabled: boolean;
+  prompt: string;
+  max_delay_hours: number;
+};
+export type GaAutomationDiagnostic = { id: string; code: string };
+export type GaAutomationsSnapshot = {
+  automations: GaAutomation[];
+  diagnostics: GaAutomationDiagnostic[];
+};
+export type GaAutomationRun = { id: string; timestamp: string; size: number };
+export type GaAutomationInput = Omit<GaAutomation, "id"> & { id: string };
+export type GaServiceState = {
+  id: string;
+  name?: string;
+  status: "running" | "offline" | "error" | string;
+  running: boolean;
+  lastError?: string;
+};
+export type GaServicePanel = { services: GaServiceState[] };
 export type GaSessionSnapshot = {
   sessionId: string;
   session: GaSessionDto;

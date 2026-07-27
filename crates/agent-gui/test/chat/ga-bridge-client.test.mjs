@@ -167,3 +167,49 @@ test("sidebar treats WS as a hint and hydrates an authoritative session snapshot
   assert.equal(emitted[1].conversationId, "s9");
   unsubscribe();
 });
+
+
+test("client uses typed GenericAgent hooks and automation registry routes", async () => {
+  const calls = [];
+  const fetcher = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    if (String(url).endsWith("/services/panel")) {
+      return response(200, { services: [{ id: "reflect/scheduler.py", status: "offline", running: false }] });
+    }
+    if (String(url).endsWith("/services/start")) {
+      return response(200, { ok: true, service: { id: "reflect/scheduler.py", status: "running", running: true } });
+    }
+    if (String(url).endsWith("/api/v1/hooks")) {
+      return response(200, { payload: { registry_state: "loaded", events: ["tool_before"], registrations: [], observations: [] } });
+    }
+    if (String(url).endsWith("/runs")) {
+      return response(200, { payload: { id: "daily", runs: [{ id: "r1", timestamp: "2026-07-28T08:00:00", size: 12 }] } });
+    }
+    if (options.method === "DELETE") return response(200, { payload: { ok: true } });
+    if (options.method === "POST" || options.method === "PATCH") {
+      return response(200, { payload: { id: "daily", schedule: "08:00", repeat: "daily", enabled: true, prompt: "Check", max_delay_hours: 6 } });
+    }
+    return response(200, { payload: { automations: [], diagnostics: [] } });
+  };
+  const client = new GaBridgeClient(fetcher);
+  assert.equal((await client.getHooks()).registry_state, "loaded");
+  assert.deepEqual(await client.listAutomations(), { automations: [], diagnostics: [] });
+  await client.createAutomation({ id: "daily", schedule: "08:00", repeat: "daily", enabled: true, prompt: "Check", max_delay_hours: 6 });
+  await client.updateAutomation("daily", { enabled: false });
+  assert.equal((await client.listAutomationRuns("daily"))[0].id, "r1");
+  await client.deleteAutomation("daily");
+  assert.equal((await client.getServices()).services[0].running, false);
+  assert.equal((await client.setServiceRunning("reflect/scheduler.py", true)).running, true);
+  assert.deepEqual(calls.map((call) => [new URL(call.url).pathname, call.options.method ?? "GET"]), [
+    ["/api/v1/hooks", "GET"],
+    ["/api/v1/automations", "GET"],
+    ["/api/v1/automations", "POST"],
+    ["/api/v1/automations/daily", "PATCH"],
+    ["/api/v1/automations/daily/runs", "GET"],
+    ["/api/v1/automations/daily", "DELETE"],
+    ["/services/panel", "GET"],
+    ["/services/start", "POST"],
+  ]);
+  assert.deepEqual(JSON.parse(calls[3].options.body), { enabled: false });
+  assert.deepEqual(JSON.parse(calls[7].options.body), { id: "reflect/scheduler.py" });
+});

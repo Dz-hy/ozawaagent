@@ -3,14 +3,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
-import { CronPromptRunner } from "./components/cron/CronPromptRunner";
 import { Pin } from "./components/icons";
 import { useNativeInputContextMenu } from "./components/input-context-menu/NativeInputContextMenu";
 import { MemoryOrganizerHost } from "./components/memory/useMemoryOrganizer";
 import { WindowsTitleBar } from "./components/WindowsTitleBar";
 import { LocaleContext, t as translate } from "./i18n";
 import { useAppUpdateController } from "./lib/appUpdates";
-import { initAutomation } from "./lib/automation";
 import {
   type AppSettings,
   getDefaultSettings,
@@ -430,13 +428,6 @@ export default function App() {
   });
 
   useEffect(() => {
-    if (!settingsReady) return;
-    void initAutomation().catch((error) => {
-      console.warn("Failed to initialize automation store", error);
-    });
-  }, [settingsReady]);
-
-  useEffect(() => {
     if (!settingsReady) {
       return;
     }
@@ -488,7 +479,6 @@ export default function App() {
   return (
     <LocaleContext.Provider value={localeContextValue}>
       <AppChrome>
-        <CronPromptRunner settings={settings} />
         <MemoryOrganizerHost settings={settings} setSettings={setSettings} />
         <AppErrorBoundary>
           <ChatPage

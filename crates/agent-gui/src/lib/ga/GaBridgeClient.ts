@@ -1,14 +1,21 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  GaAutomation,
+  GaAutomationInput,
+  GaAutomationRun,
+  GaAutomationsSnapshot,
   GaBridgeEvent,
   GaCommandDto,
   GaCommandResult,
   GaEnvelope,
+  GaHooksSnapshot,
   GaMessageDto,
   GaMessagesSnapshot,
   GaPromptAccepted,
   GaPromptRequest,
   GaRuntimeStartResponse,
+  GaServicePanel,
+  GaServiceState,
   GaSessionDto,
   GaSessionSnapshot,
 } from "./types";
@@ -157,6 +164,43 @@ export class GaBridgeClient {
       method: "POST",
       body: JSON.stringify({ args_text: argsText }),
     });
+  }
+  getHooks(): Promise<GaHooksSnapshot> {
+    return this.request("/api/v1/hooks");
+  }
+  listAutomations(): Promise<GaAutomationsSnapshot> {
+    return this.request("/api/v1/automations");
+  }
+  createAutomation(input: GaAutomationInput): Promise<GaAutomation> {
+    return this.request<GaAutomation>("/api/v1/automations", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+  updateAutomation(id: string, patch: Partial<Omit<GaAutomation, "id">>): Promise<GaAutomation> {
+    return this.request<GaAutomation>(`/api/v1/automations/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+  }
+  async deleteAutomation(id: string): Promise<void> {
+    await this.request(`/api/v1/automations/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+  async listAutomationRuns(id: string): Promise<GaAutomationRun[]> {
+    const result = await this.request<{ id: string; runs: GaAutomationRun[] }>(
+      `/api/v1/automations/${encodeURIComponent(id)}/runs`,
+    );
+    return result.runs;
+  }
+  getServices(): Promise<GaServicePanel> {
+    return this.request("/services/panel");
+  }
+  async setServiceRunning(id: string, running: boolean): Promise<GaServiceState> {
+    const result = await this.request<{ ok: boolean; service: GaServiceState }>(
+      running ? "/services/start" : "/services/stop",
+      { method: "POST", body: JSON.stringify({ id }) },
+    );
+    return result.service;
   }
 
   events(): GaWebSocketManager {

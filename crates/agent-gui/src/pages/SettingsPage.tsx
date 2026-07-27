@@ -18,9 +18,9 @@ import { isMacOsTauri, MacOsTitleBarSpacer } from "../components/MacOsTitleBarSp
 import { useLocale } from "../i18n";
 import { AboutSection } from "./settings/AboutSection";
 import { AgentsSection } from "./settings/AgentsSection";
-import { CronSection } from "./settings/CronSection";
+import { GaAutomationSection } from "./settings/GaAutomationSection";
+import { GaHooksSection } from "./settings/GaHooksSection";
 import { GlobalShortcutsSection } from "./settings/GlobalShortcutsSection";
-import { HooksSection } from "./settings/HooksSection";
 import { MemoryPanel } from "./settings/memory/MemoryPanel";
 import { ProvidersSection } from "./settings/ProvidersSection";
 import { RemoteSection } from "./settings/RemoteSection";
@@ -193,9 +193,9 @@ export function SettingsPage(props: SettingsPageProps) {
       case "systemTools":
         return <SystemToolsSection settings={settings} setSettings={setSettings} />;
       case "hooks":
-        return <HooksSection settings={settings} setSettings={setSettings} />;
+        return <GaHooksSection />;
       case "cron":
-        return <CronSection settings={settings} setSettings={setSettings} />;
+        return <GaAutomationSection />;
       case "agents":
         return <AgentsSection settings={settings} setSettings={setSettings} />;
       case "ssh":
