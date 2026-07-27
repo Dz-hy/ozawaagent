@@ -64,6 +64,22 @@ export type GaPromptAccepted = {
   userMessageId: number;
   seq: number;
 };
+export type GaCommandDto = {
+  id: string;
+  name: string;
+  title: string;
+  description: string;
+  arg_hint: string;
+  owner: "ga" | string;
+  api_version: string;
+  plugin_version: string;
+  argument_schema: Record<string, unknown>;
+  permissions: string[];
+};
+export type GaCommandResult = {
+  command_id: string;
+  result: { type: "prompt"; prompt: string };
+};
 export type GaSessionSnapshot = {
   sessionId: string;
   session: GaSessionDto;

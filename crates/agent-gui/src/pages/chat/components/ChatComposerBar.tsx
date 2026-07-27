@@ -13,6 +13,7 @@ import {
 import { getUploadedFileTypeIcon } from "../../../components/chat/fileTypeIcons";
 import {
   MentionComposer,
+  type MentionComposerCommand,
   type MentionComposerHandle,
   type MentionComposerSkill,
 } from "../../../components/chat/MentionComposer";
@@ -135,6 +136,7 @@ export const ChatComposerBar = memo(function ChatComposerBar(props: {
   inputPlaceholder: string;
   workdir: string;
   enabledSkills: MentionComposerSkill[];
+  availableCommands: MentionComposerCommand[];
   isAgentMode: boolean;
   chatRuntimeControls: ChatRuntimeControls;
   reasoningOptions: ReasoningLevel[];
@@ -168,6 +170,7 @@ export const ChatComposerBar = memo(function ChatComposerBar(props: {
     inputPlaceholder,
     workdir,
     enabledSkills,
+    availableCommands,
     isAgentMode,
     chatRuntimeControls,
     reasoningOptions,
@@ -757,6 +760,7 @@ export const ChatComposerBar = memo(function ChatComposerBar(props: {
               disabled={isInputDisabled}
               workdir={workdir}
               enabledSkills={enabledSkills}
+              availableCommands={availableCommands}
               className={cn("px-0 py-0 pr-8", isComposerExpanded && "h-full max-h-none")}
             />
           </div>

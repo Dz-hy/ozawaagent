@@ -86,6 +86,7 @@ import {
   buildResumeContext as buildResumeConversationContext,
 } from "./conversationContextBuilders";
 import { startConversationTitleJob } from "./conversationTitleJob";
+import { expandGaCommandPrompt } from "./gaCommands";
 import {
   type EffectiveChatModelSelection,
   resolveEffectiveChatModelSelection,
@@ -438,6 +439,20 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
       }
       if (!text && uploadedFiles.length === 0) return false;
 
+      let expandedText = text;
+      try {
+        expandedText = await expandGaCommandPrompt(text, (commandId, argsText) =>
+          gaBridgeClient.executeCommand(commandId, argsText),
+        );
+      } catch (error) {
+        const message = asErrorMessage(error, "GenericAgent command failed");
+        setConversationErrorState(message);
+        setErrorMessage(message);
+        gatewayBridgeEvents.emitError(message, conversationId);
+        await gatewayBridgeEvents.close();
+        return false;
+      }
+
       const abortController = new AbortController();
       const baseState = runtimeEntry.state;
       const visible = currentConversationIdRef.current === conversationId;
@@ -461,7 +476,7 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
         return file.kind === "image" && path ? [{ name: file.fileName, path }] : [];
       });
       const attachmentPaths = [...files, ...imageMetas].map((file) => file.path);
-      const gaPrompt = [text, ...attachmentPaths].filter(Boolean).join("\n");
+      const gaPrompt = [expandedText, ...attachmentPaths].filter(Boolean).join("\n");
       try {
         await runGaChatTurn({
           conversationId,

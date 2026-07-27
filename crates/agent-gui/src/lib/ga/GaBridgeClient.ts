@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   GaBridgeEvent,
+  GaCommandDto,
+  GaCommandResult,
   GaEnvelope,
   GaMessageDto,
   GaMessagesSnapshot,
@@ -145,6 +147,16 @@ export class GaBridgeClient {
   }
   messages(id: string, after = 0): Promise<{ messages?: GaMessageDto[] } | GaMessageDto[]> {
     return this.request(`/session/${encodeURIComponent(id)}/messages?after=${after}`);
+  }
+  async listCommands(): Promise<GaCommandDto[]> {
+    const result = await this.request<{ commands: GaCommandDto[] }>("/api/v1/commands");
+    return result.commands;
+  }
+  executeCommand(id: string, argsText = ""): Promise<GaCommandResult> {
+    return this.request(`/api/v1/commands/${encodeURIComponent(id)}/execute`, {
+      method: "POST",
+      body: JSON.stringify({ args_text: argsText }),
+    });
   }
 
   events(): GaWebSocketManager {

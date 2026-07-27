@@ -71,6 +71,14 @@ export type MentionComposerSkill = {
   baseDir: string;
 };
 
+export type MentionComposerCommand = {
+  id: string;
+  name: string;
+  title: string;
+  description: string;
+  argHint: string;
+};
+
 export type MentionComposerSkillMention = MentionComposerSkill;
 
 export type MentionComposerCommitMention = {
@@ -105,7 +113,8 @@ export type MentionComposerGitFileMention = {
 
 type MentionSuggestion =
   | { type: "file"; entry: MentionFileEntry }
-  | { type: "skill"; skill: MentionComposerSkill };
+  | { type: "skill"; skill: MentionComposerSkill }
+  | { type: "command"; command: MentionComposerCommand };
 
 type ComposerContextMenuState = {
   x: number;
@@ -190,6 +199,7 @@ export interface MentionComposerProps {
   placeholder?: string;
   workdir: string;
   enabledSkills?: MentionComposerSkill[];
+  availableCommands?: MentionComposerCommand[];
   className?: string;
 }
 
@@ -1225,6 +1235,16 @@ function insertMentionChipElement(ctx: MentionContext, chip: HTMLElement) {
   placeCaretInTextNode(afterNode, anchor.caretOffset);
 }
 
+function insertCommandText(ctx: MentionContext, command: MentionComposerCommand) {
+  const { textNode, triggerOffset, query } = ctx;
+  const text = textNode.textContent || "";
+  const beforeText = text.slice(0, triggerOffset);
+  const afterRaw = text.slice(triggerOffset + 1 + query.length);
+  const replacement = `${command.name} `;
+  textNode.textContent = `${beforeText}${replacement}${afterRaw}`;
+  placeCaretInTextNode(textNode, beforeText.length + replacement.length);
+}
+
 /** Replace the @query text with a styled mention chip. */
 function insertMentionChip(ctx: MentionContext, path: string, kind: "file" | "dir") {
   const chip = createFileMentionChip(path, kind);
@@ -1825,7 +1845,7 @@ function Popup({
       }}
     >
       <div className="px-3.5 pb-1.5 pt-3 text-xs font-medium text-muted-foreground">
-        {trigger === "skill" ? "Skills" : "文件"}
+        {trigger === "skill" ? "Commands / Skills" : "文件"}
       </div>
       <div
         ref={listRef}
@@ -1836,7 +1856,9 @@ function Popup({
         )}
         {error && !isLoading && <div className="px-2 py-2 text-xs text-destructive">{error}</div>}
         {suggestions.map((suggestion, i) => {
+          const isCommand = suggestion.type === "command";
           const isSkill = suggestion.type === "skill";
+          const command = suggestion.type === "command" ? suggestion.command : null;
           const entry = suggestion.type === "file" ? suggestion.entry : null;
           const skill = suggestion.type === "skill" ? suggestion.skill : null;
           const isDir = entry?.kind === "dir";
@@ -1844,12 +1866,18 @@ function Popup({
           const fileName = parts.pop() || "";
           const dirPath = parts.join("/");
           const Icon = entry ? getFileTypeIcon(entry.path, entry.kind) : null;
-          const title = skill?.name ?? fileName;
-          const subtitle = skill?.description ?? (dirPath ? `${dirPath}/` : "");
+          const title = command?.name ?? skill?.name ?? fileName;
+          const subtitle = command
+            ? `${command.argHint}${command.argHint && command.description ? " — " : ""}${command.description}`
+            : (skill?.description ?? (dirPath ? `${dirPath}/` : ""));
           return (
             <div
               key={
-                entry ? `${entry.kind}:${entry.path}` : `skill:${skill?.skillFile ?? skill?.name}`
+                command
+                  ? `command:${command.id}`
+                  : entry
+                    ? `${entry.kind}:${entry.path}`
+                    : `skill:${skill?.skillFile ?? skill?.name}`
               }
               ref={i === highlightIndex ? hlRef : undefined}
               className={cn(
@@ -1870,7 +1898,7 @@ function Popup({
               <span
                 className={cn(
                   "flex h-4 w-4 shrink-0 items-center justify-center",
-                  isSkill
+                  isSkill || isCommand
                     ? "text-foreground/85"
                     : isDir
                       ? "text-amber-600 dark:text-amber-300"
@@ -1885,16 +1913,10 @@ function Popup({
                   <span className="ml-2 text-xs text-muted-foreground/75">{subtitle}</span>
                 )}
               </span>
-              {isSkill ? (
+              {(isCommand || isSkill || isDir) && (
                 <span className="shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground/60">
-                  skill
+                  {isCommand ? "command" : isSkill ? "skill" : "dir"}
                 </span>
-              ) : (
-                isDir && (
-                  <span className="shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground/60">
-                    dir
-                  </span>
-                )
               )}
             </div>
           );
@@ -2086,6 +2108,7 @@ export const MentionComposer = memo(
       placeholder = "",
       workdir,
       enabledSkills = [],
+      availableCommands = [],
       className,
     }: MentionComposerProps,
     ref,
@@ -2366,6 +2389,13 @@ export const MentionComposer = memo(
 
       if (mentionCtx.trigger === "skill") {
         const next: MentionSuggestion[] = [];
+        for (const command of availableCommands) {
+          const haystack =
+            `${command.name}\n${command.title}\n${command.description}\n${command.argHint}`.toLowerCase();
+          if (normalizedMentionQuery && !haystack.includes(normalizedMentionQuery)) continue;
+          next.push({ type: "command", command });
+          if (next.length >= MAX_SUGGESTIONS) return next;
+        }
         for (const skill of enabledSkills) {
           const haystack = `${skill.name}\n${skill.description}\n${skill.baseDir}`.toLowerCase();
           if (normalizedMentionQuery && !haystack.includes(normalizedMentionQuery)) {
@@ -2390,7 +2420,13 @@ export const MentionComposer = memo(
         }
       }
       return next;
-    }, [enabledSkills, mentionCtx, mentionSessionSearchIndex, normalizedMentionQuery]);
+    }, [
+      availableCommands,
+      enabledSkills,
+      mentionCtx,
+      mentionSessionSearchIndex,
+      normalizedMentionQuery,
+    ]);
 
     useEffect(() => {
       setHighlightIdx((current) => {
@@ -2619,13 +2655,15 @@ export const MentionComposer = memo(
         }
       };
 
-      applyContext(detectMention(el, enabledSkills.length > 0));
+      const slashEnabled = enabledSkills.length > 0 || availableCommands.length > 0;
+      applyContext(detectMention(el, slashEnabled));
       window.requestAnimationFrame(() => {
         const nextEl = editorRef.current;
         if (!nextEl || document.activeElement !== nextEl) return;
-        applyContext(detectMention(nextEl, enabledSkills.length > 0));
+        applyContext(detectMention(nextEl, slashEnabled));
       });
     }, [
+      availableCommands.length,
       cancelMentionRefetch,
       closeMentionSession,
       enabledSkills.length,
@@ -2882,7 +2920,9 @@ export const MentionComposer = memo(
           closeMentionSession();
           return;
         }
-        if (suggestion.type === "skill") {
+        if (suggestion.type === "command") {
+          insertCommandText(mentionCtx, suggestion.command);
+        } else if (suggestion.type === "skill") {
           insertSkillMentionChip(mentionCtx, suggestion.skill);
         } else {
           insertMentionChip(mentionCtx, suggestion.entry.path, suggestion.entry.kind);

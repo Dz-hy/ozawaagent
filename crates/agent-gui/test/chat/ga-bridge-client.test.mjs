@@ -39,6 +39,18 @@ test("client unwraps v1 envelopes and sends authenticated session CRUD", async (
     if (String(url).endsWith("/session/new")) {
       return response(200, { session: { id: "s2", cwd: "C:/space dir" } });
     }
+    if (String(url).endsWith("/api/v1/commands")) {
+      return response(200, {
+        payload: {
+          commands: [{ id: "goal", name: "/goal", description: "Run a goal" }],
+        },
+      });
+    }
+    if (String(url).endsWith("/api/v1/commands/goal%2Fsafe/execute")) {
+      return response(200, {
+        payload: { command_id: "goal/safe", result: { type: "prompt", prompt: "GOAL:ship" } },
+      });
+    }
     if (options.method === "PATCH") {
       return response(200, { session: { id: "s2", title: "renamed" } });
     }
@@ -47,6 +59,8 @@ test("client unwraps v1 envelopes and sends authenticated session CRUD", async (
   const client = new GaBridgeClient(fetcher);
   assert.equal((await client.listSessions()).sessions[0].id, "s1");
   assert.equal((await client.createSession("C:/space dir")).id, "s2");
+  assert.equal((await client.listCommands())[0].id, "goal");
+  assert.equal((await client.executeCommand("goal/safe", "ship")).result.prompt, "GOAL:ship");
   assert.equal((await client.renameSession("s2", "renamed")).title, "renamed");
   await client.deleteSession("s2");
 
@@ -54,8 +68,12 @@ test("client unwraps v1 envelopes and sends authenticated session CRUD", async (
   assert.deepEqual(invokes[0].args, { ga_root: null, bundled_root: null });
   assert.equal(calls[0].options.headers.Authorization, `Bearer ${runtime.token}`);
   assert.deepEqual(JSON.parse(calls[1].options.body), { cwd: "C:/space dir" });
-  assert.match(calls[2].url, /\/session\/s2$/);
-  assert.equal(calls[3].options.method, "DELETE");
+  assert.match(calls[2].url, /\/api\/v1\/commands$/);
+  assert.match(calls[3].url, /\/api\/v1\/commands\/goal%2Fsafe\/execute$/);
+  assert.equal(calls[3].options.method, "POST");
+  assert.deepEqual(JSON.parse(calls[3].options.body), { args_text: "ship" });
+  assert.match(calls[4].url, /\/session\/s2$/);
+  assert.equal(calls[5].options.method, "DELETE");
 });
 
 test("client preserves typed bridge failures without exposing credentials", async () => {

@@ -14,7 +14,10 @@ import {
   ChangedFilesActionsProvider,
 } from "../components/chat/ChangedFilesCard";
 import { HistoryShareModal } from "../components/chat/HistoryShareModal";
-import type { MentionComposerHandle } from "../components/chat/MentionComposer";
+import type {
+  MentionComposerCommand,
+  MentionComposerHandle,
+} from "../components/chat/MentionComposer";
 import { NotifyToast } from "../components/chat/NotifyToast";
 import { SharedHistoryManagerModal } from "../components/chat/SharedHistoryManagerModal";
 import { PanelRightClose, PanelRightOpen } from "../components/icons";
@@ -47,6 +50,7 @@ import {
   getFirstUserMessageText,
 } from "../lib/chat/page/chatPageHelpers";
 import type { ScrollFollowHandle } from "../lib/chat-scroll/useScrollFollow";
+import { gaBridgeClient } from "../lib/ga/GaBridgeClient";
 import { createGaSidebarBackend } from "../lib/ga/gaSidebarBackend";
 import { tauriGitClient } from "../lib/git/tauriGitClient";
 import { setPreferredMonacoNlsLocale } from "../lib/monacoNls";
@@ -346,6 +350,32 @@ export function ChatPage(props: ChatPageProps) {
       .map((name) => byName.get(name))
       .filter((skill): skill is (typeof availableSkills)[number] => Boolean(skill));
   }, [availableSkills, selectedSkillNames, skillsEnabled]);
+  const [availableComposerCommands, setAvailableComposerCommands] = useState<
+    MentionComposerCommand[]
+  >([]);
+  useEffect(() => {
+    let cancelled = false;
+    void gaBridgeClient
+      .listCommands()
+      .then((commands) => {
+        if (cancelled) return;
+        setAvailableComposerCommands(
+          commands.map((command) => ({
+            id: command.id,
+            name: command.name,
+            title: command.title,
+            description: command.description,
+            argHint: command.arg_hint,
+          })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setAvailableComposerCommands([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const codeReviewSkill = useMemo(
     () =>
       availableSkills.find(
@@ -1781,6 +1811,7 @@ export function ChatPage(props: ChatPageProps) {
                 inputPlaceholder={composerPlaceholder}
                 workdir={displayedConversationWorkdir}
                 enabledSkills={enabledComposerSkills}
+                availableCommands={availableComposerCommands}
                 isAgentMode={isAgentMode}
                 chatRuntimeControls={chatRuntimeControlsForCurrentProvider}
                 reasoningOptions={chatRuntimeReasoningOptions}
