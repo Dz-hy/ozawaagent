@@ -18,10 +18,16 @@ from typing import Any, Iterable
 
 from aiohttp import web
 
-ADAPTER_VERSION = "1.1.0"
+ADAPTER_VERSION = "1.2.0"
 API_VERSION = "v1"
 COMMAND_API_VERSION = "1"
 MAX_COMMAND_ARGUMENT_CHARS = 32_768
+MAX_AUTOMATION_PROMPT_CHARS = 32_768
+AUTOMATION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+AUTOMATION_SCHEDULE = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+AUTOMATION_REPEAT = re.compile(r"^(?:daily|weekday|weekly|monthly|once|every_[1-9]\d*[mhd])$")
+HOOK_EVENTS = ["agent_before", "turn_before", "llm_before", "llm_after",
+               "tool_before", "tool_after", "turn_after", "agent_after"]
 MANIFEST_PATH = Path(__file__).with_name("runtime_manifest.json")
 DEFAULT_ORIGINS = ("http://tauri.localhost", "https://tauri.localhost", "tauri://localhost")
 SENSITIVE_KEYS = re.compile(r"authorization|cookie|token|secret|password|passwd|api[_-]?key|private[_-]?key|mykey|credential", re.I)
@@ -175,6 +181,89 @@ def load_official_module(root: Path, manifest: dict[str, Any]):
     return module
 
 
+def safe_hook_label(value: Any) -> str:
+    if not isinstance(value, str) or not value or len(value) > 256:
+        return "unknown"
+    return value if re.fullmatch(r"[A-Za-z0-9_.<>-]+", value) else "unknown"
+
+
+def hook_snapshot() -> dict[str, Any]:
+    module = sys.modules.get("plugins.hooks")
+    registry = getattr(module, "_registry", None) if module is not None else None
+    if not isinstance(registry, dict):
+        return {"registry_state": "not_loaded", "events": HOOK_EVENTS, "registrations": []}
+    registrations = []
+    for event in sorted(registry):
+        callbacks = registry[event]
+        if not isinstance(event, str) or not isinstance(callbacks, (list, tuple)):
+            continue
+        for callback in callbacks:
+            registrations.append({
+                "event": safe_hook_label(event),
+                "module": safe_hook_label(getattr(callback, "__module__", None)),
+                "handler": safe_hook_label(
+                    getattr(callback, "__qualname__", getattr(callback, "__name__", None)),
+                ),
+            })
+    return {"registry_state": "loaded", "events": HOOK_EVENTS, "registrations": registrations}
+
+
+def normalize_automation(value: Any, *, automation_id: str | None = None) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("definition must be an object")
+    allowed = {"schedule", "repeat", "enabled", "prompt", "max_delay_hours"}
+    if automation_id is None:
+        allowed.add("id")
+        automation_id = value.get("id")
+    if set(value) - allowed or not isinstance(automation_id, str) or not AUTOMATION_ID.fullmatch(automation_id):
+        raise ValueError("invalid id or fields")
+    schedule, repeat, enabled, prompt = (value.get(key) for key in ("schedule", "repeat", "enabled", "prompt"))
+    delay = value.get("max_delay_hours", 6)
+    if not isinstance(schedule, str) or not AUTOMATION_SCHEDULE.fullmatch(schedule):
+        raise ValueError("invalid schedule")
+    if not isinstance(repeat, str) or not AUTOMATION_REPEAT.fullmatch(repeat):
+        raise ValueError("invalid repeat")
+    if not isinstance(enabled, bool) or not isinstance(prompt, str) or not prompt.strip() or len(prompt) > MAX_AUTOMATION_PROMPT_CHARS:
+        raise ValueError("invalid task values")
+    if isinstance(delay, bool) or not isinstance(delay, (int, float)) or not 0 <= delay <= 168:
+        raise ValueError("invalid max delay")
+    return {"id": automation_id, "schedule": schedule, "repeat": repeat, "enabled": enabled,
+            "prompt": prompt.strip(), "max_delay_hours": delay}
+
+
+def automation_directory(root: Path) -> Path:
+    resolved_root = root.resolve()
+    candidate = root / "sche_tasks"
+    if candidate.is_symlink():
+        raise ValueError("automation directory cannot be a symbolic link")
+    directory = candidate.resolve()
+    if directory.parent != resolved_root:
+        raise ValueError("automation directory is outside GenericAgent root")
+    return directory
+
+
+def automation_path(root: Path, automation_id: str) -> Path:
+    if not AUTOMATION_ID.fullmatch(automation_id):
+        raise ValueError("invalid automation id")
+    directory = automation_directory(root)
+    path = directory / f"{automation_id}.json"
+    if path.is_symlink() or path.resolve().parent != directory:
+        raise ValueError("invalid automation path")
+    return path
+
+
+def atomic_write_automation(path: Path, automation: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    payload = {key: value for key, value in automation.items() if key != "id"}
+    try:
+        temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
 def load_command_registry(root: Path) -> tuple[Any, list[dict[str, Any]]]:
     """Reflect GA-owned slash metadata without copying command logic into the adapter."""
     path = root / "frontends" / "slash_cmds.py"
@@ -296,11 +385,124 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
         return _json("command.completed", {"command_id": command_id, "result": {"type": "prompt", "prompt": prompt}},
                      200, request.headers.get("X-Request-Id", ""))
 
+    def automation_error(request: web.Request, code: str, message: str, status: int) -> web.Response:
+        return _json("error", {"code": code, "message": message}, status,
+                     request.headers.get("X-Request-Id", ""))
+
+    async def hooks_handler(request: web.Request) -> web.Response:
+        return _json("hooks.snapshot", hook_snapshot(), 200,
+                     request.headers.get("X-Request-Id", ""))
+
+    async def automations_handler(request: web.Request) -> web.Response:
+        if ga_root is None:
+            return automation_error(request, "automation_registry_unavailable",
+                                    "GenericAgent automation registry is unavailable", 503)
+        automations, diagnostics = [], []
+        try:
+            directory = automation_directory(ga_root)
+        except ValueError:
+            return automation_error(request, "automation_registry_unavailable",
+                                    "GenericAgent automation registry is unavailable", 503)
+        for path in sorted(directory.glob("*.json")) if directory.is_dir() else []:
+            try:
+                if path.is_symlink():
+                    raise ValueError("symbolic link definitions are forbidden")
+                raw = json.loads(path.read_text(encoding="utf-8"))
+                automations.append(normalize_automation(raw, automation_id=path.stem))
+            except Exception:
+                diagnostics.append({"id": path.stem, "code": "invalid_definition"})
+        return _json("automations.list", {"automations": automations, "diagnostics": diagnostics}, 200,
+                     request.headers.get("X-Request-Id", ""))
+
+    async def create_automation_handler(request: web.Request) -> web.Response:
+        if ga_root is None:
+            return automation_error(request, "automation_registry_unavailable",
+                                    "GenericAgent automation registry is unavailable", 503)
+        try:
+            automation = normalize_automation(await request.json())
+            path = automation_path(ga_root, automation["id"])
+            if path.exists():
+                return automation_error(request, "automation_exists", "Automation already exists", 409)
+            atomic_write_automation(path, automation)
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TypeError):
+            return automation_error(request, "invalid_automation", "Invalid Agent Prompt automation", 400)
+        return _json("automation.created", {"automation": automation}, 201,
+                     request.headers.get("X-Request-Id", ""))
+
+    async def patch_automation_handler(request: web.Request) -> web.Response:
+        if ga_root is None:
+            return automation_error(request, "automation_registry_unavailable",
+                                    "GenericAgent automation registry is unavailable", 503)
+        try:
+            automation_id = request.match_info["automation_id"]
+            changes = await request.json()
+            if not isinstance(changes, dict) or "id" in changes:
+                raise ValueError("invalid patch")
+            path = automation_path(ga_root, automation_id)
+            if not path.is_file():
+                return automation_error(request, "automation_not_found", "Automation not found", 404)
+            current = json.loads(path.read_text(encoding="utf-8"))
+            automation = normalize_automation({**current, **changes}, automation_id=automation_id)
+            atomic_write_automation(path, automation)
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TypeError):
+            return automation_error(request, "invalid_automation", "Invalid Agent Prompt automation", 400)
+        return _json("automation.updated", {"automation": automation}, 200,
+                     request.headers.get("X-Request-Id", ""))
+
+    async def delete_automation_handler(request: web.Request) -> web.Response:
+        if ga_root is None:
+            return automation_error(request, "automation_registry_unavailable",
+                                    "GenericAgent automation registry is unavailable", 503)
+        try:
+            path = automation_path(ga_root, request.match_info["automation_id"])
+        except ValueError:
+            return automation_error(request, "invalid_automation", "Invalid automation id", 400)
+        if not path.is_file():
+            return automation_error(request, "automation_not_found", "Automation not found", 404)
+        path.unlink()
+        return _json("automation.deleted", {"id": request.match_info["automation_id"]}, 200,
+                     request.headers.get("X-Request-Id", ""))
+
+    async def automation_runs_handler(request: web.Request) -> web.Response:
+        if ga_root is None:
+            return automation_error(request, "automation_registry_unavailable",
+                                    "GenericAgent automation registry is unavailable", 503)
+        automation_id = request.match_info["automation_id"]
+        try:
+            definition = automation_path(ga_root, automation_id)
+        except ValueError:
+            return automation_error(request, "invalid_automation", "Invalid automation id", 400)
+        if not definition.is_file():
+            return automation_error(request, "automation_not_found", "Automation not found", 404)
+        pattern = re.compile(rf"^(\d{{4}}-\d{{2}}-\d{{2}})_(\d{{2}})(\d{{2}})_{re.escape(automation_id)}\.md$")
+        runs = []
+        try:
+            done = automation_directory(ga_root) / "done"
+            if done.is_symlink():
+                raise ValueError("run directory cannot be a symbolic link")
+        except ValueError:
+            return automation_error(request, "automation_registry_unavailable",
+                                    "GenericAgent automation registry is unavailable", 503)
+        for path in sorted(done.glob("*.md"), reverse=True) if done.is_dir() else []:
+            match = pattern.fullmatch(path.name)
+            if match and not path.is_symlink():
+                runs.append({"id": path.stem,
+                             "timestamp": f"{match.group(1)}T{match.group(2)}:{match.group(3)}:00",
+                             "size": path.stat().st_size})
+        return _json("automation.runs", {"id": automation_id, "runs": runs}, 200,
+                     request.headers.get("X-Request-Id", ""))
+
     app.router.add_get("/api/v1/version", version_handler)
     app.router.add_get("/api/v1/capabilities", capabilities_handler)
     app.router.add_get("/api/v1/health", health_handler)
     app.router.add_get("/api/v1/commands", commands_handler)
     app.router.add_post("/api/v1/commands/{command_id}/execute", execute_command_handler)
+    app.router.add_get("/api/v1/hooks", hooks_handler)
+    app.router.add_get("/api/v1/automations", automations_handler)
+    app.router.add_post("/api/v1/automations", create_automation_handler)
+    app.router.add_patch("/api/v1/automations/{automation_id}", patch_automation_handler)
+    app.router.add_delete("/api/v1/automations/{automation_id}", delete_automation_handler)
+    app.router.add_get("/api/v1/automations/{automation_id}/runs", automation_runs_handler)
     return app
 
 

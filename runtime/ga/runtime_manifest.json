@@ -11,6 +11,8 @@
     "model_profiles",
     "services",
     "command_registry",
+    "automation_registry",
+    "hooks_observability",
     "http_commands",
     "websocket_events"
   ],

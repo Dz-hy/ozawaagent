@@ -163,6 +163,8 @@ async def test_v1_envelope_version_capabilities_and_health(client):
     capabilities = (await (await client.get("/api/v1/capabilities", headers=AUTH)).json())["payload"]
     assert capabilities["unknown_events_preserved"] is True
     assert "command_registry" in capabilities["capabilities"]
+    assert "automation_registry" in capabilities["capabilities"]
+    assert "hooks_observability" in capabilities["capabilities"]
     assert "ask_user.requested" in capabilities["events"]
     assert not any(event.startswith("command.") for event in capabilities["events"])
 
@@ -247,7 +249,158 @@ def test_pinned_official_bridge_contract_without_importing_user_runtime():
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr.startswith("add_") and node.args:
             if isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
                 routes.add((node.func.attr, node.args[0].value))
-    required = {("add_get", "/ws"), ("add_get", "/status"), ("add_get", "/sessions"),
-                ("add_post", "/session/new"), ("add_post", "/session/{sid}/prompt"),
-                ("add_get", "/session/{sid}/messages"), ("add_post", "/session/{sid}/cancel")}
+    required = {
+        ("add_get", "/ws"), ("add_get", "/status"), ("add_get", "/sessions"),
+        ("add_post", "/session/new"), ("add_post", "/session/{sid}/prompt"),
+        ("add_get", "/session/{sid}/messages"), ("add_post", "/session/{sid}/cancel"),
+    }
     assert required <= routes
+
+
+@pytest.mark.asyncio
+async def test_adapter_exposes_hooks_and_automation_routes(automation_client):
+    client, _ = automation_client
+    routes = {(route.method, route.resource.canonical) for route in client.app.router.routes()}
+    required = {
+        ("GET", "/api/v1/hooks"), ("GET", "/api/v1/automations"),
+        ("POST", "/api/v1/automations"),
+        ("PATCH", "/api/v1/automations/{automation_id}"),
+        ("DELETE", "/api/v1/automations/{automation_id}"),
+        ("GET", "/api/v1/automations/{automation_id}/runs"),
+    }
+    assert required <= routes
+
+
+@pytest_asyncio.fixture
+async def automation_client(tmp_path):
+    (tmp_path / "sche_tasks").mkdir()
+    manifest = adapter.load_manifest()
+    app = adapter.create_app(
+        official_module=fake_official_module(), token=TOKEN,
+        allowed_origins=(ORIGIN,), manifest=manifest, ga_root=tmp_path,
+    )
+    async with TestClient(TestServer(app)) as test_client:
+        yield test_client, tmp_path
+
+
+@pytest.mark.asyncio
+async def test_hooks_snapshot_reads_only_an_already_loaded_registry(monkeypatch, client):
+    monkeypatch.delitem(adapter.sys.modules, "plugins.hooks", raising=False)
+    unloaded = await client.get("/api/v1/hooks", headers=AUTH)
+    assert unloaded.status == 200
+    assert (await unloaded.json())["payload"] == {
+        "registry_state": "not_loaded",
+        "events": adapter.HOOK_EVENTS,
+        "registrations": [],
+    }
+
+    def callback(_ctx):
+        return None
+
+    callback.__module__ = "plugins.safe_plugin"
+    callback.__qualname__ = "observe"
+    fake_hooks = SimpleNamespace(_registry={"agent_before": [callback], "vendor.event": [callback]})
+    monkeypatch.setitem(adapter.sys.modules, "plugins.hooks", fake_hooks)
+    loaded = await client.get("/api/v1/hooks", headers=AUTH)
+    payload = (await loaded.json())["payload"]
+    assert payload["registry_state"] == "loaded"
+    assert payload["registrations"] == [
+        {"event": "agent_before", "module": "plugins.safe_plugin", "handler": "observe"},
+        {"event": "vendor.event", "module": "plugins.safe_plugin", "handler": "observe"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_agent_prompt_automation_crud_is_strict_and_atomic(automation_client):
+    client, root = automation_client
+    created = await client.post("/api/v1/automations", headers=AUTH, json={
+        "id": "daily-report", "schedule": "08:30", "repeat": "daily",
+        "enabled": True, "prompt": "Prepare the daily report", "max_delay_hours": 4,
+    })
+    assert created.status == 201
+    expected = {"id": "daily-report", "schedule": "08:30", "repeat": "daily",
+                "enabled": True, "prompt": "Prepare the daily report", "max_delay_hours": 4}
+    assert (await created.json())["payload"]["automation"] == expected
+    assert json.loads((root / "sche_tasks" / "daily-report.json").read_text(encoding="utf-8")) == {
+        key: value for key, value in expected.items() if key != "id"
+    }
+    assert not list((root / "sche_tasks").glob("*.tmp"))
+
+    listed = await client.get("/api/v1/automations", headers=AUTH)
+    assert (await listed.json())["payload"] == {"automations": [expected], "diagnostics": []}
+
+    patched = await client.patch("/api/v1/automations/daily-report", headers=AUTH,
+                                 json={"enabled": False, "repeat": "every_15m"})
+    assert patched.status == 200
+    assert (await patched.json())["payload"]["automation"]["enabled"] is False
+    assert (await patched.json())["payload"]["automation"]["repeat"] == "every_15m"
+
+    deleted = await client.delete("/api/v1/automations/daily-report", headers=AUTH)
+    assert deleted.status == 200
+    assert not (root / "sche_tasks" / "daily-report.json").exists()
+
+
+@pytest.mark.asyncio
+async def test_automation_rejects_traversal_unknown_fields_and_invalid_schedule(automation_client):
+    client, root = automation_client
+    valid = {"id": "safe", "schedule": "09:00", "repeat": "weekday",
+             "enabled": True, "prompt": "Do work", "max_delay_hours": 6}
+    cases = [
+        ({**valid, "id": "../escape"}, "invalid_automation"),
+        ({**valid, "schedule": "25:00"}, "invalid_automation"),
+        ({**valid, "repeat": "sometimes"}, "invalid_automation"),
+        ({**valid, "bash": "danger"}, "invalid_automation"),
+        ({**valid, "prompt": ""}, "invalid_automation"),
+    ]
+    for body, code in cases:
+        response = await client.post("/api/v1/automations", headers=AUTH, json=body)
+        assert response.status == 400
+        assert (await response.json())["payload"]["code"] == code
+    assert not (root.parent / "escape.json").exists()
+
+
+@pytest.mark.asyncio
+async def test_automation_listing_isolates_invalid_files_and_run_metadata(automation_client):
+    client, root = automation_client
+    tasks = root / "sche_tasks"
+    (tasks / "broken.json").write_text("{bad", encoding="utf-8")
+    (tasks / "valid.json").write_text(json.dumps({
+        "schedule": "10:00", "repeat": "once", "enabled": True,
+        "prompt": "One shot", "max_delay_hours": 2,
+    }), encoding="utf-8")
+    done = tasks / "done"
+    done.mkdir()
+    (done / "2026-07-28_1030_valid.md").write_text("secret report body", encoding="utf-8")
+    (done / "not-a-run.txt").write_text("ignored", encoding="utf-8")
+
+    listed = (await (await client.get("/api/v1/automations", headers=AUTH)).json())["payload"]
+    assert [item["id"] for item in listed["automations"]] == ["valid"]
+    assert listed["diagnostics"] == [{"id": "broken", "code": "invalid_definition"}]
+    runs = (await (await client.get("/api/v1/automations/valid/runs", headers=AUTH)).json())["payload"]
+    assert runs["runs"] == [{"id": "2026-07-28_1030_valid", "timestamp": "2026-07-28T10:30:00", "size": 18}]
+    assert "secret report body" not in json.dumps(runs)
+
+
+@pytest.mark.asyncio
+async def test_automation_registry_rejects_symlink_escape(tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    root = tmp_path / "ga"
+    root.mkdir()
+    try:
+        (root / "sche_tasks").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("symbolic links are unavailable")
+    app = adapter.create_app(
+        official_module=fake_official_module(), token=TOKEN,
+        allowed_origins=(ORIGIN,), manifest=adapter.load_manifest(), ga_root=root,
+    )
+    async with TestClient(TestServer(app)) as client:
+        response = await client.get("/api/v1/automations", headers=AUTH)
+        assert response.status == 503
+        created = await client.post("/api/v1/automations", headers=AUTH, json={
+            "id": "escape", "schedule": "08:00", "repeat": "daily",
+            "enabled": True, "prompt": "must not escape", "max_delay_hours": 6,
+        })
+        assert created.status == 400
+    assert not (outside / "escape.json").exists()
