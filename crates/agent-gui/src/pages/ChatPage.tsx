@@ -73,7 +73,7 @@ import {
   workspaceProjectPathKey,
 } from "../lib/settings";
 import { cn } from "../lib/shared/utils";
-import { createGuiSidebarBackend } from "../lib/sidebar/guiSidebarBackend";
+import { createGaSidebarBackend } from "../lib/ga/gaSidebarBackend";
 import {
   type ConversationOpenState,
   createConversationOpenController,
@@ -223,7 +223,7 @@ export function ChatPage(props: ChatPageProps) {
   // The sidebar store owns all sidebar domain state (conversation list,
   // workdirs, running set); ChatPage only issues imperative calls and keeps a
   // few narrow selector subscriptions.
-  const sidebarStore = useMemo(() => createSidebarStore(createGuiSidebarBackend()), []);
+  const sidebarStore = useMemo(() => createSidebarStore(createGaSidebarBackend()), []);
   useEffect(() => {
     sidebarStore.start();
     return () => {

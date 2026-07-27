@@ -1,4 +1,6 @@
 import { type Dispatch, type MutableRefObject, type SetStateAction, useRef } from "react";
+import { gaBridgeClient } from "../../../lib/ga/GaBridgeClient";
+import { gaSessionToSidebar } from "../../../lib/ga/gaSidebarBackend";
 import {
   type ConversationViewState,
   createConversationStateFromContext,
@@ -9,12 +11,8 @@ import {
   getChatHistory,
   getChatHistoryActiveSegment,
   persistConversationState,
-  renameChatHistory,
 } from "../../../lib/chat/history/chatHistory";
-import {
-  createConversationIdentity,
-  waitForTitleLookahead,
-} from "../../../lib/chat/page/chatPageHelpers";
+import { waitForTitleLookahead } from "../../../lib/chat/page/chatPageHelpers";
 import { type SelectedModel, serializeSelectedModelJson } from "../../../lib/settings";
 import type { SidebarStore } from "../../../lib/sidebar/store";
 import { disposeTodoToolState } from "../../../lib/tools/todoTools";
@@ -187,7 +185,7 @@ export function useConversationHistoryActions(params: UseConversationHistoryActi
     pruneIdleConversationCaches([conversationId]);
   }
 
-  function startNewConversation(options?: { workdir?: string }) {
+  async function startNewConversation(options?: { workdir?: string }) {
     cancelConversationHydration();
     const visibleConversationId = currentConversationIdRef.current;
     setConversationRuntimeCacheEntry(
@@ -197,17 +195,22 @@ export function useConversationHistoryActions(params: UseConversationHistoryActi
     );
     resetVisibleTransientState();
 
-    const nextIdentity = createConversationIdentity();
-    const nextEntry = createBlankConversationEntry({
-      conversationState,
-      sessionId: nextIdentity.sessionId,
-      createdAt: nextIdentity.createdAt,
-      workdir: options?.workdir ?? getDefaultNewConversationWorkdir?.(),
-    });
-    activateConversation({
-      conversationId: nextIdentity.conversationId,
-      entry: nextEntry,
-    });
+    const workdir = options?.workdir ?? getDefaultNewConversationWorkdir?.();
+    try {
+      const created = await gaBridgeClient.createSession(workdir);
+      const item = gaSessionToSidebar(created);
+      if (!item.id) throw new Error("GenericAgent returned a session without an id");
+      const nextEntry = createBlankConversationEntry({
+        conversationState,
+        sessionId: item.id,
+        createdAt: item.createdAt,
+        workdir: item.cwd,
+      });
+      sidebarStore.upsertLocal(item);
+      activateConversation({ conversationId: item.id, entry: nextEntry, clearError: true });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+    }
   }
 
   async function activateFullRecord(id: string, loadSequence: number) {
@@ -312,13 +315,28 @@ export function useConversationHistoryActions(params: UseConversationHistoryActi
         // Fully hydrated already — the controller skips phase 2.
         return "cache-hit";
       } catch {
-        if (conversationLoadSequenceRef.current === loadSequence) {
-          const msg = err instanceof Error ? err.message : String(err);
-          setHydrationFailedConversationId(id);
-          setErrorMessage(msg || t("chat.history.openFailed"));
-          setHydratingConversationId((current) => (current === id ? null : current));
+        try {
+          const snapshot = await gaBridgeClient.getSession(id);
+          if (conversationLoadSequenceRef.current !== loadSequence) return "painted";
+          const item = gaSessionToSidebar(snapshot.session);
+          const entry = createBlankConversationEntry({
+            conversationState,
+            sessionId: id,
+            createdAt: item.createdAt,
+            workdir: item.cwd,
+          });
+          activateConversation({ conversationId: id, entry, clearError: true });
+          setHydratingConversationId(null);
+          return "cache-hit";
+        } catch {
+          if (conversationLoadSequenceRef.current === loadSequence) {
+            const msg = err instanceof Error ? err.message : String(err);
+            setHydrationFailedConversationId(id);
+            setErrorMessage(msg || t("chat.history.openFailed"));
+            setHydratingConversationId((current) => (current === id ? null : current));
+          }
+          throw err;
         }
-        throw err;
       }
     }
   }
@@ -358,19 +376,7 @@ export function useConversationHistoryActions(params: UseConversationHistoryActi
     disposeSubagentsForConversation?.(id);
 
     if (currentConversationIdRef.current === id) {
-      cancelConversationHydration();
-      resetVisibleTransientState();
-      const nextIdentity = createConversationIdentity();
-      const nextEntry = createBlankConversationEntry({
-        conversationState,
-        sessionId: nextIdentity.sessionId,
-        createdAt: nextIdentity.createdAt,
-        workdir: getDefaultNewConversationWorkdir?.(),
-      });
-      activateConversation({
-        conversationId: nextIdentity.conversationId,
-        entry: nextEntry,
-      });
+      void startNewConversation({ workdir: getDefaultNewConversationWorkdir?.() });
     }
   }
 
@@ -464,10 +470,8 @@ export function useConversationHistoryActions(params: UseConversationHistoryActi
           return;
         }
 
-        markLocalHistorySnapshotSynced(conversationId, Number.MAX_SAFE_INTEGER);
-        const summary = await renameChatHistory(conversationId, resolvedTitle);
-        markLocalHistorySnapshotSynced(summary.id, summary.updatedAt);
-        sidebarStore.upsertLocal({ ...summary, isPending: undefined });
+        const session = await gaBridgeClient.renameSession(conversationId, resolvedTitle);
+        sidebarStore.upsertLocal(gaSessionToSidebar(session));
       })
       .catch(() => {
         markLocalHistorySnapshotSynced(conversationId, -1);

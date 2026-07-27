@@ -2,7 +2,7 @@ import { type Dispatch, type MutableRefObject, type SetStateAction, useCallback 
 import { Terminal } from "../../../components/icons";
 import type { ConfirmDialogOptions } from "../../../components/ui/confirm-dialog";
 import type { ConversationViewState } from "../../../lib/chat/conversation/conversationState";
-import { deleteChatHistory } from "../../../lib/chat/history/chatHistory";
+import { gaBridgeClient } from "../../../lib/ga/GaBridgeClient";
 import { memoryDeleteProject } from "../../../lib/memory/api";
 import {
   type AppSettings,
@@ -221,7 +221,7 @@ export function useWorkspaceProjectRemoval(params: UseWorkspaceProjectRemovalPar
           }
 
           for (const conversationId of conversationIds) {
-            await deleteChatHistory(conversationId);
+            await gaBridgeClient.deleteSession(conversationId);
           }
 
           const deletedConversationIds = new Set(conversationIds);

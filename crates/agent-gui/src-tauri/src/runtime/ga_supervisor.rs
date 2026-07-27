@@ -170,6 +170,37 @@ impl GaRuntimeSupervisor {
         self: &Arc<Self>,
         launch: GaRuntimeLaunch,
     ) -> Result<(GaRuntimeStatus, String), String> {
+        let existing = self
+            .process
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|process| process.token.clone());
+        if let Some(token) = existing {
+            let deadline = Instant::now() + START_TIMEOUT;
+            loop {
+                let status = self.status();
+                if status.phase == GaRuntimePhase::Running {
+                    let port = self
+                        .process
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .map(|process| process.port)
+                        .ok_or_else(|| "GA runtime process disappeared".to_string())?;
+                    let mut current = status;
+                    current.port = Some(port);
+                    return Ok((current, token));
+                }
+                if status.phase != GaRuntimePhase::Restarting {
+                    break;
+                }
+                if Instant::now() >= deadline {
+                    return Err("GA runtime restart timed out; inspect the runtime log".into());
+                }
+                thread::sleep(Duration::from_millis(100));
+            }
+        }
         let status = self.start(launch)?;
         let token = self
             .process
