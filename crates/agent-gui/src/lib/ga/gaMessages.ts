@@ -4,6 +4,7 @@ import {
   replaceActiveSegmentMessages,
 } from "../chat/conversation/conversationState";
 import { gaProtocolToMessages } from "./gaProtocol";
+import { gaUnknownMessageToTool } from "./gaUnknownEvent";
 import type { GaMessageDto, GaMessagesSnapshot } from "./types";
 
 const EMPTY_USAGE: AssistantMessage["usage"] = {
@@ -38,6 +39,23 @@ export function gaMessageToPiMessages(
   if (role === "user") {
     return [{ role: "user", content: text, ...common } as UserMessage];
   }
+  const protocolIdPrefix = conversationId ? `ga-${conversationId}-${messageId}` : `ga-${messageId}`;
+  if (role !== "assistant" && role !== "error") {
+    const unknown = gaUnknownMessageToTool(message, protocolIdPrefix, common.timestamp);
+    return [
+      {
+        role: "assistant",
+        content: [unknown.call],
+        api: model.api,
+        provider: model.provider,
+        model: model.model,
+        usage: EMPTY_USAGE,
+        stopReason: "stop",
+        ...common,
+      },
+      unknown.result,
+    ];
+  }
   const error = role === "error" ? text || "GenericAgent request failed" : undefined;
   const base = {
     role: "assistant" as const,
@@ -53,7 +71,6 @@ export function gaMessageToPiMessages(
     ...(error ? { errorMessage: error } : {}),
     ...common,
   };
-  const protocolIdPrefix = conversationId ? `ga-${conversationId}-${messageId}` : `ga-${messageId}`;
   return gaProtocolToMessages(
     error ? `Request failed: ${error}` : text,
     base,

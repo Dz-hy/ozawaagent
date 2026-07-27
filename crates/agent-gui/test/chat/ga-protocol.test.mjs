@@ -130,6 +130,39 @@ test("GA ask answers use a targeted sender and become idempotently settled only 
   unregister();
 });
 
+test("unknown authoritative GA messages become generic cards without leaking sensitive fields", () => {
+  const expanded = gaMessageToPiMessages(
+    {
+      id: 12,
+      role: "hook.event",
+      type: "custom.progress",
+      content: "kept",
+      payload: {
+        stage: "indexing",
+        apiKey: "must-not-leak",
+        nested: { authorization: "must-not-leak-either", visible: 7 },
+      },
+    },
+    model,
+    "session-safe",
+  );
+  assert.deepEqual(
+    expanded.map((message) => message.role),
+    ["assistant", "toolResult"],
+  );
+  const call = expanded[0].content[0];
+  assert.equal(call.name, "GenericAgentEvent");
+  assert.deepEqual(call.arguments, {
+    eventType: "custom.progress",
+    role: "hook.event",
+  });
+  const resultText = expanded[1].content[0].text;
+  assert.match(resultText, /indexing/);
+  assert.match(resultText, /\[redacted\]/);
+  assert.match(resultText, /"visible": 7/);
+  assert.doesNotMatch(resultText, /must-not-leak/);
+});
+
 test("GA DTO and authoritative snapshots expand tool protocol into conversation messages", () => {
   const expanded = gaMessageToPiMessages(
     { id: 9, role: "assistant", content: toolTranscript, ts: 2 },
