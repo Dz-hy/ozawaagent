@@ -1,7 +1,7 @@
 import type { Context, UserMessage } from "@earendil-works/pi-ai";
 import { invoke } from "@tauri-apps/api/core";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import type {
   MentionComposerDraft,
   MentionComposerHandle,
@@ -41,6 +41,7 @@ import {
 import type { ScrollFollowHandle } from "../../../lib/chat-scroll/useScrollFollow";
 import { createStreamDebugLogger } from "../../../lib/debug/agentDebug";
 import { gaBridgeClient } from "../../../lib/ga/GaBridgeClient";
+import { registerGaAskSender } from "../../../lib/ga/gaAskUser";
 import { buildMemoryOverviewSection } from "../../../lib/memory/prompts/injection";
 import { createModelFromConfig } from "../../../lib/providers/llm";
 import {
@@ -1413,6 +1414,19 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
     }
     return true;
   }
+
+  useEffect(() => {
+    const conversationId = currentConversationIdRef.current;
+    if (!conversationId) return undefined;
+    return registerGaAskSender(conversationId, (prompt) =>
+      send({
+        textOverride: prompt,
+        uploadedFilesOverride: [],
+        conversationIdOverride: conversationId,
+        preserveComposerOnStart: true,
+      }),
+    );
+  });
 
   return { send };
 }

@@ -11,6 +11,12 @@ const { parseGaProtocol, gaProtocolToMessages } = loader.loadModule(
 const { gaMessageToPiMessages, gaSnapshotToConversationState } = loader.loadModule(
   "src/lib/ga/gaMessages.ts",
 );
+const {
+  formatGaAskAnswers,
+  getGaAskAnswers,
+  registerGaAskSender,
+  submitGaAskAnswers,
+} = loader.loadModule("src/lib/ga/gaAskUser.ts");
 
 const model = { api: "openai-completions", provider: "ga", model: "genericagent" };
 const toolTranscript = [
@@ -70,6 +76,60 @@ test("GA protocol mapping emits adjacent assistant/tool-result messages for exis
   assert.equal(messages[1].toolCallId, messages[0].content[1].id);
 });
 
+test("GA ask_user maps to the existing question card and carries its authoritative session", () => {
+  const transcript = [
+    "🛠️ Tool: `ask_user`   📥 args:",
+    "````text",
+    '{"question":"Pick one","candidates":["Alpha","Beta"]}',
+    "````",
+    "`````",
+    "INTERRUPT",
+    "`````",
+  ].join("\n");
+  const chunks = parseGaProtocol(transcript, "ga-ask", 5, "session-42");
+  assert.equal(chunks.length, 1);
+  assert.equal(chunks[0].call.name, "AskUserQuestion");
+  assert.deepEqual(chunks[0].call.arguments, {
+    questions: [
+      {
+        id: "q1",
+        prompt: "Pick one",
+        options: [{ label: "Alpha" }, { label: "Beta" }],
+      },
+    ],
+    __gaConversationId: "session-42",
+  });
+  assert.equal(chunks[0].result.content[0].text, "INTERRUPT");
+});
+
+test("GA ask answers use a targeted sender and become idempotently settled only after acceptance", async () => {
+  const answer = {
+    questionId: "q1",
+    prompt: "Pick one",
+    selectedLabel: "Beta",
+  };
+  assert.equal(formatGaAskAnswers([answer]), "Beta");
+  assert.deepEqual(await submitGaAskAnswers("missing", "absent", [answer]), {
+    ok: false,
+    message: "GenericAgent conversation is not available.",
+  });
+
+  const prompts = [];
+  const unregister = registerGaAskSender("session-42", async (prompt) => {
+    prompts.push(prompt);
+    return true;
+  });
+  assert.deepEqual(await submitGaAskAnswers("ga-ask-tool-0", "session-42", [answer]), {
+    ok: true,
+  });
+  assert.deepEqual(getGaAskAnswers("ga-ask-tool-0"), [answer]);
+  assert.deepEqual(await submitGaAskAnswers("ga-ask-tool-0", "session-42", [answer]), {
+    ok: true,
+  });
+  assert.deepEqual(prompts, ["Beta"]);
+  unregister();
+});
+
 test("GA DTO and authoritative snapshots expand tool protocol into conversation messages", () => {
   const expanded = gaMessageToPiMessages(
     { id: 9, role: "assistant", content: toolTranscript, ts: 2 },
@@ -105,4 +165,6 @@ test("GA DTO and authoritative snapshots expand tool protocol into conversation 
     state.segments[0].messages.map((message) => message.role),
     ["assistant", "toolResult", "assistant"],
   );
+  const firstAssistant = state.segments[0].messages[0];
+  assert.equal(firstAssistant.content[1].id, "ga-s1-9-tool-0");
 });

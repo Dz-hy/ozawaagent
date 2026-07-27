@@ -1,4 +1,5 @@
 import type { AssistantMessage, Message, ToolCall, ToolResultMessage } from "@earendil-works/pi-ai";
+import { GA_ASK_CONVERSATION_ARG } from "./gaAskUser";
 
 const TOOL_HEADER = /^🛠️ Tool: `([^`]+)`\s*(?:📥 args:)?\s*$/;
 const FENCE = /^(`{4,})([^`]*)$/;
@@ -20,6 +21,29 @@ function parseArguments(raw: string): Record<string, unknown> {
   }
 }
 
+function normalizeToolArguments(
+  name: string,
+  args: Record<string, unknown>,
+  conversationId?: string,
+): Record<string, unknown> {
+  if (name !== "ask_user") return args;
+  const question = typeof args.question === "string" ? args.question.trim() : "";
+  const candidates = Array.isArray(args.candidates)
+    ? args.candidates.map((candidate) => String(candidate).trim()).filter(Boolean)
+    : [];
+  return {
+    questions: [
+      {
+        id: "q1",
+        prompt: question || "GenericAgent needs your input.",
+        options:
+          candidates.length > 0 ? candidates.map((label) => ({ label })) : [{ label: "Continue" }],
+      },
+    ],
+    ...(conversationId ? { [GA_ASK_CONVERSATION_ARG]: conversationId } : {}),
+  };
+}
+
 function findClosingFence(lines: string[], from: number, ticks: number) {
   for (let index = from; index < lines.length; index += 1) {
     if (lines[index]?.trim() === "`".repeat(ticks)) return index;
@@ -36,6 +60,7 @@ export function parseGaProtocol(
   text: string,
   idPrefix: string,
   timestamp: number,
+  conversationId?: string,
 ): GaProtocolChunk[] {
   const lines = String(text || "").split(/\r?\n/);
   const chunks: GaProtocolChunk[] = [];
@@ -60,14 +85,16 @@ export function parseGaProtocol(
 
     pushText(chunks, prose);
     prose = [];
-    const name = header[1].trim();
+    const rawName = header[1].trim();
+    const name = rawName === "ask_user" ? "AskUserQuestion" : rawName;
     const callId = `${idPrefix}-tool-${toolIndex}`;
     toolIndex += 1;
+    const parsedArguments = parseArguments(lines.slice(index + 2, argsEnd).join("\n"));
     const call: ToolCall = {
       type: "toolCall",
       id: callId,
       name,
-      arguments: parseArguments(lines.slice(index + 2, argsEnd).join("\n")),
+      arguments: normalizeToolArguments(rawName, parsedArguments, conversationId),
     };
     index = argsEnd + 1;
 
@@ -102,8 +129,9 @@ export function gaProtocolToMessages(
   text: string,
   base: Omit<AssistantMessage, "content">,
   idPrefix: string,
+  conversationId?: string,
 ): Message[] {
-  const chunks = parseGaProtocol(text, idPrefix, base.timestamp);
+  const chunks = parseGaProtocol(text, idPrefix, base.timestamp, conversationId);
   if (!chunks.some((chunk) => chunk.kind === "tool")) {
     return [{ ...base, content: [{ type: "text", text }] }];
   }

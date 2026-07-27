@@ -1,5 +1,5 @@
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { AskUserQuestionCard } from "../../../../components/chat/AskUserQuestionCard";
 import { FileChangeBadge } from "../../../../components/chat/FileChangeBadge";
@@ -24,6 +24,12 @@ import {
   toolCallArgsForDisplay,
   toolResultMessageToText,
 } from "../../../../lib/chat/messages/uiMessages";
+import {
+  GA_ASK_CONVERSATION_ARG,
+  getGaAskAnswers,
+  submitGaAskAnswers,
+  subscribeGaAskAnswers,
+} from "../../../../lib/ga/gaAskUser";
 import { cn } from "../../../../lib/shared/utils";
 import { isSubagentCardToolCall } from "../../../../lib/subagents/card";
 import {
@@ -336,29 +342,39 @@ function ToolCallItem({ item, isRunning }: { item: ToolTraceItem; isRunning?: bo
   const shouldCloseCompletedTodo =
     isTodo && Boolean(result && !result.isError) && todoItems.length > 0 && !hasIncompleteTodo;
   const isAskUser = item.toolCall.name === ASK_USER_QUESTION_TOOL_NAME;
+  const gaConversationId =
+    isAskUser && typeof item.toolCall.arguments?.[GA_ASK_CONVERSATION_ARG] === "string"
+      ? item.toolCall.arguments[GA_ASK_CONVERSATION_ARG]
+      : "";
+  const gaAskAnswers = useSyncExternalStore(
+    subscribeGaAskAnswers,
+    () => getGaAskAnswers(item.toolCall.id),
+    () => getGaAskAnswers(item.toolCall.id),
+  );
+  const isGaAskUser = Boolean(gaConversationId);
+  const gaAskAnswered = isGaAskUser && gaAskAnswers.length > 0;
   const askDetails = isAskUser ? parseAskUserQuestionResultDetails(result?.details) : null;
-  // 参数生成完毕（onToolCall 之后才会入回合）才渲染卡片；对历史/降级数据
-  // 再以 isRunning/result 兜底，绝不展示半截问题。
-  const askSettled = isAskUser && (Boolean(isRunning) || Boolean(result));
+  // GA ask_user ends its turn, so its card is settled without a local tool result.
+  const askSettled = isAskUser && (isGaAskUser || Boolean(isRunning) || Boolean(result));
   const askQuestions =
     isAskUser && askSettled
       ? askDetails && askDetails.questions.length > 0
         ? askDetails.questions
         : sanitizeAskUserQuestionItems(item.toolCall.arguments?.questions)
       : [];
-  // 提问卡运行期强制展开等待作答；应答落定后自动收起（同 Todo 完成收起）。
-  const shouldKeepAskOpen = isAskUser && (Boolean(isRunning) || !result);
-  const shouldCloseAnsweredAsk = isAskUser && Boolean(result);
-  // 权威应答截止时间来自工具挂起表；卡片倒计时与超时兜底同源，
-  // 会话切换重挂载也不会重置。
+  const shouldKeepAskOpen =
+    isAskUser && (isGaAskUser ? !gaAskAnswered : Boolean(isRunning) || !result);
+  const shouldCloseAnsweredAsk = isAskUser && (gaAskAnswered || Boolean(result));
   const askDeadlineAt =
-    isAskUser && isRunning && !result
+    isAskUser && !isGaAskUser && isRunning && !result
       ? (getAskUserQuestionDeadlineAt(item.toolCall.id) ?? undefined)
       : undefined;
   const submitAskAnswers = useCallback(
     (answers: AskUserQuestionAnswer[]) =>
-      Promise.resolve(answerAskUserQuestion(item.toolCall.id, answers)),
-    [item.toolCall.id],
+      isGaAskUser
+        ? submitGaAskAnswers(item.toolCall.id, gaConversationId, answers)
+        : Promise.resolve(answerAskUserQuestion(item.toolCall.id, answers)),
+    [gaConversationId, isGaAskUser, item.toolCall.id],
   );
   const shouldAutoOpen =
     item.toolCall.name === "Image" ||
@@ -402,17 +418,21 @@ function ToolCallItem({ item, isRunning }: { item: ToolTraceItem; isRunning?: bo
         ? { name: t("chat.tool.askUserTitle"), action: "" }
         : getToolDisplayTitle(item.toolCall);
 
-  const statusLabel = isRunning
-    ? isAskUser
-      ? askQuestions.length > 0
-        ? t("chat.askUser.waiting")
-        : t("chat.askUser.preparing")
-      : t("chat.tool.running")
-    : result
-      ? result.isError
-        ? t("chat.tool.failed")
-        : t("chat.tool.success")
-      : t("chat.tool.waiting");
+  const statusLabel = isGaAskUser
+    ? gaAskAnswered
+      ? t("chat.tool.success")
+      : t("chat.askUser.waiting")
+    : isRunning
+      ? isAskUser
+        ? askQuestions.length > 0
+          ? t("chat.askUser.waiting")
+          : t("chat.askUser.preparing")
+        : t("chat.tool.running")
+      : result
+        ? result.isError
+          ? t("chat.tool.failed")
+          : t("chat.tool.success")
+        : t("chat.tool.waiting");
 
   const statusTextClass = result?.isError
     ? "text-[hsl(var(--chat-error))]"
@@ -526,17 +546,17 @@ function ToolCallItem({ item, isRunning }: { item: ToolTraceItem; isRunning?: bo
             {isAskUser && askQuestions.length > 0 ? (
               <AskUserQuestionCard
                 questions={askQuestions}
-                answers={askDetails?.answers}
+                answers={isGaAskUser ? gaAskAnswers : askDetails?.answers}
                 cancelled={askDetails?.cancelled === true}
                 timedOut={askDetails?.timedOut === true}
-                interactive={Boolean(isRunning) && !result}
+                interactive={isGaAskUser ? !gaAskAnswered : Boolean(isRunning) && !result}
                 deadlineAt={askDeadlineAt}
                 onSubmit={submitAskAnswers}
               />
             ) : null}
 
             {/* 提问卡自带应答态展示；仅参数校验失败（无 details）时回落默认错误区。 */}
-            {result && (!isAskUser || !askDetails) ? (
+            {result && !isGaAskUser && (!isAskUser || !askDetails) ? (
               <ToolSection
                 label={isTodo ? undefined : t("chat.tool.return")}
                 trailing={

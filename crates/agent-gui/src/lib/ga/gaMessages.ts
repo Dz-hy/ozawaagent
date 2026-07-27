@@ -23,7 +23,11 @@ function timestamp(value: unknown): number {
   return n < 10_000_000_000 ? Math.round(n * 1000) : Math.round(n);
 }
 
-export function gaMessageToPiMessages(message: GaMessageDto, model: GaRenderModel): Message[] {
+export function gaMessageToPiMessages(
+  message: GaMessageDto,
+  model: GaRenderModel,
+  conversationId?: string,
+): Message[] {
   const role = String(message.role ?? "assistant");
   const text = String(message.display ?? message.content ?? "");
   const messageId = String(message.id ?? "unknown");
@@ -49,7 +53,13 @@ export function gaMessageToPiMessages(message: GaMessageDto, model: GaRenderMode
     ...(error ? { errorMessage: error } : {}),
     ...common,
   };
-  return gaProtocolToMessages(error ? `Request failed: ${error}` : text, base, `ga-${messageId}`);
+  const protocolIdPrefix = conversationId ? `ga-${conversationId}-${messageId}` : `ga-${messageId}`;
+  return gaProtocolToMessages(
+    error ? `Request failed: ${error}` : text,
+    base,
+    protocolIdPrefix,
+    conversationId,
+  );
 }
 
 export function gaSnapshotToConversationState(
@@ -57,13 +67,16 @@ export function gaSnapshotToConversationState(
   snapshot: GaMessagesSnapshot,
   model: GaRenderModel,
 ): ConversationViewState {
-  const messages = snapshot.messages.flatMap((message) => gaMessageToPiMessages(message, model));
+  const messages = snapshot.messages.flatMap((message) =>
+    gaMessageToPiMessages(message, model, snapshot.sessionId),
+  );
   const partial = snapshot.partial;
   if (partial && typeof partial === "object" && "content" in partial && partial.content) {
     messages.push(
       ...gaMessageToPiMessages(
         { ...(partial as GaMessageDto), role: "assistant", id: `partial-${snapshot.msgSeq}` },
         model,
+        snapshot.sessionId,
       ),
     );
   }
