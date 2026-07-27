@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -285,6 +286,7 @@ async def automation_client(tmp_path):
 
 @pytest.mark.asyncio
 async def test_hooks_snapshot_reads_only_an_already_loaded_registry(monkeypatch, client):
+    adapter.HOOK_OBSERVATIONS.clear()
     monkeypatch.delitem(adapter.sys.modules, "plugins.hooks", raising=False)
     unloaded = await client.get("/api/v1/hooks", headers=AUTH)
     assert unloaded.status == 200
@@ -292,6 +294,7 @@ async def test_hooks_snapshot_reads_only_an_already_loaded_registry(monkeypatch,
         "registry_state": "not_loaded",
         "events": adapter.HOOK_EVENTS,
         "registrations": [],
+        "observations": [],
     }
 
     def callback(_ctx):
@@ -308,6 +311,25 @@ async def test_hooks_snapshot_reads_only_an_already_loaded_registry(monkeypatch,
         {"event": "agent_before", "module": "plugins.safe_plugin", "handler": "observe"},
         {"event": "vendor.event", "module": "plugins.safe_plugin", "handler": "observe"},
     ]
+    observer = next(item for item in fake_hooks._registry["agent_before"]
+                    if getattr(item, "__ga_desktop_observer__", False))
+    observer({"token": "sensitive-context-must-not-escape"})
+    again = (await (await client.get("/api/v1/hooks", headers=AUTH)).json())["payload"]
+    assert len([item for item in fake_hooks._registry["agent_before"]
+                if getattr(item, "__ga_desktop_observer__", False)]) == 1
+    assert set(again["observations"][0]) == {"id", "event", "timestamp"}
+    assert again["observations"][0]["event"] == "agent_before"
+    assert "sensitive-context" not in json.dumps(again)
+
+    threads = [threading.Thread(target=adapter.install_hook_observers, args=(fake_hooks._registry,))
+               for _ in range(20)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    for event in adapter.HOOK_EVENTS:
+        assert len([item for item in fake_hooks._registry[event]
+                    if getattr(item, "__ga_desktop_observer__", False)]) == 1
 
 
 @pytest.mark.asyncio

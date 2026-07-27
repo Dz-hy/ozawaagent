@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import deque
 import hashlib
 import importlib.util
 import json
@@ -11,6 +12,7 @@ import re
 import secrets
 import subprocess
 import sys
+import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,7 +20,7 @@ from typing import Any, Iterable
 
 from aiohttp import web
 
-ADAPTER_VERSION = "1.2.0"
+ADAPTER_VERSION = "1.2.1"
 API_VERSION = "v1"
 COMMAND_API_VERSION = "1"
 MAX_COMMAND_ARGUMENT_CHARS = 32_768
@@ -181,23 +183,59 @@ def load_official_module(root: Path, manifest: dict[str, Any]):
     return module
 
 
+HOOK_OBSERVATIONS: deque[dict[str, str]] = deque(maxlen=100)
+HOOK_OBSERVATIONS_LOCK = threading.Lock()
+HOOK_INSTALL_LOCK = threading.Lock()
+
+
+def hook_observations_snapshot() -> list[dict[str, str]]:
+    with HOOK_OBSERVATIONS_LOCK:
+        return list(HOOK_OBSERVATIONS)
+
+
 def safe_hook_label(value: Any) -> str:
     if not isinstance(value, str) or not value or len(value) > 256:
         return "unknown"
     return value if re.fullmatch(r"[A-Za-z0-9_.<>-]+", value) else "unknown"
 
 
+def install_hook_observers(registry: dict[str, Any]) -> None:
+    with HOOK_INSTALL_LOCK:
+        for event in HOOK_EVENTS:
+            callbacks = registry.setdefault(event, [])
+            if not isinstance(callbacks, list):
+                continue
+            if any(getattr(callback, "__ga_desktop_observer__", False) for callback in callbacks):
+                continue
+
+            def observe(_ctx: Any, *, observed_event: str = event) -> None:
+                observation = {
+                    "id": uuid.uuid4().hex,
+                    "event": observed_event,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                with HOOK_OBSERVATIONS_LOCK:
+                    HOOK_OBSERVATIONS.append(observation)
+
+            observe.__ga_desktop_observer__ = True  # type: ignore[attr-defined]
+            callbacks.append(observe)
+
+
 def hook_snapshot() -> dict[str, Any]:
     module = sys.modules.get("plugins.hooks")
     registry = getattr(module, "_registry", None) if module is not None else None
     if not isinstance(registry, dict):
-        return {"registry_state": "not_loaded", "events": HOOK_EVENTS, "registrations": []}
+        return {"registry_state": "not_loaded", "events": HOOK_EVENTS,
+                "registrations": [], "observations": hook_observations_snapshot()}
+    install_hook_observers(registry)
     registrations = []
     for event in sorted(registry):
         callbacks = registry[event]
         if not isinstance(event, str) or not isinstance(callbacks, (list, tuple)):
             continue
         for callback in callbacks:
+            if getattr(callback, "__ga_desktop_observer__", False):
+                continue
             registrations.append({
                 "event": safe_hook_label(event),
                 "module": safe_hook_label(getattr(callback, "__module__", None)),
@@ -205,7 +243,8 @@ def hook_snapshot() -> dict[str, Any]:
                     getattr(callback, "__qualname__", getattr(callback, "__name__", None)),
                 ),
             })
-    return {"registry_state": "loaded", "events": HOOK_EVENTS, "registrations": registrations}
+    return {"registry_state": "loaded", "events": HOOK_EVENTS,
+            "registrations": registrations, "observations": hook_observations_snapshot()}
 
 
 def normalize_automation(value: Any, *, automation_id: str | None = None) -> dict[str, Any]:
