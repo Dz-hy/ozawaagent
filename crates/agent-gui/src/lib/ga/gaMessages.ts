@@ -3,6 +3,7 @@ import {
   type ConversationViewState,
   replaceActiveSegmentMessages,
 } from "../chat/conversation/conversationState";
+import { gaProtocolToMessages } from "./gaProtocol";
 import type { GaMessageDto, GaMessagesSnapshot } from "./types";
 
 const EMPTY_USAGE: AssistantMessage["usage"] = {
@@ -22,28 +23,33 @@ function timestamp(value: unknown): number {
   return n < 10_000_000_000 ? Math.round(n * 1000) : Math.round(n);
 }
 
-export function gaMessageToPiMessage(message: GaMessageDto, model: GaRenderModel): Message {
+export function gaMessageToPiMessages(message: GaMessageDto, model: GaRenderModel): Message[] {
   const role = String(message.role ?? "assistant");
   const text = String(message.display ?? message.content ?? "");
+  const messageId = String(message.id ?? "unknown");
   const common = {
-    id: `ga-${String(message.id ?? "unknown")}`,
+    id: `ga-${messageId}`,
     timestamp: timestamp(message.ts ?? message.timestamp),
   };
   if (role === "user") {
-    return { role: "user", content: text, ...common } as UserMessage;
+    return [{ role: "user", content: text, ...common } as UserMessage];
   }
   const error = role === "error" ? text || "GenericAgent request failed" : undefined;
-  return {
-    role: "assistant",
-    content: [{ type: "text", text: error ? `Request failed: ${error}` : text }],
+  const base = {
+    role: "assistant" as const,
     api: model.api,
     provider: model.provider,
     model: model.model,
     usage: EMPTY_USAGE,
-    stopReason: error ? "error" : message.stopped ? "aborted" : "stop",
+    stopReason: error
+      ? ("error" as const)
+      : message.stopped
+        ? ("aborted" as const)
+        : ("stop" as const),
     ...(error ? { errorMessage: error } : {}),
     ...common,
-  } as AssistantMessage;
+  };
+  return gaProtocolToMessages(error ? `Request failed: ${error}` : text, base, `ga-${messageId}`);
 }
 
 export function gaSnapshotToConversationState(
@@ -51,11 +57,12 @@ export function gaSnapshotToConversationState(
   snapshot: GaMessagesSnapshot,
   model: GaRenderModel,
 ): ConversationViewState {
-  const messages = snapshot.messages.map((message) => gaMessageToPiMessage(message, model));
-  if (snapshot.partial?.content) {
+  const messages = snapshot.messages.flatMap((message) => gaMessageToPiMessages(message, model));
+  const partial = snapshot.partial;
+  if (partial && typeof partial === "object" && "content" in partial && partial.content) {
     messages.push(
-      gaMessageToPiMessage(
-        { ...snapshot.partial, role: "assistant", id: `partial-${snapshot.msgSeq}` },
+      ...gaMessageToPiMessages(
+        { ...(partial as GaMessageDto), role: "assistant", id: `partial-${snapshot.msgSeq}` },
         model,
       ),
     );
