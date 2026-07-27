@@ -45,8 +45,11 @@ function loadTurn({ snapshots, signal, onCancel = () => undefined }) {
       },
     },
   });
-  const { runGaChatTurn } = loader.loadModule("src/pages/chat/runtime/runGaChatTurn.ts");
+  const { observeGaChatTurn, runGaChatTurn } = loader.loadModule(
+    "src/pages/chat/runtime/runGaChatTurn.ts",
+  );
   return {
+    observeGaChatTurn,
     runGaChatTurn,
     signal,
     emit: (event) => listener?.(event),
@@ -89,6 +92,51 @@ test("GA turn posts once, treats WS as a hint, and renders authoritative snapsho
     after: 0,
     limit: 10_000,
   });
+  assert.equal(harness.wasUnsubscribed(), true);
+});
+
+test("GA recovery observes an in-flight turn without posting the prompt again", async () => {
+  const controller = new AbortController();
+  const harness = loadTurn({
+    signal: controller.signal,
+    snapshots: [
+      { status: "running", messages: [], msgSeq: 3 },
+      { status: "idle", messages: [], msgSeq: 4 },
+    ],
+  });
+  const rendered = [];
+  const promise = harness.observeGaChatTurn({
+    conversationId: "ga-session-recovered",
+    baseState: { marker: "base" },
+    signal: controller.signal,
+    applyState: (state) => rendered.push(state.marker),
+  });
+  while (harness.snapshotCalls.length < 1) await new Promise((resolve) => setTimeout(resolve, 0));
+  harness.emit({ type: "session-state", sessionId: "ga-session-recovered" });
+  assert.equal(await promise, "idle");
+  assert.deepEqual(harness.promptCalls, []);
+  assert.deepEqual(rendered, ["running", "idle"]);
+  assert.equal(harness.wasUnsubscribed(), true);
+});
+
+test("stopping a recovery observer does not cancel the authoritative turn", async () => {
+  const controller = new AbortController();
+  const cancelled = [];
+  const harness = loadTurn({
+    signal: controller.signal,
+    snapshots: [{ status: "running", messages: [], msgSeq: 3 }],
+    onCancel: (sessionId) => cancelled.push(sessionId),
+  });
+  const promise = harness.observeGaChatTurn({
+    conversationId: "ga-session-detached",
+    baseState: {},
+    signal: controller.signal,
+    applyState: () => undefined,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  controller.abort();
+  assert.equal(await promise, "cancelled");
+  assert.deepEqual(cancelled, []);
   assert.equal(harness.wasUnsubscribed(), true);
 });
 

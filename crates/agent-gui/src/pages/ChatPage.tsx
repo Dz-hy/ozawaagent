@@ -47,6 +47,7 @@ import {
   getFirstUserMessageText,
 } from "../lib/chat/page/chatPageHelpers";
 import type { ScrollFollowHandle } from "../lib/chat-scroll/useScrollFollow";
+import { createGaSidebarBackend } from "../lib/ga/gaSidebarBackend";
 import { tauriGitClient } from "../lib/git/tauriGitClient";
 import { setPreferredMonacoNlsLocale } from "../lib/monacoNls";
 import {
@@ -73,13 +74,12 @@ import {
   workspaceProjectPathKey,
 } from "../lib/settings";
 import { cn } from "../lib/shared/utils";
-import { createGaSidebarBackend } from "../lib/ga/gaSidebarBackend";
 import {
   type ConversationOpenState,
   createConversationOpenController,
 } from "../lib/sidebar/openController";
 import { conversationMatchesScope } from "../lib/sidebar/scope";
-import { selectConversations } from "../lib/sidebar/selectors";
+import { selectConversations, selectRunningConversationIds } from "../lib/sidebar/selectors";
 import { createSidebarStore } from "../lib/sidebar/store";
 import { useSidebarSelector } from "../lib/sidebar/useSidebarSelector";
 import { mergeAlwaysEnabledSkillNames } from "../lib/skills";
@@ -126,6 +126,7 @@ import {
   removeQueuedChatTurnsForConversation,
 } from "./chat/queue/chatTurnQueue";
 import { useChatTurnQueue } from "./chat/queue/useChatTurnQueue";
+import { observeGaChatTurn } from "./chat/runtime/runGaChatTurn";
 import { useChatModelSelection } from "./chat/runtime/useChatModelSelection";
 import { useSendChatTurn } from "./chat/runtime/useSendChatTurn";
 import { ChatSidebarContainer } from "./chat/sidebar/ChatSidebarContainer";
@@ -292,6 +293,11 @@ export function ChatPage(props: ChatPageProps) {
   // render needs (draft detection, pending-item effect, workspace root).
   const historyItems = useSidebarSelector(sidebarStore, selectConversations);
   const sidebarConversationsById = useSidebarSelector(sidebarStore, (s) => s.byId);
+  const sidebarRunningConversationIds = useSidebarSelector(
+    sidebarStore,
+    selectRunningConversationIds,
+  );
+  const recoveredGaTurnControllersRef = useRef(new Map<string, AbortController>());
   const {
     canShareHistory,
     shareConversation,
@@ -448,6 +454,7 @@ export function ChatPage(props: ChatPageProps) {
     persistedConversationStateRef,
     buildRuntimeEntryFromVisibleState,
     syncVisibleConversationRuntime,
+    ensureConversationRuntimeEntry,
     updateConversationRuntimeEntry,
     isConversationRunning,
     setConversationAbortController,
@@ -724,6 +731,70 @@ export function ChatPage(props: ChatPageProps) {
       }
     }
   }, [conversationRuntimeCacheRef, runningConversationIds, sidebarStore]);
+
+  useEffect(() => {
+    const recovered = recoveredGaTurnControllersRef.current;
+    for (const [conversationId, controller] of recovered) {
+      if (sidebarRunningConversationIds.has(conversationId)) continue;
+      controller.abort();
+      recovered.delete(conversationId);
+    }
+    for (const conversationId of sidebarRunningConversationIds) {
+      // A local turn may have just completed in this render. The earlier
+      // running-state sync effect updates the store synchronously, while this
+      // effect still holds the previous selector value.
+      if (!sidebarStore.getSnapshot().runningConversationIds.has(conversationId)) continue;
+      if (recovered.has(conversationId) || getConversationAbortController(conversationId)) continue;
+      const controller = new AbortController();
+      recovered.set(conversationId, controller);
+      setConversationAbortController(conversationId, controller);
+      setConversationSendingState(conversationId, true);
+      const baseState = ensureConversationRuntimeEntry(conversationId).state;
+      void observeGaChatTurn({
+        conversationId,
+        baseState,
+        signal: controller.signal,
+        applyState: (state) =>
+          updateConversationRuntimeEntry(conversationId, (prev) => ({
+            ...prev,
+            state,
+            errorMessage: null,
+          })),
+      })
+        .catch((error) => {
+          if (controller.signal.aborted) return;
+          updateConversationRuntimeEntry(conversationId, (prev) => ({
+            ...prev,
+            errorMessage: error instanceof Error ? error.message : "GenericAgent recovery failed",
+          }));
+        })
+        .finally(() => {
+          if (recovered.get(conversationId) !== controller) return;
+          // Keep the settled controller as a tombstone until the authoritative
+          // sidebar running set reports idle. Otherwise the local state update
+          // below can render once while the stale running hint is still present
+          // and immediately start a duplicate observer.
+          setConversationAbortController(conversationId, null);
+          setConversationSendingState(conversationId, false);
+        });
+    }
+  }, [
+    ensureConversationRuntimeEntry,
+    getConversationAbortController,
+    setConversationAbortController,
+    setConversationSendingState,
+    sidebarRunningConversationIds,
+    sidebarStore,
+    updateConversationRuntimeEntry,
+  ]);
+
+  useEffect(
+    () => () => {
+      for (const controller of recoveredGaTurnControllersRef.current.values()) controller.abort();
+      recoveredGaTurnControllersRef.current.clear();
+    },
+    [],
+  );
 
   const { notifyItems, addNotify, dismissNotify } = useNotifyToasts({
     errorMessage,

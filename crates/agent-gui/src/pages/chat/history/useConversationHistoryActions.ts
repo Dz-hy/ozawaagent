@@ -1,6 +1,4 @@
 import { type Dispatch, type MutableRefObject, type SetStateAction, useRef } from "react";
-import { gaBridgeClient } from "../../../lib/ga/GaBridgeClient";
-import { gaSessionToSidebar } from "../../../lib/ga/gaSidebarBackend";
 import {
   type ConversationViewState,
   createConversationStateFromContext,
@@ -13,6 +11,9 @@ import {
   persistConversationState,
 } from "../../../lib/chat/history/chatHistory";
 import { waitForTitleLookahead } from "../../../lib/chat/page/chatPageHelpers";
+import { gaBridgeClient } from "../../../lib/ga/GaBridgeClient";
+import { gaSnapshotToConversationState } from "../../../lib/ga/gaMessages";
+import { gaSessionToSidebar } from "../../../lib/ga/gaSidebarBackend";
 import { type SelectedModel, serializeSelectedModelJson } from "../../../lib/settings";
 import type { SidebarStore } from "../../../lib/sidebar/store";
 import { disposeTodoToolState } from "../../../lib/tools/todoTools";
@@ -50,6 +51,11 @@ type IdleSchedulerWindow = Window & {
 
 const FULL_HISTORY_HYDRATION_IDLE_TIMEOUT_MS = 1500;
 const FULL_HISTORY_HYDRATION_FALLBACK_DELAY_MS = 250;
+const GA_RENDER_MODEL = {
+  api: "openai-completions",
+  provider: "genericagent",
+  model: "genericagent",
+} as const;
 
 type UseConversationHistoryActionsParams = {
   conversationState: ConversationViewState;
@@ -258,6 +264,33 @@ export function useConversationHistoryActions(params: UseConversationHistoryActi
       buildRuntimeEntryFromVisibleState(),
     );
     resetVisibleTransientState();
+
+    try {
+      const [sessionSnapshot, messagesSnapshot] = await Promise.all([
+        gaBridgeClient.getSession(id),
+        gaBridgeClient.getSessionMessages(id, 0, 10_000),
+      ]);
+      if (conversationLoadSequenceRef.current !== loadSequence) return "painted";
+      const item = gaSessionToSidebar(sessionSnapshot.session);
+      const blankEntry = createBlankConversationEntry({
+        conversationState,
+        sessionId: id,
+        createdAt: item.createdAt,
+        workdir: item.cwd,
+      });
+      const entry = createConversationRuntimeEntry({
+        ...blankEntry,
+        state: gaSnapshotToConversationState(blankEntry.state, messagesSnapshot, GA_RENDER_MODEL),
+        isSending: messagesSnapshot.status === "running",
+      });
+      sidebarStore.upsertLocal(item);
+      activateConversation({ conversationId: id, entry, clearError: true });
+      setHydratingConversationId(null);
+      return "cache-hit";
+    } catch {
+      // Bridge recovery may still be in progress. Preserve the existing local
+      // hydration fallback rather than blanking a conversation on transport failure.
+    }
 
     const cached = conversationRuntimeCacheRef.current.get(id);
     if (cached) {

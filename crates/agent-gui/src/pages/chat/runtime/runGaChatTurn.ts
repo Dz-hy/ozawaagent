@@ -39,8 +39,12 @@ export type RunGaChatTurnParams = {
  * Runs one GenericAgent-owned turn. HTTP snapshots are authoritative; the
  * websocket is only a low-latency hint that a new snapshot should be fetched.
  */
-export async function runGaChatTurn(params: RunGaChatTurnParams) {
-  const { conversationId, prompt, baseState, signal, applyState } = params;
+export type ObserveGaChatTurnParams = Omit<RunGaChatTurnParams, "prompt"> & {
+  cancelOnAbort?: boolean;
+};
+
+export async function observeGaChatTurn(params: ObserveGaChatTurnParams) {
+  const { conversationId, baseState, signal, applyState, cancelOnAbort = false } = params;
   let wake: (() => void) | null = null;
   const unsubscribe = gaBridgeClient.events().subscribe((event: GaBridgeEvent) => {
     const sid = String(event.sessionId ?? event.session_id ?? "");
@@ -61,10 +65,11 @@ export async function runGaChatTurn(params: RunGaChatTurnParams) {
     });
 
   try {
-    await gaBridgeClient.promptSession(conversationId, prompt);
     while (true) {
       if (signal.aborted) {
-        await gaBridgeClient.cancelSession(conversationId).catch(() => undefined);
+        if (cancelOnAbort)
+          await gaBridgeClient.cancelSession(conversationId).catch(() => undefined);
+        return "cancelled";
       }
       const snapshot = await gaBridgeClient.getSessionMessages(conversationId, 0, 10_000);
       applyState(gaSnapshotToConversationState(baseState, snapshot, GA_RENDER_MODEL));
@@ -79,4 +84,10 @@ export async function runGaChatTurn(params: RunGaChatTurnParams) {
   } finally {
     unsubscribe();
   }
+}
+
+export async function runGaChatTurn(params: RunGaChatTurnParams) {
+  const { prompt, ...observeParams } = params;
+  await gaBridgeClient.promptSession(params.conversationId, prompt);
+  return observeGaChatTurn({ ...observeParams, cancelOnAbort: true });
 }
