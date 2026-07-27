@@ -1,0 +1,690 @@
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::fs::{self, File, OpenOptions};
+use std::io::Read;
+use std::net::{Ipv4Addr, SocketAddrV4, TcpListener};
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
+use tauri::Emitter;
+
+use crate::runtime::process::{configure_child_process_group, terminate_child_process_tree};
+
+pub const GA_RUNTIME_STATUS_EVENT: &str = "ga-runtime:status";
+const PINNED_MANIFEST: &str = include_str!("../../../../../runtime/ga/runtime_manifest.json");
+const START_TIMEOUT: Duration = Duration::from_secs(15);
+const STOP_GRACE: Duration = Duration::from_secs(2);
+const MAX_RESTARTS: u8 = 2;
+
+#[derive(Debug, Clone, Deserialize)]
+struct RuntimeManifest {
+    ga_commit: String,
+    official_bridge: BridgeManifest,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct BridgeManifest {
+    path: String,
+    sha256: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct GaRuntimeLaunch {
+    pub python: PathBuf,
+    pub ga_root: PathBuf,
+    pub adapter: PathBuf,
+    pub manifest: PathBuf,
+    pub extra_args: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum GaRuntimePhase {
+    Stopped,
+    Starting,
+    Running,
+    Restarting,
+    Failed,
+    Stopping,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GaRuntimeStatus {
+    pub phase: GaRuntimePhase,
+    pub port: Option<u16>,
+    pub pid: Option<u32>,
+    pub ga_root: Option<String>,
+    pub runtime_kind: Option<String>,
+    pub restart_count: u8,
+    pub last_error: Option<String>,
+    pub log_path: Option<String>,
+    pub generation: u64,
+}
+
+impl Default for GaRuntimeStatus {
+    fn default() -> Self {
+        Self {
+            phase: GaRuntimePhase::Stopped,
+            port: None,
+            pid: None,
+            ga_root: None,
+            runtime_kind: None,
+            restart_count: 0,
+            last_error: None,
+            log_path: None,
+            generation: 0,
+        }
+    }
+}
+
+struct RuntimeProcess {
+    child: Child,
+    launch: GaRuntimeLaunch,
+    token: String,
+    origin: String,
+    port: u16,
+}
+
+pub struct GaRuntimeSupervisor {
+    process: Mutex<Option<RuntimeProcess>>,
+    status: Mutex<GaRuntimeStatus>,
+    app: Mutex<Option<tauri::AppHandle>>,
+    log_dir: PathBuf,
+}
+
+impl Default for GaRuntimeSupervisor {
+    fn default() -> Self {
+        Self::new(default_log_dir())
+    }
+}
+
+impl GaRuntimeSupervisor {
+    pub fn new(log_dir: PathBuf) -> Self {
+        Self {
+            process: Mutex::new(None),
+            status: Mutex::new(GaRuntimeStatus::default()),
+            app: Mutex::new(None),
+            log_dir,
+        }
+    }
+
+    pub fn attach_app(&self, app: tauri::AppHandle) {
+        *self.app.lock().unwrap() = Some(app);
+    }
+
+    pub fn status(&self) -> GaRuntimeStatus {
+        self.status.lock().unwrap().clone()
+    }
+
+    fn publish(&self, status: GaRuntimeStatus) {
+        *self.status.lock().unwrap() = status.clone();
+        if let Some(app) = self.app.lock().unwrap().as_ref() {
+            let _ = app.emit(GA_RUNTIME_STATUS_EVENT, &status);
+        }
+    }
+
+    pub fn discover(
+        external_root: Option<&str>,
+        bundled_root: Option<&Path>,
+    ) -> Result<GaRuntimeLaunch, String> {
+        let root = external_root
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("GA_ROOT").map(PathBuf::from))
+            .or_else(|| bundled_root.map(Path::to_path_buf))
+            .or_else(|| {
+                let p = PathBuf::from(r"D:\GenericAgent");
+                p.is_dir().then_some(p)
+            })
+            .ok_or_else(|| {
+                "GenericAgent runtime was not found. Set GA_ROOT to a compatible runtime directory."
+                    .to_string()
+            })?;
+        let root = fs::canonicalize(&root)
+            .map_err(|e| format!("GenericAgent path is not accessible: {e}"))?;
+        let manifest = root.join("runtime_manifest.json");
+        let adapter = root.join("ga_bridge_adapter.py");
+        let (manifest, adapter) = if manifest.is_file() && adapter.is_file() {
+            (manifest, adapter)
+        } else {
+            let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../runtime/ga");
+            (
+                repo.join("runtime_manifest.json"),
+                repo.join("ga_bridge_adapter.py"),
+            )
+        };
+        let python = find_python(&root)?;
+        validate_manifest(&root, &manifest)?;
+        Ok(GaRuntimeLaunch {
+            python,
+            ga_root: root,
+            adapter,
+            manifest,
+            extra_args: Vec::new(),
+        })
+    }
+
+    pub fn start_with_credentials(
+        self: &Arc<Self>,
+        launch: GaRuntimeLaunch,
+    ) -> Result<(GaRuntimeStatus, String), String> {
+        let status = self.start(launch)?;
+        let token = self
+            .process
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|process| process.token.clone())
+            .ok_or_else(|| "GA runtime credentials are unavailable".to_string())?;
+        Ok((status, token))
+    }
+
+    pub fn start(self: &Arc<Self>, launch: GaRuntimeLaunch) -> Result<GaRuntimeStatus, String> {
+        if self.process.lock().unwrap().is_some() {
+            return Ok(self.status());
+        }
+        fs::create_dir_all(&self.log_dir)
+            .map_err(|e| format!("Cannot create GA runtime log directory: {e}"))?;
+        validate_manifest(&launch.ga_root, &launch.manifest)?;
+        let port = reserve_loopback_port()?;
+        let token = format!(
+            "{}{}",
+            uuid::Uuid::new_v4().simple(),
+            uuid::Uuid::new_v4().simple()
+        );
+        let origin = "http://tauri.localhost".to_string();
+        let generation = self.status().generation + 1;
+        let log_path = self.log_dir.join(format!("ga-runtime-{generation}.log"));
+        let child = spawn_runtime_child(&launch, port, &token, &origin, &log_path)?;
+        let pid = child.id();
+        let starting = GaRuntimeStatus {
+            phase: GaRuntimePhase::Starting,
+            port: Some(port),
+            pid: Some(pid),
+            ga_root: Some(launch.ga_root.to_string_lossy().into_owned()),
+            runtime_kind: Some("external".into()),
+            restart_count: 0,
+            last_error: None,
+            log_path: Some(log_path.to_string_lossy().into_owned()),
+            generation,
+        };
+        self.publish(starting);
+        *self.process.lock().unwrap() = Some(RuntimeProcess {
+            child,
+            launch,
+            token,
+            origin,
+            port,
+        });
+        match self.wait_until_healthy(START_TIMEOUT) {
+            Ok(()) => {
+                let mut ready = self.status();
+                ready.phase = GaRuntimePhase::Running;
+                self.publish(ready.clone());
+                self.spawn_monitor(generation);
+                Ok(ready)
+            }
+            Err(error) => {
+                self.stop_internal(Some(error.clone()));
+                Err(error)
+            }
+        }
+    }
+
+    fn wait_until_healthy(&self, timeout: Duration) -> Result<(), String> {
+        let started = Instant::now();
+        loop {
+            {
+                let mut guard = self.process.lock().unwrap();
+                let process = guard
+                    .as_mut()
+                    .ok_or_else(|| "GA runtime stopped during startup".to_string())?;
+                if let Some(exit) = process.child.try_wait().map_err(|e| e.to_string())? {
+                    return Err(format!(
+                        "GA runtime exited before health check succeeded ({exit})"
+                    ));
+                }
+                if health_ok(process.port, &process.token, &process.origin) {
+                    return Ok(());
+                }
+            }
+            if started.elapsed() >= timeout {
+                return Err("GA runtime health check timed out; inspect the runtime log".into());
+            }
+            thread::sleep(Duration::from_millis(150));
+        }
+    }
+
+    fn spawn_monitor(self: &Arc<Self>, generation: u64) {
+        let weak = Arc::downgrade(self);
+        thread::spawn(move || loop {
+            thread::sleep(Duration::from_secs(1));
+            let Some(supervisor) = weak.upgrade() else {
+                return;
+            };
+            let current = supervisor.status();
+            if current.generation != generation || current.phase != GaRuntimePhase::Running {
+                return;
+            }
+            let crashed = {
+                let mut guard = supervisor.process.lock().unwrap();
+                let exited = guard
+                    .as_mut()
+                    .and_then(|process| process.child.try_wait().ok().flatten());
+                exited.and_then(|exit| guard.take().map(|process| (process, exit)))
+            };
+            let Some((mut process, exit)) = crashed else {
+                continue;
+            };
+            let mut last_error = format!("GA runtime exited unexpectedly ({exit})");
+            for attempt in 1..=MAX_RESTARTS {
+                let port = match reserve_loopback_port() {
+                    Ok(port) => port,
+                    Err(error) => {
+                        last_error = error;
+                        continue;
+                    }
+                };
+                let log_path = supervisor
+                    .status()
+                    .log_path
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| {
+                        supervisor
+                            .log_dir
+                            .join(format!("ga-runtime-{generation}.log"))
+                    });
+                match spawn_runtime_child(
+                    &process.launch,
+                    port,
+                    &process.token,
+                    &process.origin,
+                    &log_path,
+                ) {
+                    Ok(child) => {
+                        let pid = child.id();
+                        process.child = child;
+                        process.port = port;
+                        *supervisor.process.lock().unwrap() = Some(process);
+                        let mut restarting = supervisor.status();
+                        restarting.phase = GaRuntimePhase::Restarting;
+                        restarting.port = Some(port);
+                        restarting.pid = Some(pid);
+                        restarting.restart_count = attempt;
+                        restarting.last_error = Some(last_error.clone());
+                        supervisor.publish(restarting);
+                        match supervisor.wait_until_healthy(START_TIMEOUT) {
+                            Ok(()) => {
+                                let snapshot = supervisor.status();
+                                if snapshot.generation != generation
+                                    || snapshot.phase != GaRuntimePhase::Restarting
+                                {
+                                    return;
+                                }
+                                let mut ready = snapshot;
+                                ready.phase = GaRuntimePhase::Running;
+                                ready.last_error = None;
+                                supervisor.publish(ready);
+                                break;
+                            }
+                            Err(error) => {
+                                last_error = error;
+                                let Some(mut failed_process) =
+                                    supervisor.process.lock().unwrap().take()
+                                else {
+                                    return;
+                                };
+                                let _ = terminate_child_process_tree(
+                                    &mut failed_process.child,
+                                    STOP_GRACE,
+                                );
+                                process = failed_process;
+                            }
+                        }
+                    }
+                    Err(error) => last_error = error,
+                }
+                if attempt == MAX_RESTARTS {
+                    let mut failed = supervisor.status();
+                    failed.phase = GaRuntimePhase::Failed;
+                    failed.pid = None;
+                    failed.port = None;
+                    failed.restart_count = attempt;
+                    failed.last_error = Some(last_error.clone());
+                    supervisor.publish(failed);
+                    return;
+                }
+            }
+        });
+    }
+
+    fn stop_internal(&self, error: Option<String>) -> GaRuntimeStatus {
+        let mut current = self.status();
+        current.phase = GaRuntimePhase::Stopping;
+        self.publish(current.clone());
+        if let Some(mut process) = self.process.lock().unwrap().take() {
+            let _ = terminate_child_process_tree(&mut process.child, STOP_GRACE);
+        }
+        current.phase = if error.is_some() {
+            GaRuntimePhase::Failed
+        } else {
+            GaRuntimePhase::Stopped
+        };
+        current.pid = None;
+        current.port = None;
+        current.last_error = error;
+        self.publish(current.clone());
+        current
+    }
+
+    pub fn stop(&self) -> GaRuntimeStatus {
+        self.stop_internal(None)
+    }
+
+    pub fn read_log(&self, max_bytes: usize) -> Result<String, String> {
+        let path = self
+            .status()
+            .log_path
+            .ok_or_else(|| "GA runtime has no log yet".to_string())?;
+        let mut data = Vec::new();
+        File::open(path)
+            .map_err(|e| e.to_string())?
+            .read_to_end(&mut data)
+            .map_err(|e| e.to_string())?;
+        let start = data.len().saturating_sub(max_bytes.min(512 * 1024));
+        Ok(String::from_utf8_lossy(&data[start..]).into_owned())
+    }
+}
+
+impl Drop for GaRuntimeSupervisor {
+    fn drop(&mut self) {
+        if let Ok(process) = self.process.get_mut() {
+            if let Some(mut process) = process.take() {
+                let _ = terminate_child_process_tree(&mut process.child, STOP_GRACE);
+            }
+        }
+    }
+}
+
+fn spawn_runtime_child(
+    launch: &GaRuntimeLaunch,
+    port: u16,
+    token: &str,
+    origin: &str,
+    log_path: &Path,
+) -> Result<Child, String> {
+    let log = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path)
+        .map_err(|e| format!("Cannot open GA runtime log: {e}"))?;
+    let mut command = Command::new(&launch.python);
+    command
+        .arg(&launch.adapter)
+        .arg("--ga-root")
+        .arg(&launch.ga_root)
+        .arg("--port")
+        .arg(port.to_string())
+        .args(&launch.extra_args)
+        .env("GA_BRIDGE_TOKEN", token)
+        .env("GA_BRIDGE_ALLOWED_ORIGINS", origin)
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(log.try_clone().map_err(|e| e.to_string())?))
+        .stderr(Stdio::from(log));
+    configure_child_process_group(&mut command);
+    command
+        .spawn()
+        .map_err(|e| actionable_spawn_error(&launch.python, e))
+}
+
+fn reserve_loopback_port() -> Result<u16, String> {
+    let listener = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0))
+        .map_err(|e| format!("No loopback port is available for GA runtime: {e}"))?;
+    listener
+        .local_addr()
+        .map(|a| a.port())
+        .map_err(|e| e.to_string())
+}
+
+fn find_python(root: &Path) -> Result<PathBuf, String> {
+    for candidate in [root.join("python/python.exe"), root.join("python.exe")] {
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+    }
+    for name in ["python", "python3"] {
+        if Command::new(name)
+            .arg("--version")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success())
+        {
+            return Ok(PathBuf::from(name));
+        }
+    }
+    Err(
+        "Python was not found. Install Python 3.12 or select a bundled GenericAgent runtime."
+            .into(),
+    )
+}
+
+fn validate_manifest(root: &Path, manifest_path: &Path) -> Result<(), String> {
+    let expected: RuntimeManifest = serde_json::from_str(PINNED_MANIFEST)
+        .map_err(|e| format!("Embedded runtime manifest is invalid: {e}"))?;
+    let actual_text = fs::read_to_string(manifest_path)
+        .map_err(|e| format!("Runtime manifest is missing: {e}"))?;
+    let actual: RuntimeManifest = serde_json::from_str(&actual_text)
+        .map_err(|e| format!("Runtime manifest is invalid: {e}"))?;
+    if actual.ga_commit != expected.ga_commit
+        || actual.official_bridge.sha256 != expected.official_bridge.sha256
+    {
+        return Err(format!(
+            "GenericAgent runtime is incompatible; expected commit {}",
+            expected.ga_commit
+        ));
+    }
+    let bridge = root.join(&actual.official_bridge.path);
+    let bytes = fs::read(&bridge).map_err(|e| format!("Official GA bridge is missing: {e}"))?;
+    let digest = Sha256::digest(bytes);
+    let digest_hex = digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    if digest_hex != actual.official_bridge.sha256 {
+        return Err("Official GA bridge hash does not match the runtime manifest".into());
+    }
+    Ok(())
+}
+
+fn health_ok(port: u16, token: &str, origin: &str) -> bool {
+    reqwest::blocking::Client::builder()
+        .timeout(Duration::from_millis(500))
+        .build()
+        .ok()
+        .and_then(|c| {
+            c.get(format!("http://127.0.0.1:{port}/api/v1/health"))
+                .bearer_auth(token)
+                .header("Origin", origin)
+                .send()
+                .ok()
+        })
+        .is_some_and(|r| r.status().is_success())
+}
+
+fn actionable_spawn_error(python: &Path, error: std::io::Error) -> String {
+    if error.kind() == std::io::ErrorKind::NotFound {
+        format!("Python executable was not found: {}", python.display())
+    } else {
+        format!(
+            "Failed to start GA runtime with {}: {error}",
+            python.display()
+        )
+    }
+}
+
+pub fn default_log_dir() -> PathBuf {
+    dirs::data_local_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("LiveAgent")
+        .join("ga-runtime-logs")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn dynamic_ports_are_loopback_and_nonzero() {
+        assert_ne!(reserve_loopback_port().unwrap(), 0);
+    }
+    #[test]
+    fn incompatible_manifest_is_actionable() {
+        let dir = tempfile::tempdir().unwrap();
+        let manifest = dir.path().join("runtime_manifest.json");
+        fs::write(
+            &manifest,
+            r#"{"ga_commit":"wrong","official_bridge":{"path":"x","sha256":"wrong"}}"#,
+        )
+        .unwrap();
+        assert!(validate_manifest(dir.path(), &manifest)
+            .unwrap_err()
+            .contains("incompatible"));
+    }
+    #[test]
+    fn mock_runtime_starts_healthy_and_stops_in_unicode_path() {
+        let root = tempfile::Builder::new()
+            .prefix("GA 测试 space ")
+            .tempdir()
+            .unwrap();
+        let script = root.path().join("mock adapter.py");
+        fs::write(
+            &script,
+            r#"import argparse
+from http.server import BaseHTTPRequestHandler, HTTPServer
+p=argparse.ArgumentParser(); p.add_argument('--ga-root'); p.add_argument('--port',type=int); a=p.parse_args()
+class H(BaseHTTPRequestHandler):
+ def do_GET(self): self.send_response(200); self.end_headers(); self.wfile.write(b'{}')
+ def log_message(self,*args): pass
+HTTPServer(('127.0.0.1',a.port),H).serve_forever()
+"#,
+        )
+        .unwrap();
+        let launch = GaRuntimeLaunch {
+            python: find_python(root.path()).unwrap(),
+            ga_root: root.path().to_path_buf(),
+            adapter: script,
+            manifest: PathBuf::new(),
+            extra_args: Vec::new(),
+        };
+        let port = reserve_loopback_port().unwrap();
+        let log = root.path().join("runtime log.txt");
+        let mut child =
+            spawn_runtime_child(&launch, port, "test-token", "http://tauri.localhost", &log)
+                .unwrap();
+        let started = Instant::now();
+        while !health_ok(port, "test-token", "http://tauri.localhost") {
+            assert!(started.elapsed() < Duration::from_secs(10));
+            thread::sleep(Duration::from_millis(50));
+        }
+        let pid = child.id();
+        terminate_child_process_tree(&mut child, STOP_GRACE).unwrap();
+        assert!(
+            child.try_wait().unwrap().is_some(),
+            "owned child {pid} must be reaped"
+        );
+    }
+
+    #[test]
+    fn crashed_owned_runtime_restarts_and_becomes_healthy() {
+        let root = tempfile::tempdir().unwrap();
+        let script = root.path().join("crash_then_serve.py");
+        let marker = root.path().join("started.marker");
+        fs::write(
+            &script,
+            r#"import argparse, pathlib, sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
+p=argparse.ArgumentParser(); p.add_argument('--ga-root'); p.add_argument('--port',type=int); p.add_argument('--marker'); a=p.parse_args()
+m=pathlib.Path(a.marker)
+if not m.exists(): m.write_text('1'); sys.exit(17)
+class H(BaseHTTPRequestHandler):
+ def do_GET(self): self.send_response(200); self.end_headers(); self.wfile.write(b'{}')
+ def log_message(self,*args): pass
+HTTPServer(('127.0.0.1',a.port),H).serve_forever()
+"#,
+        )
+        .unwrap();
+        let launch = GaRuntimeLaunch {
+            python: find_python(root.path()).unwrap(),
+            ga_root: root.path().to_path_buf(),
+            adapter: script,
+            manifest: PathBuf::new(),
+            extra_args: vec!["--marker".into(), marker.to_string_lossy().into_owned()],
+        };
+        let port = reserve_loopback_port().unwrap();
+        let token = "restart-test-token".to_string();
+        let origin = "http://tauri.localhost".to_string();
+        let log = root.path().join("restart.log");
+        let child = spawn_runtime_child(&launch, port, &token, &origin, &log).unwrap();
+        let supervisor_log_dir = root.path().join("logs");
+        fs::create_dir_all(&supervisor_log_dir).unwrap();
+        let supervisor = Arc::new(GaRuntimeSupervisor::new(supervisor_log_dir));
+        *supervisor.process.lock().unwrap() = Some(RuntimeProcess {
+            child,
+            launch,
+            token,
+            origin,
+            port,
+        });
+        supervisor.publish(GaRuntimeStatus {
+            phase: GaRuntimePhase::Running,
+            port: Some(port),
+            pid: supervisor
+                .process
+                .lock()
+                .unwrap()
+                .as_ref()
+                .map(|p| p.child.id()),
+            generation: 1,
+            ..GaRuntimeStatus::default()
+        });
+        supervisor.spawn_monitor(1);
+        let started = Instant::now();
+        loop {
+            let status = supervisor.status();
+            if status.phase == GaRuntimePhase::Running && status.restart_count == 1 {
+                assert!(health_ok(
+                    status.port.unwrap(),
+                    "restart-test-token",
+                    "http://tauri.localhost"
+                ));
+                break;
+            }
+            assert!(
+                status.phase != GaRuntimePhase::Failed,
+                "restart failed: {:?}",
+                status.last_error
+            );
+            assert!(
+                started.elapsed() < Duration::from_secs(20),
+                "restart timed out: {:?}",
+                status.phase
+            );
+            thread::sleep(Duration::from_millis(100));
+        }
+        assert_eq!(supervisor.stop().phase, GaRuntimePhase::Stopped);
+    }
+
+    #[test]
+    fn tokens_have_256_bits_of_hex_material() {
+        let token = format!(
+            "{}{}",
+            uuid::Uuid::new_v4().simple(),
+            uuid::Uuid::new_v4().simple()
+        );
+        assert_eq!(token.len(), 64);
+        assert!(token.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+}

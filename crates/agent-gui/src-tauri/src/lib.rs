@@ -158,6 +158,11 @@ macro_rules! app_invoke_handler {
             commands::cron::automation_claim_prompt_runs,
             commands::cron::automation_release_prompt_run,
             commands::cron::automation_complete_prompt_run,
+            // GenericAgent runtime supervisor
+            commands::runtime_commands::ga_runtime::ga_runtime_status,
+            commands::runtime_commands::ga_runtime::ga_runtime_start,
+            commands::runtime_commands::ga_runtime::ga_runtime_stop,
+            commands::runtime_commands::ga_runtime::ga_runtime_read_log,
             // Local command execution
             commands::shell::shell_run,
             commands::shell::shell_cancel,
@@ -489,6 +494,7 @@ pub fn run() {
     let power_activity = Arc::new(services::power_activity::PowerActivityManager::default());
     let managed_process_registry =
         Arc::new(runtime::managed_process::ManagedProcessRegistry::open());
+    let ga_runtime_supervisor = Arc::new(runtime::ga_supervisor::GaRuntimeSupervisor::default());
     let terminal_registry = Arc::new(runtime::terminal::TerminalSessionRegistry::default());
     let git_clone_task_registry = Arc::new(commands::git::GitCloneTaskRegistry::default());
     let sftp_registry = Arc::new(runtime::sftp::SftpSessionRegistry::new(Arc::clone(
@@ -524,6 +530,7 @@ pub fn run() {
         .manage(Arc::clone(&power_activity))
         .manage(Arc::new(runtime::shell_runner::ShellRunRegistry::default()))
         .manage(Arc::clone(&managed_process_registry))
+        .manage(Arc::clone(&ga_runtime_supervisor))
         .manage(Arc::clone(&terminal_registry))
         .manage(Arc::clone(&sftp_registry))
         .manage(Arc::clone(&git_clone_task_registry))
@@ -537,6 +544,7 @@ pub fn run() {
             let terminal_registry = Arc::clone(&terminal_registry);
             let sftp_registry = Arc::clone(&sftp_registry);
             let managed_process_registry = Arc::clone(&managed_process_registry);
+            let ga_runtime_supervisor = Arc::clone(&ga_runtime_supervisor);
             let git_clone_task_registry = Arc::clone(&git_clone_task_registry);
             move |app| {
                 commands::history_db::initialize_history_db()?;
@@ -556,6 +564,7 @@ pub fn run() {
                     eprintln!("failed to seed builtin skills: {error}");
                 }
                 terminal_registry.attach_app_handle(app.handle().clone());
+                ga_runtime_supervisor.attach_app(app.handle().clone());
                 sftp_registry.attach_app_handle(app.handle().clone());
                 let gateway_controller = Arc::new(services::gateway::GatewayController::new(
                     app.handle().clone(),
@@ -655,6 +664,7 @@ pub fn run() {
                 // Real exit: reclaim every non-isolated managed process
                 // before the OS tears us down (Drop is not guaranteed).
                 managed_process_registry.shutdown_cleanup();
+                ga_runtime_supervisor.stop();
                 git_clone_task_registry.shutdown_cleanup();
                 power_activity.clear_all();
             }
