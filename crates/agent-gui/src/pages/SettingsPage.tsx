@@ -20,6 +20,7 @@ import { AboutSection } from "./settings/AboutSection";
 import { AgentsSection } from "./settings/AgentsSection";
 import { GaAutomationSection } from "./settings/GaAutomationSection";
 import { GaHooksSection } from "./settings/GaHooksSection";
+import { GaModelProfilesSection } from "./settings/GaModelProfilesSection";
 import { GlobalShortcutsSection } from "./settings/GlobalShortcutsSection";
 import { MemoryPanel } from "./settings/memory/MemoryPanel";
 import { ProvidersSection } from "./settings/ProvidersSection";
@@ -97,6 +98,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "system", icon: <Settings2 className="h-3.5 w-3.5" /> },
       { id: "providers", icon: <Cpu className="h-3.5 w-3.5" /> },
+      { id: "models", icon: <Cpu className="h-3.5 w-3.5" /> },
       { id: "agents", icon: <BookOpen className="h-3.5 w-3.5" /> },
     ],
   },
@@ -148,6 +150,7 @@ export function SettingsPage(props: SettingsPageProps) {
     shortcuts: t("settings.navShortcuts"),
     systemTools: t("settings.navSystemTools"),
     providers: t("settings.navProviders"),
+    models: t("settings.navModels"),
     agents: t("settings.navAgents"),
     ssh: t("settings.navSsh"),
     memory: t("settings.navMemory"),
@@ -186,6 +189,8 @@ export function SettingsPage(props: SettingsPageProps) {
     switch (section) {
       case "providers":
         return <ProvidersSection settings={settings} setSettings={setSettings} />;
+      case "models":
+        return <GaModelProfilesSection />;
       case "system":
         return <SystemSettingsForm settings={settings} setSettings={setSettings} />;
       case "shortcuts":

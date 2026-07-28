@@ -11,6 +11,9 @@ import type {
   GaHooksSnapshot,
   GaMessageDto,
   GaMessagesSnapshot,
+  GaModelProfile,
+  GaModelProfileInput,
+  GaModelProfilesSnapshot,
   GaPromptAccepted,
   GaPromptRequest,
   GaRuntimeStartResponse,
@@ -163,6 +166,40 @@ export class GaBridgeClient {
     return this.request(`/api/v1/commands/${encodeURIComponent(id)}/execute`, {
       method: "POST",
       body: JSON.stringify({ args_text: argsText }),
+    });
+  }
+  listModelProfiles(): Promise<GaModelProfilesSnapshot> {
+    return this.request("/api/v1/model-profiles");
+  }
+  async getModelProfile(id: number): Promise<GaModelProfile> {
+    const result = await this.request<{ profile: GaModelProfile }>(
+      `/api/v1/model-profiles/${encodeURIComponent(id)}`,
+    );
+    return result.profile;
+  }
+  async createModelProfile(input: Required<Pick<GaModelProfileInput, "protocol" | "model" | "apibase">> & GaModelProfileInput): Promise<GaModelProfile> {
+    const result = await this.request<{ profile: GaModelProfile }>("/api/v1/model-profiles", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    return result.profile;
+  }
+  async updateModelProfile(id: number, patch: GaModelProfileInput): Promise<GaModelProfile> {
+    const result = await this.request<{ profile: GaModelProfile }>(
+      `/api/v1/model-profiles/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      },
+    );
+    return result.profile;
+  }
+  async deleteModelProfile(id: number): Promise<GaModelProfilesSnapshot> {
+    return this.request(`/api/v1/model-profiles/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+  async setDefaultModelProfile(id: number): Promise<GaModelProfilesSnapshot> {
+    return this.request(`/api/v1/model-profiles/${encodeURIComponent(id)}/default`, {
+      method: "POST",
     });
   }
   getHooks(): Promise<GaHooksSnapshot> {

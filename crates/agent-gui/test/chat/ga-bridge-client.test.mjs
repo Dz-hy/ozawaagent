@@ -126,6 +126,69 @@ test("WebSocket manager delivers duplicate event ids exactly once", async () => 
   }
 });
 
+test("model profile client uses safe typed adapter routes", async () => {
+  const calls = [];
+  const profile = {
+    id: 1,
+    kind: "native",
+    name: "Primary",
+    model: "gpt-test",
+    active: true,
+    protocol: "oai",
+    protocol_source: "var_name_heuristic",
+    apibase: "https://api.example/v1",
+    api_key_configured: true,
+  };
+  const fetcher = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    const path = new URL(String(url)).pathname;
+    if (path === "/api/v1/model-profiles" && (options.method ?? "GET") === "GET") {
+      return response(200, { payload: { profiles: [profile] } });
+    }
+    if (path === "/api/v1/model-profiles" && options.method === "POST") {
+      return response(201, { payload: { profile } });
+    }
+    if (path === "/api/v1/model-profiles/1" && (options.method ?? "GET") === "GET") {
+      return response(200, { payload: { profile } });
+    }
+    if (path === "/api/v1/model-profiles/1" && options.method === "PATCH") {
+      return response(200, { payload: { profile } });
+    }
+    return response(200, { payload: { id: 1, profiles: [profile] } });
+  };
+  const client = new GaBridgeClient(fetcher);
+  assert.deepEqual(await client.listModelProfiles(), { profiles: [profile] });
+  assert.deepEqual(await client.getModelProfile(1), profile);
+  assert.deepEqual(
+    await client.createModelProfile({
+      protocol: "oai",
+      model: "gpt-test",
+      apibase: "https://api.example/v1",
+      api_key: "",
+    }),
+    profile,
+  );
+  assert.deepEqual(await client.updateModelProfile(1, { name: "Renamed", api_key: "" }), profile);
+  assert.deepEqual(await client.setDefaultModelProfile(1), { id: 1, profiles: [profile] });
+  assert.deepEqual(await client.deleteModelProfile(1), { id: 1, profiles: [profile] });
+  assert.deepEqual(calls.map((call) => [new URL(call.url).pathname, call.options.method ?? "GET"]), [
+    ["/api/v1/model-profiles", "GET"],
+    ["/api/v1/model-profiles/1", "GET"],
+    ["/api/v1/model-profiles", "POST"],
+    ["/api/v1/model-profiles/1", "PATCH"],
+    ["/api/v1/model-profiles/1/default", "POST"],
+    ["/api/v1/model-profiles/1", "DELETE"],
+  ]);
+  assert.deepEqual(JSON.parse(calls[2].options.body), {
+    protocol: "oai",
+    model: "gpt-test",
+    apibase: "https://api.example/v1",
+    api_key: "",
+  });
+  assert.deepEqual(JSON.parse(calls[3].options.body), { name: "Renamed", api_key: "" });
+  assert.equal("api_key" in profile, false);
+});
+
 test("session mapping binds workspace and normalizes seconds to milliseconds", () => {
   const mapped = gaSessionToSidebar({
     sessionId: "ga-1",

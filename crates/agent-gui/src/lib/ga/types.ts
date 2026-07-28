@@ -80,6 +80,38 @@ export type GaCommandResult = {
   command_id: string;
   result: { type: "prompt"; prompt: string };
 };
+export type GaModelProtocol = "oai" | "claude" | "unknown";
+export type GaModelProtocolSource = "official" | "var_name_heuristic" | "unknown";
+export type GaModelProfile = {
+  id: number;
+  kind: "native" | "mixin";
+  name: string;
+  model: string;
+  active: boolean;
+  protocol?: GaModelProtocol;
+  protocol_source?: GaModelProtocolSource;
+  group?: "native" | "std";
+  in_mixin?: boolean;
+  members?: string[];
+  apibase?: string;
+  api_key_configured?: boolean;
+  max_retries?: number;
+  connect_timeout?: number;
+  read_timeout?: number;
+  stream?: boolean;
+};
+export type GaModelProfileInput = {
+  protocol?: Exclude<GaModelProtocol, "unknown">;
+  name?: string;
+  model?: string;
+  apibase?: string;
+  api_key?: string;
+  max_retries?: number;
+  connect_timeout?: number;
+  read_timeout?: number;
+  stream?: boolean;
+};
+export type GaModelProfilesSnapshot = { profiles: GaModelProfile[] };
 export type GaHookRegistration = { event: string; module: string; handler: string };
 export type GaHookObservation = { id: string; event: string; timestamp: string };
 export type GaHooksSnapshot = {
