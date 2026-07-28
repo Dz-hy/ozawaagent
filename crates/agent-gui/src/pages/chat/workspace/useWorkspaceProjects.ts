@@ -42,7 +42,7 @@ type UseWorkspaceProjectsParams = {
   workdir: string;
   t: (key: string) => string;
   setErrorMessage: Dispatch<SetStateAction<string | null>>;
-  setActiveView: Dispatch<SetStateAction<"chat" | "skills-hub" | "mcp-hub">>;
+  setActiveView: Dispatch<SetStateAction<"chat" | "knowledge-hub">>;
   setRightDockOpen: Dispatch<SetStateAction<boolean>>;
   startNewConversationActionRef: MutableRefObject<(options?: { workdir?: string }) => void>;
   prepareComposerForConversationChangeActionRef: MutableRefObject<() => void>;

@@ -112,6 +112,26 @@ export type GaModelProfileInput = {
   stream?: boolean;
 };
 export type GaModelProfilesSnapshot = { profiles: GaModelProfile[] };
+export type GaKnowledgeSkill = {
+  id: string;
+  kind: string;
+  triggers: string[];
+  verified: boolean;
+};
+export type GaMemoryLayer = { id: string; name: string; purpose: string };
+export type GaKnowledgeCatalog = {
+  schema: "ga.knowledge_catalog.v1";
+  read_only: true;
+  registry_state: "loaded" | "unavailable";
+  skills: GaKnowledgeSkill[];
+  memory: { layers: GaMemoryLayer[] };
+  morphling: {
+    kind: string;
+    summary: string;
+    completion: string;
+    skill_ids: string[];
+  };
+};
 export type GaHookRegistration = { event: string; module: string; handler: string };
 export type GaHookObservation = { id: string; event: string; timestamp: string };
 export type GaHooksSnapshot = {

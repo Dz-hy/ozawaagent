@@ -140,9 +140,8 @@ import { useWorkspaceProjectRemoval } from "./chat/workspace/useWorkspaceProject
 import { useWorkspaceProjects } from "./chat/workspace/useWorkspaceProjects";
 import { WorkspaceCloneModal } from "./chat/workspace/WorkspaceCloneModal";
 import { WorkspaceCloneTaskOverlay } from "./chat/workspace/WorkspaceCloneTaskOverlay";
-import { McpHubPage } from "./mcp-hub/McpHubPage";
+import { KnowledgeHubPage } from "./knowledge-hub/KnowledgeHubPage";
 import type { SectionId } from "./settings/types";
-import { SkillsHubPage } from "./skills-hub/SkillsHubPage";
 
 type ChatPageProps = {
   settings: AppSettings;
@@ -239,7 +238,7 @@ export function ChatPage(props: ChatPageProps) {
     () => undefined,
   );
   const prepareComposerForConversationChangeActionRef = useRef<() => void>(() => undefined);
-  const [activeView, setActiveView] = useState<"chat" | "skills-hub" | "mcp-hub">("chat");
+  const [activeView, setActiveView] = useState<"chat" | "knowledge-hub">("chat");
   const [rightDockOpen, setRightDockOpen] = useState(false);
   const {
     workspaceProjects,
@@ -1621,15 +1620,10 @@ export function ChatPage(props: ChatPageProps) {
           onCloseSidebar={handleCloseSidebar}
           onOpenSettings={() => onOpenSettings()}
           appUpdate={appUpdate}
-          onOpenSkillsHub={() => {
+          onOpenKnowledgeHub={() => {
             cacheActiveComposerDraft();
             setRightDockOpen(false);
-            setActiveView("skills-hub");
-          }}
-          onOpenMcpHub={() => {
-            cacheActiveComposerDraft();
-            setRightDockOpen(false);
-            setActiveView("mcp-hub");
+            setActiveView("knowledge-hub");
           }}
         />
 
@@ -1694,24 +1688,8 @@ export function ChatPage(props: ChatPageProps) {
               : undefined
           }
         >
-          {activeView === "skills-hub" ? (
-            <SkillsHubPage
-              settings={settings}
-              setSettings={setSettings}
-              initialSkills={availableSkills}
-              initialRootDir={skillsRootDir}
-              isAgentMode={isAgentMode}
-              sidebarOpen={sidebarOpen}
-              onOpenSidebar={handleOpenSidebar}
-            />
-          ) : activeView === "mcp-hub" ? (
-            <McpHubPage
-              settings={settings}
-              setSettings={setSettings}
-              isAgentMode={isAgentMode}
-              sidebarOpen={sidebarOpen}
-              onOpenSidebar={handleOpenSidebar}
-            />
+          {activeView === "knowledge-hub" ? (
+            <KnowledgeHubPage sidebarOpen={sidebarOpen} onOpenSidebar={handleOpenSidebar} />
           ) : (
             <>
               <div className="relative z-20">

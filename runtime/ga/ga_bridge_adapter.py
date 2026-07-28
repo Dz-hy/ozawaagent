@@ -449,6 +449,58 @@ def manifest_safe_version(root: Path) -> str:
     return hashlib.sha256((root / "frontends" / "slash_cmds.py").read_bytes()).hexdigest()[:12]
 
 
+def knowledge_catalog(root: Path | None) -> dict[str, Any]:
+    """Return GA-owned skill and memory metadata without secret-bearing content."""
+    layers = [
+        {"id": "L1", "name": "Insight index", "purpose": "Minimal high-frequency index into verified knowledge"},
+        {"id": "L2", "name": "Verified facts", "purpose": "Stable environment facts and project references"},
+        {"id": "L3", "name": "SOPs and tools", "purpose": "Reusable procedures and task-specific implementations"},
+        {"id": "L4", "name": "Raw sessions", "purpose": "Auditable source material retained outside active context"},
+    ]
+    snapshot: dict[str, Any] = {
+        "schema": "ga.knowledge_catalog.v1",
+        "read_only": True,
+        "registry_state": "unavailable",
+        "skills": [],
+        "memory": {"layers": layers},
+        "morphling": {
+            "kind": "workflow",
+            "summary": "Absorb a target capability by extracting goals and tests, then call, rewrite, or discard each component.",
+            "completion": "Successful results solidify into a registered tool, SOP, or tested repository rather than a second store.",
+            "skill_ids": [],
+        },
+    }
+    if root is None:
+        return snapshot
+    registry_path = root / "GA-local" / "skills" / "skill_registry.json"
+    try:
+        if registry_path.is_symlink() or not registry_path.is_file():
+            return snapshot
+        document = json.loads(registry_path.read_text(encoding="utf-8"))
+        if document.get("schema") != "ga.skill_registry.v1" or not isinstance(document.get("skills"), dict):
+            return snapshot
+        skills = []
+        for skill_id, raw in sorted(document["skills"].items()):
+            if not isinstance(skill_id, str) or not skill_id.startswith("skill:") or not isinstance(raw, dict):
+                continue
+            triggers = raw.get("triggers", [])
+            skills.append({
+                "id": skill_id,
+                "kind": raw.get("kind") if isinstance(raw.get("kind"), str) else "unknown",
+                "triggers": [value for value in triggers if isinstance(value, str)] if isinstance(triggers, list) else [],
+                "verified": raw.get("verified") is True,
+            })
+        snapshot["registry_state"] = "loaded"
+        snapshot["skills"] = skills
+        snapshot["morphling"]["skill_ids"] = [
+            item["id"] for item in skills
+            if "morphling" in item["id"].lower() or any("morphling" in value.lower() for value in item["triggers"])
+        ]
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return snapshot
+    return snapshot
+
+
 def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[str], manifest: dict[str, Any],
                ga_root: Path | None = None) -> web.Application:
     if len(token) < 32:
@@ -466,6 +518,10 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
 
     async def health_handler(request: web.Request) -> web.Response:
         return _json("bridge.health", {"status": "ready", "official_bridge": "compatible"}, 200, request.headers.get("X-Request-Id", ""))
+
+    async def knowledge_handler(request: web.Request) -> web.Response:
+        return _json("knowledge.catalog", knowledge_catalog(ga_root), 200,
+                     request.headers.get("X-Request-Id", ""))
 
     def model_profiles_error(request: web.Request, code: str, status: int) -> web.Response:
         messages = {
@@ -765,6 +821,7 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
     app.router.add_get("/api/v1/version", version_handler)
     app.router.add_get("/api/v1/capabilities", capabilities_handler)
     app.router.add_get("/api/v1/health", health_handler)
+    app.router.add_get("/api/v1/knowledge", knowledge_handler)
     app.router.add_get("/api/v1/model-profiles", model_profiles_handler)
     app.router.add_post("/api/v1/model-profiles", create_model_profile_handler)
     app.router.add_get("/api/v1/model-profiles/{profile_id}", model_profile_handler)

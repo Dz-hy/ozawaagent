@@ -9,6 +9,7 @@ import type {
   GaCommandResult,
   GaEnvelope,
   GaHooksSnapshot,
+  GaKnowledgeCatalog,
   GaMessageDto,
   GaMessagesSnapshot,
   GaModelProfile,
@@ -204,6 +205,9 @@ export class GaBridgeClient {
   }
   getHooks(): Promise<GaHooksSnapshot> {
     return this.request("/api/v1/hooks");
+  }
+  getKnowledgeCatalog(): Promise<GaKnowledgeCatalog> {
+    return this.request("/api/v1/knowledge");
   }
   listAutomations(): Promise<GaAutomationsSnapshot> {
     return this.request("/api/v1/automations");

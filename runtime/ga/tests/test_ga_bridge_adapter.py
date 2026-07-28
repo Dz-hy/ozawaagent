@@ -617,3 +617,46 @@ async def test_automation_registry_rejects_symlink_escape(tmp_path):
         })
         assert created.status == 400
     assert not (outside / "escape.json").exists()
+
+
+def test_knowledge_catalog_is_safe_when_registry_is_missing(tmp_path):
+    payload = adapter.knowledge_catalog(tmp_path)
+    assert payload["schema"] == "ga.knowledge_catalog.v1"
+    assert payload["read_only"] is True
+    assert payload["registry_state"] == "unavailable"
+    assert payload["skills"] == []
+    assert [layer["id"] for layer in payload["memory"]["layers"]] == ["L1", "L2", "L3", "L4"]
+
+
+@pytest.mark.asyncio
+async def test_knowledge_endpoint_returns_registry_metadata_without_paths_or_content(tmp_path):
+    registry = tmp_path / "GA-local" / "skills"
+    registry.mkdir(parents=True)
+    (registry / "skill_registry.json").write_text(json.dumps({
+        "schema": "ga.skill_registry.v1",
+        "skills": {
+            "skill:morphling": {
+                "kind": "sop", "path": "memory/morphling_sop.md",
+                "triggers": ["Morphling", "absorb"], "verified": True,
+            },
+            "skill:helper": {
+                "kind": "tool", "path": "secrets/private.py",
+                "triggers": ["helper"], "verified": False,
+            },
+            "invalid": {"kind": "tool", "triggers": []},
+        },
+    }), encoding="utf-8")
+    app = adapter.create_app(
+        official_module=fake_official_module(), token=TOKEN,
+        allowed_origins=(ORIGIN,), manifest=adapter.load_manifest(), ga_root=tmp_path,
+    )
+    async with TestClient(TestServer(app)) as client:
+        response = await client.get("/api/v1/knowledge", headers=AUTH)
+        assert response.status == 200
+        payload = (await response.json())["payload"]
+    assert payload["registry_state"] == "loaded"
+    assert [item["id"] for item in payload["skills"]] == ["skill:helper", "skill:morphling"]
+    assert payload["morphling"]["skill_ids"] == ["skill:morphling"]
+    encoded = json.dumps(payload)
+    assert "memory/morphling_sop.md" not in encoded
+    assert "secrets/private.py" not in encoded

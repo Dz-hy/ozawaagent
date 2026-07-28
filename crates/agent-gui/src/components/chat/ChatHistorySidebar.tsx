@@ -24,8 +24,7 @@ import { AppUpdateButton } from "../AppUpdateButton";
 import {
   Archive,
   ArchiveRestore,
-  Blend,
-  Cable,
+  BookOpen,
   Check,
   ChevronRight,
   CirclePlus,
@@ -78,7 +77,7 @@ type ChatHistorySidebarProps = {
   renameDraft: string;
   isOpen: boolean;
   fontScale?: number;
-  activeView?: "chat" | "skills-hub" | "mcp-hub";
+  activeView?: "chat" | "knowledge-hub";
   showProjects?: boolean;
   // Pre-sorted by the container (activity/running/pinned) — rendered as-is.
   projects?: WorkspaceProject[];
@@ -127,8 +126,7 @@ type ChatHistorySidebarProps = {
   onCloseSidebar: () => void;
   onOpenSettings: () => void;
   appUpdate?: AppUpdateController;
-  onOpenSkillsHub?: () => void;
-  onOpenMcpHub?: () => void;
+  onOpenKnowledgeHub?: () => void;
 };
 
 const HISTORY_ROW_ESTIMATED_HEIGHT = 30;
@@ -1042,8 +1040,7 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
     onCloseSidebar,
     onOpenSettings,
     appUpdate,
-    onOpenSkillsHub,
-    onOpenMcpHub,
+    onOpenKnowledgeHub,
   } = props;
   const { t } = useLocale();
 
@@ -1713,42 +1710,22 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
             <Button
               type="button"
               variant="ghost"
-              onClick={() => onOpenSkillsHub?.()}
+              onClick={() => onOpenKnowledgeHub?.()}
               className={cn(
                 "sidebar-hub-menu-item h-[30px] w-full justify-start gap-3 rounded-lg px-3 text-[calc(14px*var(--zone-font-scale,1))] font-normal leading-5 shadow-none transition-colors",
-                activeView === "skills-hub"
+                activeView === "knowledge-hub"
                   ? "bg-foreground/[0.06] text-foreground hover:bg-foreground/[0.08] hover:text-foreground focus-visible:bg-foreground/[0.08]"
                   : "text-foreground/80 hover:bg-foreground/[0.08] hover:text-foreground focus-visible:bg-foreground/[0.08]",
               )}
-              title="Skills Hub"
+              title="Knowledge Hub"
             >
-              <Blend
+              <BookOpen
                 className={cn(
                   "h-4 w-4 shrink-0",
-                  activeView === "skills-hub" ? "text-amber-500" : "text-foreground/85",
+                  activeView === "knowledge-hub" ? "text-sky-500" : "text-foreground/85",
                 )}
               />
-              <span className="truncate">Skills</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenMcpHub?.()}
-              className={cn(
-                "sidebar-hub-menu-item h-[30px] w-full justify-start gap-3 rounded-lg px-3 text-[calc(14px*var(--zone-font-scale,1))] font-normal leading-5 shadow-none transition-colors",
-                activeView === "mcp-hub"
-                  ? "bg-foreground/[0.06] text-foreground hover:bg-foreground/[0.08] hover:text-foreground focus-visible:bg-foreground/[0.08]"
-                  : "text-foreground/80 hover:bg-foreground/[0.08] hover:text-foreground focus-visible:bg-foreground/[0.08]",
-              )}
-              title="MCP Hub"
-            >
-              <Cable
-                className={cn(
-                  "h-4 w-4 shrink-0",
-                  activeView === "mcp-hub" ? "text-violet-500" : "text-foreground/85",
-                )}
-              />
-              <span className="truncate">MCP</span>
+              <span className="truncate">Knowledge</span>
             </Button>
           </div>
         </div>

@@ -7,7 +7,7 @@ import type {
 type UseComposerDraftCacheParams = {
   composerRef: MutableRefObject<MentionComposerHandle | null>;
   currentConversationIdRef: MutableRefObject<string>;
-  activeView: "chat" | "skills-hub" | "mcp-hub";
+  activeView: "chat" | "knowledge-hub";
   currentConversationId: string;
 };
 
