@@ -13,6 +13,15 @@ test("settings routes hooks and cron to GenericAgent-backed views", () => {
   assert.doesNotMatch(settings, /<CronSection/);
 });
 
+test("settings routes providers exclusively to GenericAgent model profiles", () => {
+  const settings = source("pages/SettingsPage.tsx");
+  const types = source("pages/settings/types.ts");
+  assert.match(settings, /case "providers":[\s\S]*<GaModelProfilesSection \/>/);
+  assert.doesNotMatch(settings, /ProvidersSection/);
+  assert.doesNotMatch(settings, /id: "models"/);
+  assert.doesNotMatch(types, /\| "models"/);
+});
+
 test("application startup does not initialize or execute the legacy automation engine", () => {
   const app = source("App.tsx");
   assert.doesNotMatch(app, /initAutomation/);

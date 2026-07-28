@@ -9,7 +9,6 @@ export type SectionId =
   | "shortcuts"
   | "systemTools"
   | "providers"
-  | "models"
   | "agents"
   | "ssh"
   | "memory"
