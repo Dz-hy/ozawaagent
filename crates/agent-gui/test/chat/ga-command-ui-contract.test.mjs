@@ -23,11 +23,12 @@ test("command discovery is threaded from the bridge to the composer", () => {
   assert.match(bar, /availableCommands=\{availableCommands\}/);
 });
 
-test("typed command execution expands only in the GenericAgent send branch", () => {
+test("typed command execution expands in the sole GenericAgent send path", () => {
   const sender = source("pages/chat/runtime/useSendChatTurn.ts");
-  const gaBranch = sender.indexOf("if (gaBridgeClient)");
-  const expansion = sender.indexOf("expandGaCommandPrompt", gaBranch);
-  const draftClear = sender.indexOf("composerRef.current?.clear()", gaBranch);
-  assert.ok(gaBranch >= 0 && expansion > gaBranch);
+  const gaPath = sender.indexOf("GenericAgent is the sole owner of chat semantics");
+  const expansion = sender.indexOf("expandGaCommandPrompt", gaPath);
+  const draftClear = sender.indexOf("composerRef.current?.clear()", gaPath);
+  assert.ok(gaPath >= 0 && expansion > gaPath);
+  assert.doesNotMatch(sender, /chatRuntimeHost\.runTurn/);
   assert.ok(draftClear < 0 || expansion < draftClear, "command failure must preserve the draft");
 });
