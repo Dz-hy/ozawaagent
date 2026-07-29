@@ -526,8 +526,7 @@ test("runAssistantWithTools calls onBeforeNextTurn only for toolUse turns with t
   );
 });
 
-// Mocked turn tests (agent-turn-cancelled-history.test.mjs) replay this payload
-// shape by hand; the assertions here are what keep those replicas honest.
+// Keep the callback payload contract explicit for remaining memory and subagent consumers.
 test("runAssistantWithTools reports 1-based monotonic rounds and paired tool results to onBeforeNextTurn", async () => {
   const firstToolCall = createToolCall("call-read-1", "Read", { path: "a.ts" });
   const secondToolCall = createToolCall("call-read-2", "Read", { path: "b.ts" });
