@@ -616,6 +616,30 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
         return _json("knowledge.catalog", knowledge_catalog(ga_root), 200,
                      request.headers.get("X-Request-Id", ""))
 
+    async def project_memory_handler(request: web.Request) -> web.Response:
+        try:
+            project_id = _normalize_project_id(request.match_info.get("project_id"))
+        except ValueError:
+            project_id = None
+        if project_id is None:
+            return _json("error", {"code": "invalid_project_id", "message": "Invalid projectId"}, 400,
+                         request.headers.get("X-Request-Id", ""))
+        if ga_root is None:
+            return _json("error", {"code": "project_memory_unavailable",
+                                   "message": "GenericAgent project memory is unavailable"}, 503,
+                         request.headers.get("X-Request-Id", ""))
+        memory_path = ga_root / "private" / "projects" / project_id / "project_memory.md"
+        exists = memory_path.is_file() and not memory_path.is_symlink()
+        payload: dict[str, Any] = {"projectId": project_id, "status": "missing",
+                                   "lineCount": 0, "updatedAt": None}
+        if exists:
+            content = memory_path.read_text(encoding="utf-8")
+            stat = memory_path.stat()
+            payload["lineCount"] = len(content.splitlines())
+            payload["status"] = "available" if content.strip() else "empty"
+            payload["updatedAt"] = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
+        return _json("project.memory-status", payload, 200, request.headers.get("X-Request-Id", ""))
+
     def model_profiles_error(request: web.Request, code: str, status: int) -> web.Response:
         messages = {
             "model_profiles_unavailable": "GenericAgent model profiles are unavailable",
@@ -915,6 +939,7 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
     app.router.add_get("/api/v1/capabilities", capabilities_handler)
     app.router.add_get("/api/v1/health", health_handler)
     app.router.add_get("/api/v1/knowledge", knowledge_handler)
+    app.router.add_get("/api/v1/projects/{project_id}/memory-status", project_memory_handler)
     app.router.add_get("/api/v1/model-profiles", model_profiles_handler)
     app.router.add_post("/api/v1/model-profiles", create_model_profile_handler)
     app.router.add_get("/api/v1/model-profiles/{profile_id}", model_profile_handler)

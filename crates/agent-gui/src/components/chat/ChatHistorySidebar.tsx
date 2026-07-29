@@ -4,6 +4,7 @@ import { type CSSProperties, memo, useCallback, useEffect, useMemo, useRef, useS
 import iconSimpleUrl from "../../../src-tauri/icons/icon-simple.png";
 import { useLocale } from "../../i18n";
 import type { AppUpdateController } from "../../lib/appUpdates";
+import type { GaProjectMemoryStatus } from "../../lib/ga/types";
 import {
   DEFAULT_WORKSPACE_PROJECT_ID,
   type WorkspaceProject,
@@ -83,6 +84,7 @@ type ChatHistorySidebarProps = {
   projects?: WorkspaceProject[];
   activeProjectId?: string;
   missingProjectPathKeys?: ReadonlySet<string>;
+  projectMemoryStatuses?: ReadonlyMap<string, GaProjectMemoryStatus>;
   runningProjectPathKeys?: ReadonlySet<string>;
   projectRenamingId?: string | null;
   projectRenameDraft?: string;
@@ -498,6 +500,7 @@ const ProjectRow = memo(function ProjectRow(props: {
   isActive: boolean;
   isMissing: boolean;
   isRunning: boolean;
+  memoryStatus?: GaProjectMemoryStatus;
   isRenaming: boolean;
   isPendingRemove: boolean;
   renameDraft: string;
@@ -524,6 +527,7 @@ const ProjectRow = memo(function ProjectRow(props: {
     isActive,
     isMissing,
     isRunning,
+    memoryStatus,
     isRenaming,
     isPendingRemove,
     renameDraft,
@@ -730,6 +734,14 @@ const ProjectRow = memo(function ProjectRow(props: {
                 >
                   {project.name}
                 </span>
+                {memoryStatus?.status === "available" ? (
+                  <span
+                    title={t("chat.workspaceProjectMemory")}
+                    className="shrink-0 rounded bg-primary/10 px-1 py-0.5 text-[10px] font-medium leading-none text-primary"
+                  >
+                    M
+                  </span>
+                ) : null}
               </button>
             }
           />
@@ -747,6 +759,22 @@ const ProjectRow = memo(function ProjectRow(props: {
                 <p className="mt-1 break-all text-xs leading-4 text-muted-foreground">
                   {project.path}
                 </p>
+                {memoryStatus ? (
+                  <p className="mt-1 text-xs leading-4 text-primary">
+                    {memoryStatus.status === "missing"
+                      ? t("chat.workspaceProjectMemoryMissing")
+                      : memoryStatus.status === "empty"
+                        ? t("chat.workspaceProjectMemoryEmpty")
+                        : t("chat.workspaceProjectMemoryDetails")
+                            .replace("{lineCount}", String(memoryStatus.lineCount))
+                            .replace(
+                              "{updatedAt}",
+                              memoryStatus.updatedAt
+                                ? new Date(memoryStatus.updatedAt).toLocaleString()
+                                : "—",
+                            )}
+                  </p>
+                ) : null}
               </Tooltip.Popup>
             </Tooltip.Positioner>
           </Tooltip.Portal>
@@ -1003,6 +1031,7 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
     projects = [],
     activeProjectId,
     missingProjectPathKeys = EMPTY_PROJECT_PATH_KEYS,
+    projectMemoryStatuses = new Map<string, GaProjectMemoryStatus>(),
     runningProjectPathKeys = EMPTY_PROJECT_PATH_KEYS,
     projectRenamingId = null,
     projectRenameDraft = "",
@@ -1788,6 +1817,7 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
                         isActive={activeProjectId === project.id}
                         isMissing={missingProjectPathKeys.has(pathKey)}
                         isRunning={runningProjectPathKeys.has(pathKey)}
+                        memoryStatus={projectMemoryStatuses.get(project.id)}
                         isRenaming={projectRenamingId === project.id}
                         isPendingRemove={pendingProjectRemoveId === project.id}
                         renameDraft={projectRenameDraft}
@@ -1856,6 +1886,7 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
                                 isActive={activeProjectId === project.id}
                                 isMissing={missingProjectPathKeys.has(pathKey)}
                                 isRunning={runningProjectPathKeys.has(pathKey)}
+                                memoryStatus={projectMemoryStatuses.get(project.id)}
                                 isRenaming={projectRenamingId === project.id}
                                 isPendingRemove={pendingProjectRemoveId === project.id}
                                 renameDraft={projectRenameDraft}

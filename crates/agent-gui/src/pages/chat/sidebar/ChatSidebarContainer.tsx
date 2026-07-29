@@ -3,11 +3,13 @@
 // ChatPage), the conversation-rename UI state, the delete flow, and the
 // error-code → i18n mapping. NOT mirrored — the web end has its own container.
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChatHistorySidebar } from "../../../components/chat/ChatHistorySidebar";
 import { useLocale } from "../../../i18n";
 import type { AppUpdateController } from "../../../lib/appUpdates";
 import { normalizeConversationTitle } from "../../../lib/chat/page/chatPageHelpers";
+import { gaBridgeClient } from "../../../lib/ga/GaBridgeClient";
+import type { GaProjectMemoryStatus } from "../../../lib/ga/types";
 import type { WorkspaceProject } from "../../../lib/settings";
 import type { SidebarBatchDeleteOptions } from "../../../lib/sidebar/batchDelete";
 import { deleteSidebarConversations } from "../../../lib/sidebar/batchDelete";
@@ -96,6 +98,34 @@ export function ChatSidebarContainer(props: ChatSidebarContainerProps) {
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
+  const [projectMemoryStatuses, setProjectMemoryStatuses] = useState<
+    ReadonlyMap<string, GaProjectMemoryStatus>
+  >(new Map());
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all(
+      projects.map(async (project) => {
+        try {
+          return await gaBridgeClient.getProjectMemoryStatus(project.id);
+        } catch {
+          return null;
+        }
+      }),
+    ).then((statuses) => {
+      if (cancelled) return;
+      setProjectMemoryStatuses(
+        new Map(
+          statuses
+            .filter((status): status is GaProjectMemoryStatus => status !== null)
+            .map((status) => [status.projectId, status]),
+        ),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [projects]);
 
   const sortedProjects = useMemo(
     () =>
@@ -215,6 +245,7 @@ export function ChatSidebarContainer(props: ChatSidebarContainerProps) {
       projects={sortedProjects}
       activeProjectId={props.activeProjectId}
       missingProjectPathKeys={props.missingProjectPathKeys}
+      projectMemoryStatuses={projectMemoryStatuses}
       runningProjectPathKeys={projectActivityInputs.runningWorkdirPathKeys}
       projectRenamingId={props.projectRenamingId}
       projectRenameDraft={props.projectRenameDraft}

@@ -58,7 +58,7 @@ test("client unwraps v1 envelopes and sends authenticated session CRUD", async (
   };
   const client = new GaBridgeClient(fetcher);
   assert.equal((await client.listSessions()).sessions[0].id, "s1");
-  assert.equal((await client.createSession("C:/space dir")).id, "s2");
+  assert.equal((await client.createSession({ cwd: "C:/space dir" })).id, "s2");
   assert.equal((await client.listCommands())[0].id, "goal");
   assert.equal((await client.executeCommand("goal/safe", "ship")).result.prompt, "GOAL:ship");
   assert.equal((await client.renameSession("s2", "renamed")).title, "renamed");
@@ -74,6 +74,33 @@ test("client unwraps v1 envelopes and sends authenticated session CRUD", async (
   assert.deepEqual(JSON.parse(calls[3].options.body), { args_text: "ship" });
   assert.match(calls[4].url, /\/session\/s2$/);
   assert.equal(calls[5].options.method, "DELETE");
+});
+
+test("client reads project memory metadata without requesting content", async () => {
+  const calls = [];
+  const fetcher = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    return response(200, {
+      payload: {
+        projectId: "project safe",
+        status: "available",
+        lineCount: 42,
+        updatedAt: "2026-07-29T12:00:00+00:00",
+      },
+    });
+  };
+  const client = new GaBridgeClient(fetcher);
+  assert.deepEqual(await client.getProjectMemoryStatus("project safe"), {
+    projectId: "project safe",
+    status: "available",
+    lineCount: 42,
+    updatedAt: "2026-07-29T12:00:00+00:00",
+  });
+
+  assert.match(calls[0].url, /\/api\/v1\/projects\/project%20safe\/memory-status$/);
+  assert.equal(calls[0].options.headers.Authorization, `Bearer ${runtime.token}`);
+  assert.equal(calls[0].options.method, undefined);
+  assert.equal(calls[0].options.body, undefined);
 });
 
 test("client preserves typed bridge failures without exposing credentials", async () => {

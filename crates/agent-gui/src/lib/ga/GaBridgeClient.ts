@@ -15,6 +15,7 @@ import type {
   GaModelProfile,
   GaModelProfileInput,
   GaModelProfilesSnapshot,
+  GaProjectMemoryStatus,
   GaPromptAccepted,
   GaPromptRequest,
   GaRuntimeStartResponse,
@@ -168,6 +169,9 @@ export class GaBridgeClient {
       method: "POST",
       body: JSON.stringify({ args_text: argsText }),
     });
+  }
+  getProjectMemoryStatus(projectId: string): Promise<GaProjectMemoryStatus> {
+    return this.request(`/api/v1/projects/${encodeURIComponent(projectId)}/memory-status`);
   }
   listModelProfiles(): Promise<GaModelProfilesSnapshot> {
     return this.request("/api/v1/model-profiles");

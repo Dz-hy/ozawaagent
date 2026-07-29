@@ -3,7 +3,6 @@ import { Terminal } from "../../../components/icons";
 import type { ConfirmDialogOptions } from "../../../components/ui/confirm-dialog";
 import type { ConversationViewState } from "../../../lib/chat/conversation/conversationState";
 import { gaBridgeClient } from "../../../lib/ga/GaBridgeClient";
-import { memoryDeleteProject } from "../../../lib/memory/api";
 import {
   type AppSettings,
   DEFAULT_WORKSPACE_PROJECT_ID,
@@ -256,13 +255,6 @@ export function useWorkspaceProjectRemoval(params: UseWorkspaceProjectRemovalPar
             Boolean(visibleConversationId && deletedConversationIds.has(visibleConversationId)) ||
             Boolean(pathKey && workspaceProjectPathKey(displayedConversationWorkdir) === pathKey);
 
-          if (path) {
-            await memoryDeleteProject({
-              workdir: path,
-              actor: "tool",
-              reason: "workspace project removed",
-            });
-          }
           removeWorkspaceProjectFromSettings(project);
           if (shouldResetVisibleConversation) {
             startNewConversationActionRef.current({

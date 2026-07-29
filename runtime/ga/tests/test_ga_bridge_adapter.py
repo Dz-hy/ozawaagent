@@ -255,6 +255,48 @@ async def test_model_profile_delete_failure_restores_default(model_client):
 
 
 @pytest.mark.asyncio
+async def test_project_memory_status_is_metadata_only(command_client, tmp_path):
+    endpoint = "/api/v1/projects/project-1/memory-status"
+    missing = await command_client.get(endpoint, headers=AUTH)
+    assert missing.status == 200
+    assert (await missing.json())["payload"] == {
+        "projectId": "project-1", "status": "missing", "lineCount": 0, "updatedAt": None,
+    }
+
+    memory = tmp_path / "private" / "projects" / "project-1" / "project_memory.md"
+    memory.parent.mkdir(parents=True)
+    memory.write_text("", encoding="utf-8")
+    empty = await command_client.get(endpoint, headers=AUTH)
+    assert empty.status == 200
+    empty_body = (await empty.json())["payload"]
+    assert empty_body["status"] == "empty"
+    assert empty_body["lineCount"] == 0
+    assert empty_body["updatedAt"]
+
+    memory.write_text("private project memory\nsecond line\n", encoding="utf-8")
+    present = await command_client.get(endpoint, headers=AUTH)
+    assert present.status == 200
+    body = (await present.json())["payload"]
+    assert body["projectId"] == "project-1"
+    assert body["status"] == "available"
+    assert body["lineCount"] == 2
+    assert body["updatedAt"]
+    assert "private project memory" not in json.dumps(body)
+    assert str(tmp_path) not in json.dumps(body)
+
+    invalid = await command_client.get("/api/v1/projects/invalid.project/memory-status", headers=AUTH)
+    assert invalid.status == 400
+    assert (await invalid.json())["payload"]["code"] == "invalid_project_id"
+
+
+@pytest.mark.asyncio
+async def test_project_memory_status_requires_a_verified_ga_root(client):
+    response = await client.get("/api/v1/projects/project-1/memory-status", headers=AUTH)
+    assert response.status == 503
+    assert (await response.json())["payload"]["code"] == "project_memory_unavailable"
+
+
+@pytest.mark.asyncio
 async def test_command_registry_requires_a_verified_ga_root(client):
     listed = await client.get("/api/v1/commands", headers=AUTH)
     assert listed.status == 503

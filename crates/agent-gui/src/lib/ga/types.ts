@@ -81,6 +81,12 @@ export type GaCommandResult = {
   command_id: string;
   result: { type: "prompt"; prompt: string };
 };
+export type GaProjectMemoryStatus = {
+  projectId: string;
+  status: "missing" | "empty" | "available";
+  lineCount: number;
+  updatedAt: string | null;
+};
 export type GaModelProtocol = "oai" | "claude" | "unknown";
 export type GaModelProtocolSource = "official" | "var_name_heuristic" | "unknown";
 export type GaModelProfile = {
