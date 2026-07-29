@@ -27,6 +27,8 @@ test("application startup does not initialize or execute legacy automation or me
   assert.doesNotMatch(app, /initAutomation/);
   assert.doesNotMatch(app, /CronPromptRunner/);
   assert.doesNotMatch(app, /MemoryOrganizerHost/);
+  const chatPage = source("pages/ChatPage.tsx");
+  assert.doesNotMatch(chatPage, /memory\/extractionController|memoryExtraction\.dispose/);
 });
 
 test("GenericAgent hooks are read-only and automation is Agent Prompt only", () => {

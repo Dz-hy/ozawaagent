@@ -41,7 +41,6 @@ import {
   type RenderTimelineItem,
 } from "../lib/chat/conversation/conversationState";
 import type { ChatHistorySummary } from "../lib/chat/history/chatHistory";
-import { memoryExtraction } from "../lib/chat/memory/extractionController";
 import type { CodeMentionReference } from "../lib/chat/messages/mentionReferences";
 import {
   buildFallbackConversationTitle,
@@ -935,7 +934,6 @@ export function ChatPage(props: ChatPageProps) {
       locallySyncedHistoryUpdatedAtRef.current.delete(key);
       gatewayBridgeHistorySummaryRef.current.delete(key);
       setPendingUploadsForConversation(key, []);
-      memoryExtraction.dispose(key);
       deleteConversationArtifacts(key);
       setQueuedChatTurnsState((current) => removeQueuedChatTurnsForConversation(current, key));
     },
