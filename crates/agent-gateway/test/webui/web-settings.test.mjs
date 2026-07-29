@@ -602,7 +602,7 @@ test("gateway settings sync keeps remote connection local and syncs web terminal
 
   assert.equal(synced.system.executionMode, "tools");
   assert.equal(synced.system.workdir, "/remote-workdir");
-  assert.deepEqual(synced.system.selectedSystemTools, ["http_get_test"]);
+  assert.deepEqual(synced.system.selectedSystemTools, []);
   assert.equal(synced.chatRuntimeControls.thinkingEnabled, false);
   assert.equal(synced.chatRuntimeControls.nativeWebSearchEnabled, false);
   assert.equal(synced.chatRuntimeControls.reasoning, "minimal");

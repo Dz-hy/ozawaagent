@@ -14,7 +14,6 @@ import type {
   BuiltinToolExecutionContext,
   BuiltinToolMetadata,
 } from "./builtinTypes";
-import { createCustomSystemTools } from "./customSystemTools";
 import { createFileToolState, type FileToolState } from "./fileToolState";
 import { createFsTools } from "./fsTools";
 import { createMcpManagerTools } from "./mcpManagerTools";
@@ -173,11 +172,6 @@ async function buildBaseBuiltinToolBundles(params: BuildBuiltinBaseToolRegistryP
       applyMcpOps: params.applyMcpOps,
       runtimeScope: params.runtimeScope,
       resolveHomeDir,
-    }),
-    createCustomSystemTools({
-      selectedToolIds: params.selectedSystemToolIds,
-      runtimeScope: params.runtimeScope,
-      currentChatModel: params.currentChatModel,
     }),
     createMemoryTools({
       workdir: params.workdir,
