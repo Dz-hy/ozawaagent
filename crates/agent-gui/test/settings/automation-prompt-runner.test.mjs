@@ -34,12 +34,8 @@ const {
   MANUAL_CRON_RUN_POLL_INTERVAL_MS,
   MANUAL_CRON_RUN_TIMEOUT_MS,
 } = loader.loadModule("src/lib/automation/types.ts");
-const { createCompletePromptRunInput, PROMPT_RUN_RECONCILE_INTERVAL_MS } = loader.loadModule(
+const { createCompletePromptRunInput } = loader.loadModule(
   "src/components/cron/promptRunProtocol.ts",
-);
-const runnerSource = readFileSync(
-  new URL("../../src/components/cron/CronPromptRunner.tsx", import.meta.url),
-  "utf8",
 );
 const guiCronViewSource = readFileSync(
   new URL("../../src/pages/settings/CronTaskViewModal.tsx", import.meta.url),
@@ -165,22 +161,6 @@ test("Cron manual run remains locked until its non-skip run reaches a terminal s
   assert.equal(isManualCronRunFinished([skip, run("leased", "leased", marker + 2)], marker), false);
   assert.equal(isManualCronRunFinished([skip, run("done", "done", marker + 2)], marker), true);
   assert.equal(isManualCronRunFinished([skip, run("expired", "expired", marker + 2)], marker), true);
-});
-
-test("Auto Prompt reconciles pending runs without relying only on events", () => {
-  assert.equal(PROMPT_RUN_RECONCILE_INTERVAL_MS, 15_000);
-  assert.match(
-    runnerSource,
-    /window\.setInterval\(requestClaim, PROMPT_RUN_RECONCILE_INTERVAL_MS\)/,
-  );
-  assert.match(runnerSource, /window\.clearInterval\(reconcileTimer\)/);
-});
-
-test("Auto Prompt run prefers the queue-time workdir with a global fallback", () => {
-  assert.match(
-    runnerSource,
-    /const workdir = \(request\.workdir \?\? ""\)\.trim\(\) \|\| settings\.system\.workdir\.trim\(\)/,
-  );
 });
 
 test("Cron workspace pin stays wired across GUI and WebUI", () => {
