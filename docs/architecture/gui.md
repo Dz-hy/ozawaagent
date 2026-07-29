@@ -4,15 +4,15 @@
 
 | 模块 | 路径 | 职责 |
 |---|---|---|
-| React app shell | `crates/agent-gui/src/App.tsx` | 设置 hydration/save、主题/i18n、Settings overlay、ChatPage、CronPromptRunner、MemoryOrganizerRunner、全局 toast。 |
-| Chat 页面 | `crates/agent-gui/src/pages/ChatPage.tsx` | 会话状态、消息发送/取消、历史、上传、模型选择、Gateway bridge、Skills/Memory prompt、压缩与运行态编排。 |
-| Chat 子模块 | `crates/agent-gui/src/pages/chat/*` | transcript、composer、header、agent/text turn、history actions、uploads、上下文构造、live transcript store。 |
+| React app shell | `crates/agent-gui/src/App.tsx` | 设置 hydration/save、主题/i18n、Settings overlay、ChatPage、全局 toast 与 GenericAgent runtime readiness。 |
+| Chat 页面 | `crates/agent-gui/src/pages/ChatPage.tsx` | 会话视图、消息发送/取消、历史、上传与 GenericAgent bridge 编排。 |
+| Chat 子模块 | `crates/agent-gui/src/pages/chat/*` | transcript、composer、header、GA runtime adapter、history actions、uploads 与对话状态映射。 |
 | Settings | `crates/agent-gui/src/pages/SettingsPage.tsx`、`src/pages/settings/*` | Providers、System、MCP、Agents、Hooks、Cron、Remote、Memory、Skills 配置。 |
 | Hub 页面 | `src/pages/skills-hub/*`、`src/pages/mcp-hub/*`、`src/components/hub/HubChrome.tsx` | Skills Hub、MCP Hub、store/registry 浏览与本地配置管理。 |
 | UI 组件 | `src/components/*`、`src/components/ui/*` | Sidebar、Markdown、ImagePreview、通用 button/input/select/dropdown/scroll 等。 |
 | 前端设置库 | `src/lib/settings/*` | 默认值、normalize、storage、Gateway sync snapshot、provider redaction。 |
-| 模型层 | `src/lib/providers/llm.ts` | provider 到具体模型 API 的映射、headers、Responses/Anthropic/Gemini stream、thinking/cache/search。 |
-| 工具层 | `src/lib/tools/*`、`src/lib/subagents/*` | builtin tool registry、FS、Shell、MCP、Skills、Cron、Memory、custom system tools；subagents 域提供 `Agent`/`SendMessage` 委托工具。 |
+| GenericAgent bridge | `src/lib/ga/*`、`src/pages/chat/runtime/*` | runtime supervisor 的 typed client、HTTP session snapshot、WebSocket refresh hint 与对话状态映射。 |
+| 工具展示/兼容层 | `src/lib/tools/builtinToolCatalog.ts`、`src/pages/chat/components/*` | 展示工具目录与 tool call/result 卡片；不注册或执行主对话工具。 |
 | Tauri 后端 | `src-tauri/src` | 系统命令、SQLite、MCP runtime、MemoryStore、GatewayController、CronManager、代理服务。 |
 
 ## App Shell
@@ -23,21 +23,20 @@
 | 设置保存 | Settings 页修改后按配置域保存到 Tauri SQLite，并在需要时 publish settings sync 到 Gateway。 |
 | 主题与语言 | `theme` 写入 document root，`LocaleProvider` 提供翻译。 |
 | 页面布局 | 主视图以 ChatPage 为中心，Settings 使用 overlay/modal 风格进入。 |
-| 后台 runner | `CronPromptRunner` 接管 prompt 类型 cron；`MemoryOrganizerRunner` 接管自动整理记忆。 |
+| 后台 bridge | App shell 确保 GenericAgent runtime ready；聊天通过 GA bridge 观察 session，旧 Memory organizer 不再启动。 |
 | 远程桥接 | Remote settings 启用时，Tauri GatewayController 连接 Go Gateway，并把 settings/history/chat event 发布出去。 |
 
 ## ChatPage 编排
 
 | 子系统 | 说明 | 关键路径 |
 |---|---|---|
-| 会话运行态 | 当前 conversation、session、message list、live stream、tool status、running/canceling 状态。 | `ChatPage.tsx`、`pages/chat/useChatPageRuntimeStore.ts`、`lib/chat/conversation/liveTranscriptStore.ts` |
+| 会话运行态 | 当前 conversation、session、message list、live stream、tool status、running/canceling 状态。 | `ChatPage.tsx`、`pages/chat/hooks/useChatPageRuntimeStore.ts`、`lib/chat/conversation/liveTranscriptStore.ts` |
 | 发送入口 | 将用户文本、附件、选中模型、execution mode、workdir、system tools 等合并为 turn request。 | `ChatPage.tsx` |
-| text 模式 | 只做模型文本流式，不注入本地工具。 | `pages/chat/runTextConversationTurn.ts`、`lib/providers/llm.ts` |
-| tools/agent-dev 模式 | 构造 builtin tools，执行模型 tool loop，写工具 trace，并同步 Gateway chat event。 | `pages/chat/runAgentConversationTurn.ts`、`lib/chat/conversation/run/*` |
-| 历史持久化 | V3 segment 写入 Tauri SQLite，支持 append segment、active segment update、rename/delete/pin/share。 | `lib/chat/conversationState.ts`、`src-tauri/src/commands/chat_history.rs` |
-| 上下文压缩 | 在 pre-send、mid-stream、post-tool 等阶段生成 summary checkpoint，避免超上下文。 | `pages/chat/conversationContextBuilders.ts`、`lib/chat/conversation/compaction/*` |
-| 记忆注入 | 每轮根据 workdir 读取 memory overview，并附加到 system prompt。 | `lib/chat/memory/memoryPrompt.ts`、`src-tauri/src/services/memory.rs` |
-| Skills 注入 | 根据 Settings Skills 选择与 always-on builtin skills 生成 skills prompt。 | `lib/skills/index.ts`、`pages/chat/useChatSkills.ts` |
+| 主对话 | `useSendChatTurn` 经 `runGaChatTurn`/`GaBridgeClient` 提交 prompt；GenericAgent runtime 负责模型、工具与 session，GUI 读取权威 HTTP snapshot 并渲染。 | `pages/chat/runtime/useSendChatTurn.ts`、`pages/chat/runtime/runGaChatTurn.ts`、`lib/ga/GaBridgeClient.ts` |
+| 对话映射 | 将 GA message snapshot 映射为 `ConversationViewState`，同步 messages、tool cards、running/idle/error。 | `lib/ga/gaMessages.ts`、`lib/chat/conversation/conversationState.ts` |
+| 历史与侧栏 | 通过 GA bridge backend 读取/更新对话目录；本地 V3 结构仅作为 UI 兼容模型。 | `lib/ga/gaSidebarBackend.ts`、`pages/chat/history/*` |
+| Memory | Settings 只读展示 GenericAgent memory layer metadata；主对话不再注入旧 Memory overview。 | `pages/settings/GaMemorySection.tsx`、`lib/ga/GaBridgeClient.ts` |
+| Skills/SOP | 主对话可见 Skills/SOP 由 GenericAgent runtime 决定；Skills Hub 保留桌面管理视图。 | `pages/skills-hub/*`、`lib/ga/GaBridgeClient.ts` |
 | 上传 | GUI 直接调用 Tauri import readable files/image preview；工作区外文件复制到 `~/.liveagent/uploads` 暂存区（不污染工作区），工作区内文件原地引用。 | `pages/chat/usePendingUploads.ts`、`src-tauri/src/commands/system.rs` |
 | Gateway bridge | 本地运行时接收远程 command，把 token/thinking/tool/done/error 等事件发布给 Gateway；listener 与 worker id 在组件生命周期内保持稳定。 | `pages/chat/gateway/useGatewayBridgeListeners.ts`、`lib/chat/conversation/run/gatewayBridgeEvents.ts` |
 

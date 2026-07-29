@@ -283,37 +283,3 @@ test("agent Bash rules are Git Bash-first when runtime platform is Windows", () 
   assert.match(suffix, /shell_family: powershell/);
   assert.match(suffix, /require `nohup` and log redirection/);
 });
-
-test("fs tool descriptions keep Image as the only display path for images", () => {
-  const sourcePath = fileURLToPath(new URL("../../src/lib/tools/fsTools.ts", import.meta.url));
-  const source = fs.readFileSync(sourcePath, "utf8");
-
-  assert.match(
-    source,
-    /Use Image instead when the user asks to show, view, render, or display an image in the chat UI\. Do not use Markdown image syntax or HTML img tags to display files\./,
-  );
-  assert.match(
-    source,
-    /This is the only supported way for assistant-side image rendering\./,
-  );
-  assert.match(
-    source,
-    /Supports workspace paths, enabled Skill paths, external absolute paths, http\/https URLs, base64 data URLs, and SVG images/,
-  );
-  assert.match(
-    source,
-    /For remote images, pass url\/urls or source\/sources directly instead of downloading the image first, unless the user explicitly asks to save it locally\./,
-  );
-  assert.match(
-    source,
-    /Multiple mixed image sources to display in order\. Use this for mixed path \+ URL \+ base64 galleries\./,
-  );
-  assert.match(
-    source,
-    /Do not embed images in final text with Markdown image syntax, HTML img tags, file:\/\/ URLs, or local relative image paths\./,
-  );
-  assert.match(
-    source,
-    /Use this instead of Bash rm, rmdir, unlink, or find -delete for workspace or Skill files\./,
-  );
-});

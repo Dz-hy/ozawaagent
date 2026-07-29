@@ -24,12 +24,12 @@
 
 | 数据流 | 步骤 | 关键路径 |
 |---|---|---|
-| 本地桌面对话 | GUI composer 提交消息，`ChatPage` 构造上下文，按 execution mode 进入 text 或 agent turn，模型流式返回，必要时执行 builtin tools，最后写入历史 SQLite。 | `src/pages/ChatPage.tsx`、`src/pages/chat/runTextConversationTurn.ts`、`src/pages/chat/runAgentConversationTurn.ts`、`src/lib/providers/llm.ts`、`src/lib/tools/builtinRegistry.ts` |
+| 本地桌面对话 | GUI composer 经 `useSendChatTurn` 向 GenericAgent runtime 提交 prompt；GenericAgent 拥有模型与工具执行，GUI 以 HTTP session snapshot 为权威状态、WebSocket 事件为低延迟刷新提示，并映射为本地对话视图。 | `src/pages/ChatPage.tsx`、`src/pages/chat/runtime/useSendChatTurn.ts`、`src/pages/chat/runtime/runGaChatTurn.ts`、`src/lib/ga/GaBridgeClient.ts`、`src-tauri/src/runtime/ga_supervisor.rs` |
 | WebUI 远程对话 | WebUI optimistic echo 后先经 `/ws/v2` 发 `chat_prepare`，Gateway 通过关联原生 Ping/Pong 验证桌面端信封流并唤醒桌面 Chat Runtime；随后 `chat_command`（`chat.submit`/`chat.edit_resend`）accepted 并经 `/ws/v2/agent` 信封流下发。桌面端本地运行并持续回传 `ChatEvent`/`ChatControlEvent`，Gateway 按 seq 经会话订阅（`chat.subscribe`/`chat.event`）推送给 WebUI。 | `web/src/lib/gatewaySocket.ts`、`internal/protocol/pbws/browser_local.go`、`internal/chatcmd/chatcmd.go`、`proto/v2/gateway.proto`、`src-tauri/src/services/gateway/*` |
 | 设置同步 | GUI load/save 设置到本地 SQLite，同时发布脱敏 settings snapshot 到 Gateway；WebUI 读取/更新 settings 时走 Gateway，普通 sync 不带真实 provider API key。 | `src/lib/settings/*`、`src-tauri/src/commands/settings.rs`、`src/lib/settings/sync.ts`、`web/src/lib/settings/sync.ts` |
 | 历史同步 | GUI 持久化 `chatHistory` 和 `chatHistorySegment`，操作后发布 history sync；Gateway 转发给 WebUI，WebUI 刷新列表或详情缓存。 | `src-tauri/src/commands/chat_history.rs`、`src-tauri/src/services/gateway.rs`、`web/src/lib/historySync.ts` |
 | 上传文件 | GUI 直接通过 Tauri 导入；WebUI 走 Gateway HTTP multipart，Gateway 将 bytes 转成 `UploadReadableFilesRequest` 信封。桌面端统一把文件写入 `~/.liveagent/uploads` 暂存区（工作区外）后返回文件引用。 | `src-tauri/src/commands/system.rs`、`internal/handler/upload.go`、`web/src/lib/uploadReadableFiles.ts` |
-| 记忆召回 | 每轮 Chat 可调用 Rust `MemoryStore` 生成 overview 注入 system prompt；工具层暴露 `MemoryManager` 读写；Settings Memory 展示和管理同一套 store。 | `src-tauri/src/services/memory.rs`、`src/lib/chat/memory/*`、`src/lib/tools/memoryTools.ts`、`src/pages/settings/MemoryPanel.tsx` |
+| 记忆目录 | Settings Memory 通过 GA Bridge 读取 GenericAgent 暴露的只读 memory layer metadata；内容与文件路径留在 GenericAgent 内部，GUI 不启动本地 organizer/extraction。 | `src/pages/settings/GaMemorySection.tsx`、`src/lib/ga/GaBridgeClient.ts` |
 
 ## 当前主要持久化
 
@@ -70,6 +70,6 @@ Go Gateway
         ▼
 Desktop LiveAgent
   ├─ React GUI: App, ChatPage, SettingsPage, Hub pages
-  ├─ Agent runtime: model streaming, tools loop, compaction, memory extraction
-  └─ Tauri Rust: commands, services, SQLite, MCP, MemoryStore, Cron, Gateway bridge
+  ├─ GA bridge: typed HTTP snapshots, WebSocket refresh hints, tool-card rendering
+  └─ Tauri Rust: commands, services, SQLite, desktop capabilities, GA runtime supervisor
 ```

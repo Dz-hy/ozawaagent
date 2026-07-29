@@ -17,9 +17,9 @@
 | App shell | `crates/agent-gui/src/App.tsx` |
 | React entry | `crates/agent-gui/src/main.tsx` |
 | Chat page | `crates/agent-gui/src/pages/ChatPage.tsx` |
-| Chat turn | `crates/agent-gui/src/pages/chat/runTextConversationTurn.ts`、`runAgentConversationTurn.ts` |
-| Chat transcript | `crates/agent-gui/src/pages/chat/ChatTranscript.tsx`、`AssistantBubble.tsx` |
-| Composer/header | `crates/agent-gui/src/pages/chat/ChatComposerBar.tsx`、`ChatHeader.tsx` |
+| Chat turn | `crates/agent-gui/src/pages/chat/runtime/useSendChatTurn.ts`、`runGaChatTurn.ts` |
+| Chat transcript | `crates/agent-gui/src/pages/chat/transcript/ChatTranscript.tsx`、`pages/chat/components/AssistantBubble.tsx` |
+| Composer/header | `crates/agent-gui/src/pages/chat/components/ChatComposerBar.tsx`、`ChatHeader.tsx` |
 | History sidebar | `crates/agent-gui/src/components/chat/ChatHistorySidebar.tsx` |
 | Gateway bridge hooks | `crates/agent-gui/src/pages/chat/useGatewayBridgeListeners.ts`、`useGatewayBridgeBatcher.ts` |
 | Context builders | `crates/agent-gui/src/pages/chat/conversationContextBuilders.ts` |
@@ -36,14 +36,14 @@
 | Model provider layer | `crates/agent-gui/src/lib/providers/llm.ts` |
 | Provider proxy helpers | `crates/agent-gui/src/lib/providers/proxy.ts` |
 | Settings defaults/storage/sync | `crates/agent-gui/src/lib/settings/*` |
-| Builtin tool registry | `crates/agent-gui/src/lib/tools/builtinRegistry.ts` |
-| FS tools | `crates/agent-gui/src/lib/tools/fsTools.ts` |
-| Shell tools | `crates/agent-gui/src/lib/tools/shellTools.ts` |
-| MCP manager tools | `crates/agent-gui/src/lib/tools/mcpManagerTools.ts` |
-| Skills tools | `crates/agent-gui/src/lib/tools/skillTools.ts` |
-| Memory tools | `crates/agent-gui/src/lib/tools/memoryTools.ts` |
-| Cron tools | `crates/agent-gui/src/lib/tools/cronTools.ts` |
-| Subagent tools（Agent/SendMessage） | `crates/agent-gui/src/lib/subagents/*` |
+| GenericAgent bridge client | `crates/agent-gui/src/lib/ga/GaBridgeClient.ts` |
+| GenericAgent chat turn | `crates/agent-gui/src/pages/chat/runtime/runGaChatTurn.ts` |
+| Display-only builtin tool catalog | `crates/agent-gui/src/lib/tools/builtinToolCatalog.ts` |
+| Tool types/options/policies | `crates/agent-gui/src/lib/tools/builtinTypes.ts`、`systemToolOptions.ts`、`skillAccessPolicy.ts` |
+| FS backend adapter | `crates/agent-gui/src/lib/tools/fsBackend.ts` |
+| Memory tools（background workflows） | `crates/agent-gui/src/lib/tools/memoryTools.ts` |
+| Todo / AskUser bundles | `crates/agent-gui/src/lib/tools/todoTools.ts`、`askUserQuestionTools.ts` |
+| Subagent support | `crates/agent-gui/src/lib/subagents/*` |
 | Conversation state | `crates/agent-gui/src/lib/chat/conversation/*` |
 | Memory prompt/policy | `crates/agent-gui/src/lib/chat/memory/*` |
 | Skills discovery | `crates/agent-gui/src/lib/skills/*` |

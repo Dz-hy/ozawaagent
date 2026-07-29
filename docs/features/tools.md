@@ -1,61 +1,48 @@
 # 工具系统
 
-## 工具注册入口
+## 主对话工具所有权
 
-`src/lib/tools/builtinRegistry.ts` 是本地工具系统的组合入口。`buildBuiltinToolRegistry()` 接收 workdir、provider、skills、MCP settings、runtime scope、selected system tools、subagent runtime（`SubagentRuntimeConfig`）等参数，返回：
+主对话不再由 GUI 侧 `builtinRegistry` 组合或分派工具。`useSendChatTurn` 通过 `runGaChatTurn` 和 `GaBridgeClient` 把 prompt 提交给 GenericAgent runtime；模型调用、工具 schema 与工具执行均由该 runtime 拥有。GUI 只把 session snapshot 映射成对话视图，并渲染其中的 tool call/result。
 
-| 字段 | 说明 |
-|---|---|
-| `tools` | 暴露给模型的 tool schema 列表。 |
-| `executeToolCall` | 根据 tool name 分派到具体 executor。 |
-| `metadataByName` | UI 和 trace 使用的工具元数据。 |
-| `hasTool` | 判断工具是否可用。 |
+`src/lib/tools/builtinToolCatalog.ts` 仅是 Settings 与 UI 使用的展示目录，不导入 executor，也不是运行时注册表。
 
-## Builtin Tool Bundle
+## GUI 侧保留的工具支撑模块
 
-| Bundle | 主要路径 | 工具/能力 |
+| 模块 | 主要路径 | 职责 |
 |---|---|---|
-| File system | `fsTools.ts`、`fileToolState.ts` | Read/List/Glob/Grep/Write/Edit/Delete/Image 等文件能力，受 workdir 与 skills root 策略约束。 |
-| Edit 容错匹配 | Rust `commands/workspace/edit_match.rs` | Edit 的 `old_string` 定位按严格度递减依次尝试：精确匹配 → CRLF/LF 行尾归一（含 BOM 容错，替换按文件主导行尾风格重渲染）→ 整行行尾空白容错 → 整行统一缩进偏移（替换文本按文件真实缩进重排）。首个命中的 pass 生效，命中非精确 pass 时结果返回 `matchStrategy` 提示模型。注意：行级 pass（行尾空白 / 缩进偏移）用 `new_string` 整体重写命中的整行窗口，窗口内上下文行原有的行尾空白会随之被规范化掉。 |
-| Shell | `shellTools.ts`、`bashTimeoutPolicy.ts` | Bash/Shell 执行，chat scope 可启用 ManagedProcess。 |
-| SkillsManager | `skillTools.ts` | read/list/install/create/validate/package/clawhub_search/clawhub_install。 |
-| CronTaskManager | `cronTools.ts` | 创建、读取、更新、删除 cron task，查看日志。 |
-| McpManager | `mcpManagerTools.ts` | MCP server CRUD、enable/disable、test/restart/stop、tools/list。 |
-| Custom system tools | `customSystemTools.ts` | HTTP test 等系统工具，由 Settings 中 selectedSystemTools 控制。 |
-| MemoryManager | `memoryTools.ts` | list/read/search/write/update/delete/accept，支持 global/project/daily 语义。 |
-| TodoWrite | `todoTools.ts` | 会话内任务清单全量替换写入，仅 `runtimeScope=chat` 可用；状态存于内存（按 conversationId），不落盘、不进子代理注册表。 |
-| Subagent | `src/lib/subagents/*`（适配层 `agentTool.ts`、`sendMessageTool.ts`） | `Agent`/`SendMessage` 内置工具：委托持久化子代理、隔离 worktree、Message Bus。 |
+| 展示目录与类型 | `builtinToolCatalog.ts`、`builtinTypes.ts`、`systemToolOptions.ts` | 工具名称、分类、只读标记、runtime scope 与 UI 选项。 |
+| 文件后端适配 | `fsBackend.ts`、`pathUtils.ts`、`skillAccessPolicy.ts`、`bashTimeoutPolicy.ts` | Tauri FS 错误归一、路径与 Skills 访问策略、Shell timeout 策略；不组成模型工具注册表。 |
+| Memory | `memoryTools.ts` | 供旧 Memory extraction/organizer 后台闭包使用；主对话和 Settings 已断开该闭包。 |
+| Todo / AskUser | `todoTools.ts`、`askUserQuestionTools.ts` | 独立状态与交互 bundle；不构成主对话本地注册表。 |
+| Subagent 支撑 | `src/lib/subagents/*` | 保留子代理领域、持久化、worktree 与消息总线实现；主对话工具所有权仍属于 GenericAgent runtime。 |
+
+Rust 的 FS、Shell/process、Skills、MCP、Cron 等命令与 service 仍可供桌面功能调用，但“后端能力存在”不等于 GUI 已向模型注册同名工具。
 
 ## 执行边界
 
-| 端 | 是否执行工具 | 说明 |
+| 端 | 职责 | 说明 |
 |---|---|---|
-| GUI 本地 Chat | 是 | 工具在桌面端运行，直接调用 Tauri invoke 或前端本地逻辑。 |
-| WebUI Chat | 间接执行 | WebUI 发 Chat Command 到 Gateway，实际工具仍在桌面 GUI/Tauri 运行。 |
-| Gateway | 否 | Gateway 不执行业务工具，只转发 request/event 并维护 buffer。 |
+| GenericAgent runtime | 主对话模型与工具执行 | 接收 prompt，维护 session，并产生消息、tool call/result 与终态。 |
+| GUI 本地 Chat | bridge 与渲染 | 启动/连接 runtime、提交 prompt、读取权威 HTTP snapshot；WebSocket 只用于低延迟刷新提示。 |
+| Tauri Rust | 本地系统能力与 runtime supervisor | 提供文件、进程、Skills/MCP 等后端命令，并负责 GenericAgent runtime 生命周期。 |
+| WebUI / Gateway | 远程传输 | 转发 chat command/event 与维护 buffer，不在 Gateway 内执行业务工具。 |
 
-## MCP 管理工具
+## MCP 管理边界
 
-Settings/MCP Hub 维护 server 配置；`McpManager` 提供配置 CRUD、runtime status、test、restart、stop 与 tools/list。底层 Tauri/Rust runtime 继续负责 server lifecycle 和 MCP 协议调用。
+Settings/MCP Hub 维护 server 配置，Tauri/Rust runtime 负责 server lifecycle 和 MCP 协议能力。GUI 已不再包含本地 `McpManager` 工具适配器；主对话可见的 MCP 管理或动态 MCP 工具以 GenericAgent runtime 实际暴露为准。
 
-## Skills 工具边界
+## Skills 管理边界
 
 | 能力 | 说明 |
 |---|---|
-| 固定 root | Skills runtime root 是 `~/.liveagent/skills`。 |
-| always-on | `skills-creator`、`skills-installer` 是 builtin always enabled skills。 |
-| 文件访问 | 已启用 skill 内部文件可通过 FS tools 的 `root="skills"` 相对路径访问。 |
-| 管理操作 | 创建、安装、ClawHub 安装、validate、package 应通过 `SkillsManager`。 |
-| 访问策略 | `SkillAccessPolicy` 控制模型能否访问/修改 skills root。 |
+| 固定 root | 旧 LiveAgent Skills runtime root 是 `~/.liveagent/skills`；当前 Agent 语义以 GenericAgent 为唯一真相源。 |
+| 桌面管理 | Skills Hub 与 Tauri/Rust skills service 可继续提供安装、校验和打包等桌面管理能力。 |
+| 文件访问 | `SkillAccessPolicy` 与路径辅助模块仍服务保留的桌面/后台调用，但 GUI 不再注册 `SkillsManager` 模型工具。 |
+| 主对话 | 可见 Skills 与相关工具以 GenericAgent runtime 实际暴露为准。 |
 
 ## Memory 工具边界
 
-| 操作 | 说明 |
-|---|---|
-| read/list/search | 可用于模型按需召回完整记忆。 |
-| write/update/delete/accept | 修改 Markdown 事实源和 SQLite index，受 scope/type 校验。 |
-| daily append | daily 类型通过 append 模式维护日记型记忆，不计入 ordinary quota。 |
-| silent extraction | 隐式记忆提取阶段不直接让模型调用 mutation，而是解析 plan 后由 LiveAgent 应用。 |
+`memoryTools.ts` 只被尚待清理的旧 extraction/organizer 后台闭包引用。主对话已不接入 extraction controller，应用启动不再挂载 organizer，Settings Memory 只读展示 GenericAgent memory layers；因此它不是当前主对话或设置页的工具入口。
 
 ## Subagent（Agent / SendMessage）
 

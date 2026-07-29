@@ -2,44 +2,30 @@
 
 ## Execution Mode
 
-| 模式 | 入口 | 工具 | 典型用途 |
-|---|---|---|---|
-| `text` | `runTextConversationTurn.ts` | 不启用本地工具 | 纯模型聊天、低权限文本回答。 |
-| `tools` | `runAgentConversationTurn.ts` | 启用 builtin tool registry | 常规 Agent 模式，支持文件、Shell、MCP、Skills、Memory、Cron 等。 |
-| `agent-dev` | `runAgentConversationTurn.ts` | 启用工具，并展示更多 debug/usage/silent memory 细节 | 开发调试与可观测性更强的 Agent 模式。 |
+GUI 仍可保留 execution mode 作为界面与兼容设置，但它不再选择本地 `text`/`tools` 执行器。所有主对话统一经 `useSendChatTurn` → `runGaChatTurn` → `GaBridgeClient` 提交给 GenericAgent runtime；实际模型、Skills/SOP、工具与子 Agent 能力由 GenericAgent session 决定。
 
 ## 主流程
 
 | 步骤 | 说明 | 关键模块 |
 |---:|---|---|
-| 1 | 收集用户输入、附件、选中模型、execution mode、workdir、system tools。 | `ChatPage.tsx`、`ChatComposerBar.tsx` |
-| 2 | 加载 Skills prompt、Memory overview、hooks、历史上下文和当前 active segment。 | `useChatSkills.ts`、`memoryPrompt.ts`、`conversationState.ts` |
-| 3 | 构造模型 request context，必要时先触发 pre-send compaction。 | `conversationContextBuilders.ts`、`compaction/*` |
-| 4 | text 模式直接 stream assistant；tools/agent-dev 构造工具 registry 并进入 tool loop。 | `llm.ts`、`builtinRegistry.ts`、`runAgentConversationTurn.ts` |
-| 5 | 流式 token/thinking/hosted search/tool status 更新 transcript，并发布 Gateway event。 | `liveTranscriptStore.ts`、`gatewayBridgeEvents.ts` |
-| 6 | 工具调用通过 registry 分派到对应 executor，结果回填模型上下文。 | `lib/tools/*`、`lib/chat/conversation/run/*` |
-| 7 | turn 结束后写入 chat history，生成标题，触发 silent memory extraction 和 hooks。 | `chat_history.rs`、`conversationTitleJob.ts`、`silentMemoryExtraction.ts` |
+| 1 | 收集用户输入、附件与当前 conversation id，并确保 GenericAgent bridge/runtime 可用。 | `ChatPage.tsx`、`ChatComposerBar.tsx`、`useSendChatTurn.ts` |
+| 2 | 通过 `promptSession` 向 GenericAgent session 提交 prompt。 | `runGaChatTurn.ts`、`GaBridgeClient.ts` |
+| 3 | 订阅 bridge event 作为低延迟刷新提示，同时轮询权威 HTTP session snapshot；WebSocket payload 不是消息真相源。 | `runGaChatTurn.ts`、`GaBridgeClient.ts` |
+| 4 | 将 GenericAgent message snapshot 映射成 `ConversationViewState`，更新 transcript、tool card、状态和错误。 | `gaMessages.ts`、`conversationState.ts` |
+| 5 | turn 到达 `idle`/`error` 后停止观察；标题与侧栏等适配功能通过 GA bridge 的对应 API/状态继续更新。 | `useSendChatTurn.ts`、`conversationTitleJob.ts`、`gaSidebarBackend.ts` |
 
-## 模型层
+## 模型与工具所有权
 
-`src/lib/providers/llm.ts` 将应用内部 provider 映射到实际 API：
+GenericAgent runtime 是主对话的唯一 Agent 语义真相源，负责模型配置、上下文组织、工具 schema、工具执行、Memory、Skills/SOP 与子 Agent。GUI 的 provider、旧 runner 和工具 bundle 代码不再是主对话入口；仍存留的模块只可用于尚待清理的后台闭包或 UI 兼容展示。
 
-| Provider | 主要 API | 特性 |
-|---|---|---|
-| `claude_code` | Anthropic Messages 兼容 | thinking、cache control、toolChoice、Anthropic native web search。 |
-| `codex` | OpenAI Responses 或 Completions | Responses storage、hosted search probe、OpenAI tool/search 事件聚合。 |
-| `gemini` | Google Generative AI | Gemini thinking runtime、Gemini auth header、provider native search。 |
-| custom provider | 按 `ProviderId` 与 request format 映射 | baseUrl/apiKey/model config/reasoning/cache 等由 settings 决定。 |
+## 对话状态
 
-## 上下文构造
-
-| 上下文块 | 来源 |
+| 状态 | 来源 |
 |---|---|
-| system prompt | 默认系统提示、用户 system settings、Skills prompt、Memory overview、压缩 summary。 |
-| messages | 当前 active segment 中的 user/assistant/toolResult 历史，经过 sanitizer。 |
-| tools | text 模式为空，agent 模式来自 builtin registry 和动态 MCP tools。 |
-| attachments | uploaded files 转成模型可见文本/图片引用，图片 bytes 按上下文策略清洗。 |
-| hosted search | provider 或 probe 捕获的 search block 进入消息内容和 UI。 |
+| messages / tool calls / tool results | GenericAgent session HTTP snapshot，经 `gaSnapshotToConversationState` 映射。 |
+| running / idle / error | GenericAgent session status；bridge event 仅触发提前刷新。 |
+| attachments / composer draft | GUI 输入层；发送时归一为 GA prompt request。 |
+| tool catalog UI | `builtinToolCatalog.ts` 仅为展示数据，不是 executor registry。 |
 
 ## 上下文压缩
 
@@ -53,14 +39,7 @@
 
 ## Hooks 生命周期
 
-| Event | 触发语义 |
-|---|---|
-| `agent_start` / `agent_end` | 一次主对话请求开始和结束。 |
-| `turn_start` / `turn_end` | 每个模型处理轮次开始和结束。 |
-| `message_start` / `message_update` / `message_end` | assistant message 流式生成阶段。 |
-| `tool_execution_start` / `tool_execution_update` / `tool_execution_end` | 工具实际执行阶段。 |
-
-Hooks 支持 shell script 和 HTTP requests，设置由 GUI/WebUI 同步维护，执行在桌面端。
+GenericAgent Hooks 是主对话 hooks 的真相源。GUI Settings 提供只读观察视图，通过 GA bridge 读取 hook 定义、事件与 diagnostics；GUI 不再创建、编辑或执行旧 LiveAgent shell/HTTP hooks。
 
 ## 上传与重发
 
@@ -77,7 +56,7 @@ Hooks 支持 shell script 和 HTTP requests，设置由 GUI/WebUI 同步维护�
 |---|---|
 | 工具形态 | chat-only 内置工具；模型一次最多提 4 个问题，每题 2-6 个选项且**同轮各题选项数一致**，至多一个"推荐"项且**固定排在首位**。 |
 | 挂起语义 | `execute` 在工具挂起表（toolCallId 键）上等待；用户提交后 resolve，停止按钮经 AbortSignal 以"未应答"落定（`details.cancelled`）；**3 分钟未作答按推荐项（缺省第一项）自动落定**（`details.timedOut`），卡片展示倒计时。**倒计时双端同源**：桌面端在网关上报的工具参数上盖 `__askUserQuestionDeadlineAt` 权威截止时间戳（`gatewayToolPreview` 统一盖章，execute 复用同一预置值），WebUI/重连场景按真实剩余时间倒数。 |
-| 卡片 UI | `components/chat/AskUserQuestionCard.tsx`（双端镜像）：多问题以顶部 tabs 切换，单选 + 推荐标记，全部作答后提交；应答落定后只读回显。**问题与选项全部生成完毕后整卡出现**（`runAgentConversationTurn` 跳过 AskUserQuestion 的 tool_call_delta，双端不做流式渐显）。 |
+| 卡片 UI | `components/chat/AskUserQuestionCard.tsx`（双端镜像）负责兼容渲染问题、选项与已落定结果；提问何时完整出现以及工具执行生命周期由 GenericAgent session snapshot 决定。 |
 | 双端应答 | GUI 直接调用 `answerAskUserQuestion`；WebUI 走 `chat_queue.tool_answer`（item_id=toolCallId，request_json=选择数组）由桌面端落到同一挂起表，协议零改动；远端应答**校验 conversation_id 与挂起提问所属会话一致**，防串会话应答。 |
 | 结果回模型 | 标准 `ToolResultMessage`：content 列出每题的最终选择，`details.kind = "ask_user_question"` 驱动历史回放渲染。 |
 
