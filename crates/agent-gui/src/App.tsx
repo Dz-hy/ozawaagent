@@ -5,7 +5,6 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { Pin } from "./components/icons";
 import { useNativeInputContextMenu } from "./components/input-context-menu/NativeInputContextMenu";
-import { MemoryOrganizerHost } from "./components/memory/useMemoryOrganizer";
 import { WindowsTitleBar } from "./components/WindowsTitleBar";
 import { LocaleContext, t as translate } from "./i18n";
 import { useAppUpdateController } from "./lib/appUpdates";
@@ -479,7 +478,6 @@ export default function App() {
   return (
     <LocaleContext.Provider value={localeContextValue}>
       <AppChrome>
-        <MemoryOrganizerHost settings={settings} setSettings={setSettings} />
         <AppErrorBoundary>
           <ChatPage
             settings={settings}

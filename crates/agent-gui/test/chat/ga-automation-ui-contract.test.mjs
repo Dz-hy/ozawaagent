@@ -22,10 +22,11 @@ test("settings routes providers exclusively to GenericAgent model profiles", () 
   assert.doesNotMatch(types, /\| "models"/);
 });
 
-test("application startup does not initialize or execute the legacy automation engine", () => {
+test("application startup does not initialize or execute legacy automation or memory engines", () => {
   const app = source("App.tsx");
   assert.doesNotMatch(app, /initAutomation/);
   assert.doesNotMatch(app, /CronPromptRunner/);
+  assert.doesNotMatch(app, /MemoryOrganizerHost/);
 });
 
 test("GenericAgent hooks are read-only and automation is Agent Prompt only", () => {
