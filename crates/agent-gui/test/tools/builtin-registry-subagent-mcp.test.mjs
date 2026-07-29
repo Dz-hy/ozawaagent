@@ -24,19 +24,8 @@ function createAgentToolCall(argumentsValue, id = "call-agent") {
   return { type: "toolCall", id, name: "Agent", arguments: argumentsValue };
 }
 
-const DOCS_SERVER = {
-  id: "docs",
-  enabled: true,
-  transport: "stdio",
-  command: "mock-mcp-server",
-  args: [],
-  env: {},
-};
-
 function createRegistryHarness() {
   const runnerCalls = [];
-  const listedServerIds = [];
-  const listedServerCommands = [];
   const loader = createTsModuleLoader({
     mocks: {
       [agentRunnerModulePath]: {
@@ -54,19 +43,6 @@ function createRegistryHarness() {
       },
       "@tauri-apps/api/core": {
         async invoke(command, args) {
-          if (command === "mcp_list_tools") {
-            listedServerIds.push((args.servers ?? []).map((server) => server.id));
-            listedServerCommands.push((args.servers ?? []).map((server) => server.command));
-            return [
-              {
-                serverId: "docs",
-                serverLabel: "Docs",
-                name: "search",
-                description: "Search docs",
-                inputSchema: { type: "object" },
-              },
-            ];
-          }
           if (command === "subagent_worktree_create") {
             return {
               repoRoot: "/repo",
@@ -98,14 +74,13 @@ function createRegistryHarness() {
       },
     },
   });
-  return { loader, runnerCalls, listedServerIds, listedServerCommands };
+  return { loader, runnerCalls };
 }
 
 async function buildRegistry(harness, { withSubagentRuntime, storeIpc } = {}) {
   const { loader } = harness;
   const { buildBuiltinToolRegistry } = loader.loadModule("src/lib/tools/builtinRegistry.ts");
   const { createFileToolState } = loader.loadModule("src/lib/tools/fileToolState.ts");
-  const mcpSettingsHolder = { value: { selected: ["docs"], servers: [DOCS_SERVER] } };
   const baseParams = {
     workdir: "/tmp/liveagent-subagent-registry-test",
     providerId: "codex",
@@ -113,10 +88,10 @@ async function buildRegistry(harness, { withSubagentRuntime, storeIpc } = {}) {
     skillsEnabled: true,
     runtimeScope: "chat",
     selectedSystemToolIds: [],
-    getMcpSettings: () => mcpSettingsHolder.value,
+    getMcpSettings: () => ({ selected: [], servers: [] }),
   };
   if (!withSubagentRuntime) {
-    return { registry: await buildBuiltinToolRegistry(baseParams), mcpSettingsHolder };
+    return { registry: await buildBuiltinToolRegistry(baseParams) };
   }
 
   const storeModule = loader.loadModule("src/lib/subagents/store.ts");
@@ -145,7 +120,7 @@ async function buildRegistry(harness, { withSubagentRuntime, storeIpc } = {}) {
       scheduler: schedulerModule.createSubagentScheduler(),
     },
   });
-  return { registry, store, ipc, mcpSettingsHolder };
+  return { registry, store, ipc };
 }
 
 test("registry without a subagent runtime exposes neither Agent nor SendMessage", async () => {
@@ -156,7 +131,6 @@ test("registry without a subagent runtime exposes neither Agent nor SendMessage"
   assert.ok(!names.includes("SendMessage"));
   // Sanity: the base surface is otherwise intact.
   assert.ok(names.includes("Read"));
-  assert.ok(names.includes("mcp_docs_search"));
 });
 
 test("registry with a subagent runtime exposes Agent and the parent SendMessage", async () => {
@@ -220,7 +194,7 @@ test("Agent tool description embeds the hydrated roster and enabled templates", 
   assert.match(agentTool.description, /reviewer \(Reviewer\) - Review code paths/);
 });
 
-test("worktree children get fs/shell/ro-memory/MCP tools but no skills, system, or manager tools", async () => {
+test("worktree children get fs/shell/ro-memory tools but no skills, system, or manager tools", async () => {
   const harness = createRegistryHarness();
   const { registry } = await buildRegistry(harness, { withSubagentRuntime: true });
 
@@ -230,15 +204,12 @@ test("worktree children get fs/shell/ro-memory/MCP tools but no skills, system, 
     }),
   );
   assert.equal(result.isError, false);
-  // MCP tools listed once for the parent registry and once for the child.
-  assert.deepEqual(harness.listedServerIds, [["docs"], ["docs"]]);
   assert.equal(harness.runnerCalls.length, 1);
   const names = harness.runnerCalls[0].tools.map((tool) => tool.name);
 
   assert.ok(names.includes("Read"));
   assert.ok(names.includes("Write"));
   assert.ok(names.includes("Bash"));
-  assert.ok(names.includes("mcp_docs_search"));
   assert.ok(names.includes("SendMessage"));
   // Read-only memory stays available in worktree mode.
   assert.ok(names.includes("MemoryManager"));
@@ -252,30 +223,7 @@ test("worktree children get fs/shell/ro-memory/MCP tools but no skills, system, 
   assert.equal(harness.runnerCalls[0].workdir, "/tmp/liveagent-subagents/agent-a");
 });
 
-test("subagent registries list MCP servers from live settings, not turn-start snapshots", async () => {
-  const harness = createRegistryHarness();
-  const { registry, mcpSettingsHolder } = await buildRegistry(harness, {
-    withSubagentRuntime: true,
-  });
-
-  // The config changes after the parent registry was built (e.g. the model
-  // just ran McpManager update); the child registry must see the new config
-  // instead of rolling the server back to the turn-start snapshot.
-  mcpSettingsHolder.value = {
-    selected: ["docs"],
-    servers: [{ ...DOCS_SERVER, command: "mock-mcp-server-v2" }],
-  };
-
-  const result = await registry.executeToolCall(
-    createAgentToolCall({
-      agents: [{ id: "agent-live", prompt: "Use docs if useful.", mode: "worktree" }],
-    }),
-  );
-  assert.equal(result.isError, false);
-  assert.deepEqual(harness.listedServerCommands, [["mock-mcp-server"], ["mock-mcp-server-v2"]]);
-});
-
-test("read-only children inherit MCP business tools but no write, shell, or manager tools", async () => {
+test("read-only children inherit read-only base tools but no write, shell, or manager tools", async () => {
   const harness = createRegistryHarness();
   const { registry } = await buildRegistry(harness, { withSubagentRuntime: true });
 
@@ -289,7 +237,6 @@ test("read-only children inherit MCP business tools but no write, shell, or mana
   const names = harness.runnerCalls[0].tools.map((tool) => tool.name);
 
   assert.ok(names.includes("Read"));
-  assert.ok(names.includes("mcp_docs_search"));
   assert.ok(names.includes("SendMessage"));
 
   assert.ok(!names.includes("Write"));

@@ -62,21 +62,17 @@
 | MCP Hub UI | `src/pages/mcp-hub/*`、WebUI mirror | server form、registry browser、preview drawer、install draft。 |
 | Registry client | `src/lib/mcpRegistry/index.ts`、WebUI copy | official registry、Smithery、Glama 等 registry 归一化。 |
 | Rust runtime | `src-tauri/src/commands/mcp.rs` | stdio/http/sse server lifecycle、tools/list、call_tool、test/restart/stop/status。 |
-| Dynamic tools | `src/lib/tools/mcpTools.ts` | 把 enabled MCP server 的工具暴露给模型。 |
 | Manager tool | `src/lib/tools/mcpManagerTools.ts` | MCP 配置 CRUD、诊断与生命周期控制。 |
 | Write path | `src/lib/settings/mcpOps.ts` | 唯一的 MCP 配置写路径：`McpSettingsOp`（upsert/patch/remove/setEnabled）+ 纯 reducer `applyMcpOps`，按 id 合并进 `setSettings(prev => ...)`；工具读取走 `getMcpSettings` 实时 getter（权威 `settingsRef`），不做 turn 级快照，读改写决策与提交在同一同步段内完成，从根上消除多写者覆盖。 |
 
-## MCP 动态工具生命周期
+## MCP Runtime 生命周期
 
 | 阶段 | 说明 |
 |---|---|
 | 配置 | 用户在 MCP Hub/Settings 添加 server，支持 stdio/http/sse 等 transport。 |
-| 选择 | 只有 enabled 且 selected 的 server 会进入 runtime 工具加载。 |
-| List tools | 前端调用 Tauri `mcp_list_tools`，Rust 端启动/同步 server 并返回 tool info。 |
-| 命名 | 前端把 server/tool 名规范化为 `mcp_<server>_<tool>`，避免冲突和过长。 |
-| Call tool | 模型调用动态工具，前端 executor 调用 Tauri `mcp_call_tool`，结果进入 tool trace。 |
+| 选择 | enabled 且 selected 的 server 构成当前启用配置。 |
 | 管理 | `McpManager` 做 add/update/delete/enable/disable/status/test/restart/stop/tools/list。写操作一律先 commit 配置、后 best-effort 停旧 runtime（stop 失败降级为 warning，由下次 `ensure_client` 配置判等自愈）。非 chat 作用域（如 cron）禁止写操作与 restart/stop，test/tools/diagnose 强制 `persist=false` 走瞬时连接，不触碰共享连接池。 |
-| Runtime pool | `McpRuntimeManager` 的 clients map 锁只做 get/insert 短持有，绝不在持 map 锁时锁单个 client 或 spawn——同 id 调用在 client 锁上串行，不同 server 互不阻塞。 |
+| Runtime | Tauri/Rust 命令负责 server lifecycle、tools/list 与 call_tool；`McpRuntimeManager` 的 clients map 锁只做 get/insert 短持有，绝不在持 map 锁时锁单个 client 或 spawn——同 id 调用在 client 锁上串行，不同 server 互不阻塞。 |
 
 ## MCP Registry
 

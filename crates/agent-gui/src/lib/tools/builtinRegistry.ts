@@ -1,13 +1,7 @@
 import type { ToolCall, ToolResultMessage } from "@earendil-works/pi-ai";
 import { homeDir } from "@tauri-apps/api/path";
 import type { RuntimePlatform } from "../runtimePlatform";
-import {
-  type McpSettings,
-  type McpSettingsOp,
-  type ProviderId,
-  type SshHostConfig,
-  selectEnabledMcpServers,
-} from "../settings";
+import type { McpSettings, McpSettingsOp, ProviderId, SshHostConfig } from "../settings";
 import {
   createSendMessageTools,
   createSubagentTools,
@@ -24,7 +18,6 @@ import { createCustomSystemTools } from "./customSystemTools";
 import { createFileToolState, type FileToolState } from "./fileToolState";
 import { createFsTools } from "./fsTools";
 import { createMcpManagerTools } from "./mcpManagerTools";
-import { createMcpTools } from "./mcpTools";
 import { createMemoryTools } from "./memoryTools";
 import { createShellTools } from "./shellTools";
 import type { SkillAccessPolicy } from "./skillAccessPolicy";
@@ -142,8 +135,6 @@ type BuildBuiltinBaseToolRegistryParams = {
   getMcpSettings: () => McpSettings;
   /** Id-keyed merge commit into the authoritative settings; absent in read-only scopes. */
   applyMcpOps?: (ops: McpSettingsOp[]) => void;
-  onMcpLoadError?: (message: string) => void;
-  mcpLoadFailureMode?: "continue" | "throw";
   memoryToolMode?: "rw" | "ro";
   remoteWebTunnelsEnabled?: boolean;
   tunnelProjectPathKey?: string;
@@ -224,17 +215,6 @@ async function buildBaseBuiltinToolBundles(params: BuildBuiltinBaseToolRegistryP
     }),
   ];
 
-  const enabledServers = selectEnabledMcpServers(params.getMcpSettings());
-  if (enabledServers.length > 0) {
-    baseBundles.push(
-      await createMcpTools({
-        servers: enabledServers,
-        onLoadError: params.onMcpLoadError,
-        loadFailureMode: params.mcpLoadFailureMode,
-      }),
-    );
-  }
-
   return baseBundles;
 }
 
@@ -305,7 +285,6 @@ export async function buildBuiltinToolRegistry(
             skillsEnabled: false,
             applyMcpOps: undefined,
             selectedSystemToolIds: [],
-            mcpLoadFailureMode: "continue",
             memoryToolMode: "ro",
           }),
         ),

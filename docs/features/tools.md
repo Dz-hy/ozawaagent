@@ -21,7 +21,6 @@
 | SkillsManager | `skillTools.ts` | read/list/install/create/validate/package/clawhub_search/clawhub_install。 |
 | CronTaskManager | `cronTools.ts` | 创建、读取、更新、删除 cron task，查看日志。 |
 | McpManager | `mcpManagerTools.ts` | MCP server CRUD、enable/disable、test/restart/stop、tools/list。 |
-| Dynamic MCP tools | `mcpTools.ts` | 将已启用 MCP server 的 tool 暴露为 `mcp_<server>_<tool>`。 |
 | Custom system tools | `customSystemTools.ts` | HTTP test 等系统工具，由 Settings 中 selectedSystemTools 控制。 |
 | MemoryManager | `memoryTools.ts` | list/read/search/write/update/delete/accept，支持 global/project/daily 语义。 |
 | TodoWrite | `todoTools.ts` | 会话内任务清单全量替换写入，仅 `runtimeScope=chat` 可用；状态存于内存（按 conversationId），不落盘、不进子代理注册表。 |
@@ -35,15 +34,9 @@
 | WebUI Chat | 间接执行 | WebUI 发 Chat Command 到 Gateway，实际工具仍在桌面 GUI/Tauri 运行。 |
 | Gateway | 否 | Gateway 不执行业务工具，只转发 request/event 并维护 buffer。 |
 
-## MCP 动态工具
+## MCP 管理工具
 
-| 阶段 | 说明 |
-|---|---|
-| 配置 | Settings/MCP Hub 维护 server 列表、transport、command/url/env/headers 等。 |
-| 加载 | `createMcpTools()` 过滤 enabled server，调用 Tauri `mcp_list_tools`。 |
-| 命名 | 动态工具名规范化为 `mcp_<server>_<tool>`，过长时截断并加 hash suffix。 |
-| 调用 | 模型调用动态工具后，前端 executor 调用 Tauri `mcp_call_tool`。 |
-| 诊断 | `McpManager` 可做 runtime_status/test/restart/stop/tools/list。 |
+Settings/MCP Hub 维护 server 配置；`McpManager` 提供配置 CRUD、runtime status、test、restart、stop 与 tools/list。底层 Tauri/Rust runtime 继续负责 server lifecycle 和 MCP 协议调用。
 
 ## Skills 工具边界
 

@@ -39,7 +39,7 @@
 | Builtin tool registry | `crates/agent-gui/src/lib/tools/builtinRegistry.ts` |
 | FS tools | `crates/agent-gui/src/lib/tools/fsTools.ts` |
 | Shell tools | `crates/agent-gui/src/lib/tools/shellTools.ts` |
-| MCP tools | `crates/agent-gui/src/lib/tools/mcpTools.ts`、`mcpManagerTools.ts` |
+| MCP manager tools | `crates/agent-gui/src/lib/tools/mcpManagerTools.ts` |
 | Skills tools | `crates/agent-gui/src/lib/tools/skillTools.ts` |
 | Memory tools | `crates/agent-gui/src/lib/tools/memoryTools.ts` |
 | Cron tools | `crates/agent-gui/src/lib/tools/cronTools.ts` |
