@@ -20,9 +20,9 @@ import { AboutSection } from "./settings/AboutSection";
 import { AgentsSection } from "./settings/AgentsSection";
 import { GaAutomationSection } from "./settings/GaAutomationSection";
 import { GaHooksSection } from "./settings/GaHooksSection";
+import { GaMemorySection } from "./settings/GaMemorySection";
 import { GaModelProfilesSection } from "./settings/GaModelProfilesSection";
 import { GlobalShortcutsSection } from "./settings/GlobalShortcutsSection";
-import { MemoryPanel } from "./settings/memory/MemoryPanel";
 import { RemoteSection } from "./settings/RemoteSection";
 import { SshSection } from "./settings/SshSection";
 import { SystemSettingsForm } from "./settings/SystemSettingsForm";
@@ -203,13 +203,7 @@ export function SettingsPage(props: SettingsPageProps) {
       case "remote":
         return <RemoteSection settings={settings} setSettings={setSettings} />;
       case "memory":
-        return (
-          <MemoryPanel
-            workdir={settings.system.workdir}
-            settings={settings}
-            setSettings={setSettings}
-          />
-        );
+        return <GaMemorySection />;
       case "about":
         return <AboutSection settings={settings} setSettings={setSettings} appUpdate={appUpdate} />;
       default: {

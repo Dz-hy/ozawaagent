@@ -5,12 +5,16 @@ import test from "node:test";
 const root = new URL("../../src/", import.meta.url);
 const source = (path) => readFileSync(new URL(path, root), "utf8");
 
-test("settings routes hooks and cron to GenericAgent-backed views", () => {
+test("settings routes hooks, cron, and memory to GenericAgent-backed views", () => {
   const settings = source("pages/SettingsPage.tsx");
+  const memory = source("pages/settings/GaMemorySection.tsx");
   assert.match(settings, /case "hooks":[\s\S]*<GaHooksSection \/>/);
   assert.match(settings, /case "cron":[\s\S]*<GaAutomationSection \/>/);
-  assert.doesNotMatch(settings, /<HooksSection/);
-  assert.doesNotMatch(settings, /<CronSection/);
+  assert.match(settings, /case "memory":[\s\S]*<GaMemorySection \/>/);
+  assert.doesNotMatch(settings, /<HooksSection|<CronSection|MemoryPanel/);
+  assert.match(memory, /gaBridgeClient\.getKnowledgeCatalog\(\)/);
+  assert.match(memory, /catalog\?\.memory\.layers/);
+  assert.doesNotMatch(memory, /lib\/memory|pokeMemoryOrganizer|MemorySettingsDrawer/);
 });
 
 test("settings routes providers exclusively to GenericAgent model profiles", () => {
