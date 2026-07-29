@@ -31,7 +31,6 @@ import type { SkillAccessPolicy } from "./skillAccessPolicy";
 import { createSkillTools } from "./skillTools";
 import { createSSHManagerTools, type SshManagerSessionChange } from "./sshManagerTools";
 import type { SystemToolId, SystemToolRuntimeScope } from "./systemToolOptions";
-import { createTerminalTools } from "./terminalTools";
 import { createTodoTools, type TodoToolState } from "./todoTools";
 import { createTunnelManagerTools, type TunnelManagerChange } from "./tunnelManagerTools";
 
@@ -223,13 +222,6 @@ async function buildBaseBuiltinToolBundles(params: BuildBuiltinBaseToolRegistryP
       resolveHomeDir,
       onSshSessionsChanged: params.onSshSessionsChanged,
     }),
-    ...(params.runtimeScope === "chat"
-      ? [
-          createTerminalTools({
-            workdir: params.workdir,
-          }),
-        ]
-      : []),
   ];
 
   const enabledServers = selectEnabledMcpServers(params.getMcpSettings());

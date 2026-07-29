@@ -155,15 +155,6 @@ export const BUILTIN_TOOL_CATALOG: readonly BuiltinToolCatalogEntry[] = [
     runtimeScopes: CHAT_ONLY,
     conditional: true,
   },
-  {
-    id: "read_terminal",
-    toolName: "ReadTerminal",
-    icon: "scrollText",
-    categoryId: "process",
-    isReadOnly: true,
-    runtimeScopes: CHAT_ONLY,
-    conditional: true,
-  },
   /* ── Intelligence & memory ── */
   {
     id: "skills_manager",

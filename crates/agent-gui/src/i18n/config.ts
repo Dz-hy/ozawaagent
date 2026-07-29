@@ -1297,10 +1297,6 @@ export const translations: Record<Locale, Record<string, string>> = {
     "settings.builtinTool.managed_process.desc": "启动并管理长时间运行的后台进程",
     "settings.builtinTool.managed_process.detail":
       "启动、探活与停止长时间运行的后台进程（如开发服务器），进程记录可跨应用重启保留。仅在对话场景注册。",
-    "settings.builtinTool.read_terminal.name": "读取终端",
-    "settings.builtinTool.read_terminal.desc": "读取右侧终端面板的屏幕内容",
-    "settings.builtinTool.read_terminal.detail":
-      "读取右侧终端面板当前显示的内容，便于模型了解命令行状态。只读操作；仅在对话场景且终端可用时注册。",
     "settings.builtinTool.skills_manager.name": "技能管理",
     "settings.builtinTool.skills_manager.desc": "查阅与管理已安装的技能",
     "settings.builtinTool.skills_manager.detail":
@@ -3429,10 +3425,6 @@ export const translations: Record<Locale, Record<string, string>> = {
       "Start and manage long-running background processes",
     "settings.builtinTool.managed_process.detail":
       "Starts, health-checks and stops long-running background processes such as dev servers; the process journal survives app restarts. Registered in chat sessions only.",
-    "settings.builtinTool.read_terminal.name": "Read Terminal",
-    "settings.builtinTool.read_terminal.desc": "Read the on-screen content of the terminal panel",
-    "settings.builtinTool.read_terminal.detail":
-      "Reads what is currently shown in the terminal panel so the model can follow command-line state. Read-only; registered in chat sessions when a terminal is available.",
     "settings.builtinTool.skills_manager.name": "Skills Manager",
     "settings.builtinTool.skills_manager.desc": "Browse and manage installed skills",
     "settings.builtinTool.skills_manager.detail":

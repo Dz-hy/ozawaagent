@@ -247,7 +247,6 @@ test("worktree children get fs/shell/ro-memory/MCP tools but no skills, system, 
   assert.ok(!names.includes("SkillsManager"));
   assert.ok(!names.includes("McpManager"));
   assert.ok(!names.includes("CronTaskManager"));
-  assert.ok(!names.includes("ReadTerminal"));
 
   // The child executed inside the isolated worktree workdir.
   assert.equal(harness.runnerCalls[0].workdir, "/tmp/liveagent-subagents/agent-a");
