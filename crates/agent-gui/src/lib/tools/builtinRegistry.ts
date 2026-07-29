@@ -1,7 +1,7 @@
 import type { ToolCall, ToolResultMessage } from "@earendil-works/pi-ai";
 import { homeDir } from "@tauri-apps/api/path";
 import type { RuntimePlatform } from "../runtimePlatform";
-import type { McpSettings, McpSettingsOp, ProviderId, SshHostConfig } from "../settings";
+import type { McpSettings, McpSettingsOp, ProviderId } from "../settings";
 import {
   createSendMessageTools,
   createSubagentTools,
@@ -22,7 +22,6 @@ import { createMemoryTools } from "./memoryTools";
 import { createShellTools } from "./shellTools";
 import type { SkillAccessPolicy } from "./skillAccessPolicy";
 import { createSkillTools } from "./skillTools";
-import { createSSHManagerTools, type SshManagerSessionChange } from "./sshManagerTools";
 import type { SystemToolId, SystemToolRuntimeScope } from "./systemToolOptions";
 import { createTodoTools, type TodoToolState } from "./todoTools";
 
@@ -135,11 +134,6 @@ type BuildBuiltinBaseToolRegistryParams = {
   /** Id-keyed merge commit into the authoritative settings; absent in read-only scopes. */
   applyMcpOps?: (ops: McpSettingsOp[]) => void;
   memoryToolMode?: "rw" | "ro";
-  tunnelProjectPathKey?: string;
-  sshHosts?: SshHostConfig[];
-  associatedSshHostIds?: string[];
-  sshManagerRemoteAllowed?: boolean;
-  onSshSessionsChanged?: (change: SshManagerSessionChange) => void | Promise<void>;
 };
 
 const resolveHomeDir = () => homeDir();
@@ -188,19 +182,6 @@ async function buildBaseBuiltinToolBundles(params: BuildBuiltinBaseToolRegistryP
     createMemoryTools({
       workdir: params.workdir,
       mode: params.memoryToolMode ?? "rw",
-    }),
-    createSSHManagerTools({
-      enabled:
-        params.runtimeScope === "chat" &&
-        params.sshManagerRemoteAllowed !== false &&
-        (params.associatedSshHostIds?.length ?? 0) > 0,
-      runtimeScope: params.runtimeScope,
-      workdir: params.workdir,
-      projectPathKey: params.tunnelProjectPathKey,
-      hosts: params.sshHosts,
-      associatedHostIds: params.associatedSshHostIds,
-      resolveHomeDir,
-      onSshSessionsChanged: params.onSshSessionsChanged,
     }),
   ];
 
