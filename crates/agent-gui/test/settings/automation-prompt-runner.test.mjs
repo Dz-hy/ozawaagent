@@ -63,14 +63,6 @@ const webCronModalSource = readFileSync(
   ),
   "utf8",
 );
-const cronToolsSource = readFileSync(
-  new URL("../../src/lib/tools/cronTools.ts", import.meta.url),
-  "utf8",
-);
-const builtinRegistrySource = readFileSync(
-  new URL("../../src/lib/tools/builtinRegistry.ts", import.meta.url),
-  "utf8",
-);
 
 test.beforeEach(() => {
   invokeCalls.length = 0;
@@ -199,23 +191,4 @@ test("Cron workspace pin stays wired across GUI and WebUI", () => {
   for (const source of [guiCronViewSource, webCronViewSource]) {
     assert.match(source, /\{task\.workdir \? \(/);
   }
-});
-
-test("CronTaskManager create pins the agent's current workspace by default", () => {
-  // Create with the workdir key absent injects the runtime workspace (http
-  // tasks excluded); an explicitly EMPTY workdir also resolves to the
-  // runtime workspace — the model has no "follow active workspace" spelling.
-  assert.match(cronToolsSource, /fields\.type !== "http" && !Object\.hasOwn\(args, "workdir"\)/);
-  assert.match(cronToolsSource, /if \(Object\.hasOwn\(fields, "workdir"\)\)/);
-  assert.match(cronToolsSource, /if \(!explicit && runtimeWorkdir\)/);
-  assert.match(cronToolsSource, /fields\.workdir = runtimeWorkdir/);
-  // Prompt creation force-sets the runtime model and a medium thinking
-  // level in code — neither is a model-facing parameter.
-  assert.match(cronToolsSource, /fields\.selectedModel = options\.currentChatModel/);
-  assert.match(cronToolsSource, /fields\.reasoning = "medium"/);
-  // The registry wires the runtime workdir into the tool bundle.
-  assert.match(
-    builtinRegistrySource,
-    /createCronTools\(\{\s*currentChatModel: params\.currentChatModel,\s*workdir: params\.workdir,\s*\}\)/,
-  );
 });

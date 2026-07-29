@@ -20,7 +20,6 @@ import type {
   BuiltinToolExecutionContext,
   BuiltinToolMetadata,
 } from "./builtinTypes";
-import { createCronTools } from "./cronTools";
 import { createCustomSystemTools } from "./customSystemTools";
 import { createFileToolState, type FileToolState } from "./fileToolState";
 import { createFsTools } from "./fsTools";
@@ -188,10 +187,6 @@ async function buildBaseBuiltinToolBundles(params: BuildBuiltinBaseToolRegistryP
           }),
         ]
       : []),
-    createCronTools({
-      currentChatModel: params.currentChatModel,
-      workdir: params.workdir,
-    }),
     createMcpManagerTools({
       workdir: params.workdir,
       getMcpSettings: params.getMcpSettings,

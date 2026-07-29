@@ -9,38 +9,6 @@ const { createEmptyRequestDraft } = loader.loadModule("src/pages/settings/httpRe
 const { normalizeAgentPromptTemplate, normalizeCustomProvider, normalizeSshSettings } =
   loader.loadModule("src/lib/settings/index.ts");
 
-let capturedCronOps = [];
-const cronLoader = createTsModuleLoader({
-  mocks: {
-    "../automation": {
-      async applyCronOps(ops) {
-        capturedCronOps = ops;
-        return {
-          tasks: [
-            {
-              id: "task-id",
-              name: "HTTP task",
-              type: "http",
-              cron: "0 * * * *",
-              enabled: true,
-              requests: ops[0].item.requests,
-            },
-          ],
-        };
-      },
-      getAutomationState() {
-        return { cron: { tasks: [] } };
-      },
-      async initAutomation() {},
-      async listCronRuns() {
-        return [];
-      },
-      async refreshAutomationSnapshot() {},
-    },
-  },
-});
-const { createCronTools } = cronLoader.loadModule("src/lib/tools/cronTools.ts");
-
 const UUID_V4_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -56,23 +24,6 @@ function withCrypto(value, run) {
   }
   try {
     return run();
-  } finally {
-    if (descriptor) {
-      Object.defineProperty(globalThis, "crypto", descriptor);
-    } else {
-      delete globalThis.crypto;
-    }
-  }
-}
-
-async function withCryptoAsync(value, run) {
-  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto");
-  Object.defineProperty(globalThis, "crypto", {
-    configurable: true,
-    value,
-  });
-  try {
-    return await run();
   } finally {
     if (descriptor) {
       Object.defineProperty(globalThis, "crypto", descriptor);
@@ -156,26 +107,5 @@ test("hook scopes and Hook/Cron HTTP request drafts work without crypto.randomUU
 
     scope.close();
     assert.match(request.id, UUID_V4_PATTERN);
-  });
-});
-
-test("CronTaskManager generates request IDs without crypto.randomUUID", async () => {
-  capturedCronOps = [];
-  await withCryptoAsync({}, async () => {
-    const cronTools = createCronTools({});
-    const result = await cronTools.executeToolCall({
-      id: "tool-call-id",
-      name: "CronTaskManager",
-      arguments: {
-        action: "create",
-        name: "HTTP task",
-        type: "http",
-        cron: "0 * * * *",
-        requests: [{ method: "GET", url: "https://example.com" }],
-      },
-    });
-
-    assert.equal(result.isError, false);
-    assert.match(capturedCronOps[0].item.requests[0].id, UUID_V4_PATTERN);
   });
 });

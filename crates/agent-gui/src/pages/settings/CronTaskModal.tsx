@@ -61,8 +61,8 @@ export type CronWorkspaceOption = {
 const FOLLOW_ACTIVE_WORKSPACE_VALUE = "__follow-active-workspace__";
 
 /**
- * "Custom path" entry: the CronTaskManager tool can pin arbitrary paths, so
- * the form offers a free-form path input alongside the workspace list.
+ * "Custom path" entry: cron tasks can retain paths outside the current
+ * workspace list, so the form offers a free-form input alongside that list.
  */
 const CUSTOM_WORKDIR_VALUE = "__custom-workdir__";
 
@@ -176,9 +176,8 @@ export function CronTaskModal({
     if (!initialWorkdir) return "";
     return findWorkspaceOptionByPath(workspaceOptions, initialWorkdir)?.path ?? initialWorkdir;
   });
-  // A pinned path outside the workspace list (e.g. set by the CronTaskManager
-  // tool, or whose workspace was removed) opens in custom-path mode so the
-  // user sees and can edit the raw path.
+  // A pinned path outside the workspace list (for example, after its workspace
+  // was removed) opens in custom-path mode so the user can edit the raw path.
   const [customWorkdir, setCustomWorkdir] = useState(() => {
     const initialWorkdir = initialData?.workdir ?? "";
     return Boolean(initialWorkdir && !findWorkspaceOptionByPath(workspaceOptions, initialWorkdir));
