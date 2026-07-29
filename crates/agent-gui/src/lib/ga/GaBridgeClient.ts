@@ -105,10 +105,10 @@ export class GaBridgeClient {
   listSessions() {
     return this.request<{ sessions: GaSessionDto[]; activeSessionId?: string }>("/sessions");
   }
-  async createSession(cwd?: string): Promise<GaSessionDto> {
+  async createSession(options?: { cwd?: string; projectId?: string }): Promise<GaSessionDto> {
     const result = await this.request<{ session: GaSessionDto }>("/session/new", {
       method: "POST",
-      body: JSON.stringify(cwd ? { cwd } : {}),
+      body: JSON.stringify(options ?? {}),
     });
     return result.session;
   }

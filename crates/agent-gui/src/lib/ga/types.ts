@@ -19,6 +19,7 @@ export type GaSessionDto = {
   id: string;
   title?: string;
   cwd?: string;
+  projectId?: string;
   path?: string;
   state?: string;
   status?: string;

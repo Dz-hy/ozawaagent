@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections import deque
+from contextvars import ContextVar
 import hashlib
 import importlib.util
 import json
@@ -501,11 +502,103 @@ def knowledge_catalog(root: Path | None) -> dict[str, Any]:
     return snapshot
 
 
+PROJECT_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
+_CURRENT_PROJECT_ID: ContextVar[str | None] = ContextVar("ga_current_project_id", default=None)
+
+
+def _normalize_project_id(value: Any) -> str | None:
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str) or not PROJECT_ID.fullmatch(value):
+        raise ValueError("projectId must contain only letters, numbers, underscores, and hyphens")
+    return value
+
+
+def _install_project_session_support(official_module: Any) -> None:
+    manager = getattr(official_module, "manager", None)
+    if manager is None or getattr(manager, "_ga_project_session_support", False):
+        return
+    required = ("create_session", "snapshot", "_session_dict", "_session_from_item", "make_agent", "_persist_session")
+    if not all(callable(getattr(manager, name, None)) for name in required):
+        return
+
+    original_create_session = manager.create_session
+    original_snapshot = manager.snapshot
+    original_session_dict = manager._session_dict
+    original_session_from_item = manager._session_from_item
+    original_make_agent = manager.make_agent
+
+    def create_session(cwd: str | None = None):
+        session = original_create_session(cwd)
+        session.project_id = _CURRENT_PROJECT_ID.get()
+        manager._persist_session(session)
+        return session
+
+    def snapshot(session: Any, include_messages: bool = True) -> dict[str, Any]:
+        result = original_snapshot(session, include_messages=include_messages)
+        project_id = getattr(session, "project_id", None)
+        if project_id:
+            result["projectId"] = project_id
+        return result
+
+    def session_dict(session: Any) -> dict[str, Any]:
+        result = original_session_dict(session)
+        project_id = getattr(session, "project_id", None)
+        if project_id:
+            result["project_id"] = project_id
+        return result
+
+    def session_from_item(item: dict[str, Any]):
+        session = original_session_from_item(item)
+        try:
+            session.project_id = _normalize_project_id(item.get("project_id"))
+        except ValueError:
+            session.project_id = None
+        return session
+
+    def make_agent(session: Any):
+        agent = original_make_agent(session)
+        project_id = getattr(session, "project_id", None)
+        enter_project_mode = getattr(getattr(agent, "handler", None), "enter_project_mode", None)
+        if project_id and callable(enter_project_mode):
+            enter_project_mode(project_id)
+        return agent
+
+    manager.create_session = create_session
+    manager.snapshot = snapshot
+    manager._session_dict = session_dict
+    manager._session_from_item = session_from_item
+    manager.make_agent = make_agent
+    manager._ga_project_session_support = True
+
+
+def project_session_middleware():
+    @web.middleware
+    async def middleware(request: web.Request, handler):
+        if request.method != "POST" or request.path != "/session/new":
+            return await handler(request)
+        try:
+            payload = await request.json()
+            project_id = _normalize_project_id(payload.get("projectId") if isinstance(payload, dict) else None)
+        except (ValueError, json.JSONDecodeError):
+            return _json("error", {"code": "invalid_project_id", "message": "Invalid projectId"}, 400,
+                         request.headers.get("X-Request-Id", ""))
+        context_token = _CURRENT_PROJECT_ID.set(project_id)
+        try:
+            return await handler(request)
+        finally:
+            _CURRENT_PROJECT_ID.reset(context_token)
+
+    return middleware
+
+
 def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[str], manifest: dict[str, Any],
                ga_root: Path | None = None) -> web.Application:
     if len(token) < 32:
         raise ValueError("Bridge token must contain at least 32 characters")
+    _install_project_session_support(official_module)
     app = official_module.create_app()
+    app.middlewares.insert(0, project_session_middleware())
     app.middlewares.insert(0, security_middleware(token, allowed_origins))
 
     async def version_handler(request: web.Request) -> web.Response:

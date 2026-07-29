@@ -234,14 +234,15 @@ export function ChatPage(props: ChatPageProps) {
       sidebarStore.stop();
     };
   }, [sidebarStore]);
-  const startNewConversationActionRef = useRef<(options?: { workdir?: string }) => void>(
-    () => undefined,
-  );
+  const startNewConversationActionRef = useRef<
+    (options?: { workdir?: string; projectId?: string }) => void
+  >(() => undefined);
   const prepareComposerForConversationChangeActionRef = useRef<() => void>(() => undefined);
   const [activeView, setActiveView] = useState<"chat" | "knowledge-hub">("chat");
   const [rightDockOpen, setRightDockOpen] = useState(false);
   const {
     workspaceProjects,
+    activeWorkspaceProjectId,
     setActiveWorkspaceProjectId,
     missingWorkspaceProjectPathKeys,
     archivedWorkspaceProjectPathKeys,
@@ -1397,8 +1398,9 @@ export function ChatPage(props: ChatPageProps) {
     prepareComposerForConversationChange();
     startNewConversationActionRef.current({
       workdir: isAgentMode ? activeWorkspaceProjectPath || undefined : undefined,
+      projectId: isAgentMode ? activeWorkspaceProjectId : undefined,
     });
-  }, [activeWorkspaceProjectPath, isAgentMode, openController]);
+  }, [activeWorkspaceProjectId, activeWorkspaceProjectPath, isAgentMode, openController]);
 
   // 全局快捷键「新建对话」：Rust 端呼出窗口后发事件，这里切回对话视图
   // （可能停在 Skills/MCP Hub）、开新会话并聚焦输入框，行为对齐侧栏按钮。

@@ -44,7 +44,9 @@ type UseWorkspaceProjectsParams = {
   setErrorMessage: Dispatch<SetStateAction<string | null>>;
   setActiveView: Dispatch<SetStateAction<"chat" | "knowledge-hub">>;
   setRightDockOpen: Dispatch<SetStateAction<boolean>>;
-  startNewConversationActionRef: MutableRefObject<(options?: { workdir?: string }) => void>;
+  startNewConversationActionRef: MutableRefObject<
+    (options?: { workdir?: string; projectId?: string }) => void
+  >;
   prepareComposerForConversationChangeActionRef: MutableRefObject<() => void>;
 };
 
@@ -261,7 +263,10 @@ export function useWorkspaceProjects(params: UseWorkspaceProjectsParams) {
       });
       if (options?.startConversation) {
         prepareComposerForConversationChangeActionRef.current();
-        startNewConversationActionRef.current({ workdir: targetProject.path });
+        startNewConversationActionRef.current({
+          workdir: targetProject.path,
+          projectId: targetProject.id,
+        });
       }
     },
     [setSettings, workspaceProjects, activeWorkspaceProjectId, settings.system],

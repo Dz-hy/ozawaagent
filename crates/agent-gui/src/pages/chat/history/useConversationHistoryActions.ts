@@ -191,7 +191,7 @@ export function useConversationHistoryActions(params: UseConversationHistoryActi
     pruneIdleConversationCaches([conversationId]);
   }
 
-  async function startNewConversation(options?: { workdir?: string }) {
+  async function startNewConversation(options?: { workdir?: string; projectId?: string }) {
     cancelConversationHydration();
     const visibleConversationId = currentConversationIdRef.current;
     setConversationRuntimeCacheEntry(
@@ -203,7 +203,7 @@ export function useConversationHistoryActions(params: UseConversationHistoryActi
 
     const workdir = options?.workdir ?? getDefaultNewConversationWorkdir?.();
     try {
-      const created = await gaBridgeClient.createSession(workdir);
+      const created = await gaBridgeClient.createSession({ cwd: workdir, projectId: options?.projectId });
       const item = gaSessionToSidebar(created);
       if (!item.id) throw new Error("GenericAgent returned a session without an id");
       const nextEntry = createBlankConversationEntry({

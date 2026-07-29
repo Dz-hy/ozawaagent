@@ -660,3 +660,111 @@ async def test_knowledge_endpoint_returns_registry_metadata_without_paths_or_con
     encoded = json.dumps(payload)
     assert "memory/morphling_sop.md" not in encoded
     assert "secrets/private.py" not in encoded
+
+
+class ProjectSession:
+    def __init__(self, sid="sess-1", cwd="C:\\workspace"):
+        self.id = sid
+        self.cwd = cwd
+        self.project_id = None
+
+
+class ProjectManager:
+    def __init__(self):
+        self.sessions = {}
+        self.persisted = []
+
+    def _persist_session(self, session):
+        self.persisted.append(session)
+
+    def create_session(self, cwd=None):
+        session = ProjectSession(cwd=cwd or "C:\\ga")
+        self.sessions[session.id] = session
+        return session
+
+    def snapshot(self, session, include_messages=True):
+        result = {"sessionId": session.id, "cwd": session.cwd}
+        if include_messages:
+            result["messages"] = []
+        return result
+
+    def _session_dict(self, session):
+        return {"id": session.id, "cwd": session.cwd}
+
+    def _session_from_item(self, item):
+        return ProjectSession(sid=item["id"], cwd=item.get("cwd", "C:\\ga"))
+
+    def make_agent(self, session):
+        calls = []
+        return SimpleNamespace(handler=SimpleNamespace(enter_project_mode=calls.append), project_calls=calls)
+
+
+def test_project_id_normalization_rejects_unsafe_values():
+    assert adapter._normalize_project_id(None) is None
+    assert adapter._normalize_project_id("project_alpha-1") == "project_alpha-1"
+    with pytest.raises(ValueError):
+        adapter._normalize_project_id("../escape")
+    with pytest.raises(ValueError):
+        adapter._normalize_project_id("has space")
+    with pytest.raises(ValueError):
+        adapter._normalize_project_id(42)
+
+
+def test_project_manager_wrappers_persist_snapshot_and_restore_project_id():
+    official = SimpleNamespace(manager=ProjectManager())
+    adapter._install_project_session_support(official)
+    manager = official.manager
+
+    token = adapter._CURRENT_PROJECT_ID.set("project-one")
+    try:
+        session = manager.create_session("C:\\workspace")
+    finally:
+        adapter._CURRENT_PROJECT_ID.reset(token)
+
+    assert session.project_id == "project-one"
+    assert manager.persisted == [session]
+    assert manager.snapshot(session)["projectId"] == "project-one"
+    assert manager._session_dict(session)["project_id"] == "project-one"
+
+    restored = manager._session_from_item({"id": "sess-2", "project_id": "project-two"})
+    assert restored.project_id == "project-two"
+    invalid = manager._session_from_item({"id": "sess-3", "project_id": "../escape"})
+    assert invalid.project_id is None
+
+
+def test_project_manager_make_agent_enters_project_mode():
+    official = SimpleNamespace(manager=ProjectManager())
+    adapter._install_project_session_support(official)
+    manager = official.manager
+    session = ProjectSession()
+    session.project_id = "project-agent"
+
+    agent = manager.make_agent(session)
+    assert agent.project_calls == ["project-agent"]
+
+
+@pytest.mark.asyncio
+async def test_new_session_project_id_is_request_scoped():
+    manager = ProjectManager()
+    adapter._install_project_session_support(SimpleNamespace(manager=manager))
+
+    async def new_session(request):
+        session = manager.create_session()
+        return web.json_response({"projectId": session.project_id})
+
+    app = web.Application(middlewares=[adapter.project_session_middleware()])
+    app.router.add_post("/session/new", new_session)
+    async with TestClient(TestServer(app)) as test_client:
+        first = await test_client.post("/session/new", json={"projectId": "first"})
+        first_payload = await first.json()
+        second = await test_client.post("/session/new", json={})
+        second_payload = await second.json()
+        bad = await test_client.post("/session/new", json={"projectId": "bad/id"})
+        bad_payload = await bad.json()
+
+    assert first.status == 200
+    assert first_payload["projectId"] == "first"
+    assert second.status == 200
+    assert second_payload["projectId"] is None
+    assert bad.status == 400
+    assert bad_payload["payload"]["code"] == "invalid_project_id"
