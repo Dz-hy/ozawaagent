@@ -51,6 +51,52 @@ test("workspace project path key normalizes windows-shaped paths and preserves P
   );
 });
 
+test("workspace project path conflicts diagnose Windows case and slash aliases", () => {
+  const projects = [
+    project("retained", "C:\\Users\\Me\\Repo", 1),
+    project("case-alias", "c:/users/me/repo", 2),
+    project("slash-alias", "C:/Users/Me/Repo/", 3),
+    project("distinct", "C:/Users/Me/Other", 4),
+  ];
+
+  assert.deepEqual(settings.diagnoseWorkspaceProjectPathConflicts(projects), [
+    {
+      pathKey: "c:/users/me/repo",
+      retainedIndex: 0,
+      duplicateIndexes: [1, 2],
+    },
+  ]);
+});
+
+test("workspace project path conflict repair is stable and preserves the first project", () => {
+  const retained = project("retained", "C:\\Users\\Me\\Repo", 1);
+  const distinct = project("distinct", "C:/Users/Me/Other", 3);
+  const repaired = settings.repairWorkspaceProjectPathConflicts([
+    retained,
+    project("alias", "c:/users/me/repo/", 2),
+    distinct,
+  ]);
+
+  assert.deepEqual(repaired, [retained, distinct]);
+});
+
+test("settings hydration automatically repairs normalized workspace project path conflicts", () => {
+  const normalized = settings.normalizeSettings({
+    system: {
+      workspaceProjects: [
+        project("retained", "C:\\Users\\Me\\Repo", 1),
+        project("alias", "c:/users/me/repo/", 2),
+        project("distinct", "C:/Users/Me/Other", 3),
+      ],
+    },
+  });
+
+  assert.deepEqual(
+    normalized.system.workspaceProjects.map((item) => item.id),
+    ["retained", "distinct"],
+  );
+});
+
 test("workspace project ordering follows latest activity instead of pinning default first", () => {
   const projects = [
     project(settings.DEFAULT_WORKSPACE_PROJECT_ID, "/tmp/default-project", 1),

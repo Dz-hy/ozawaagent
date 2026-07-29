@@ -594,17 +594,63 @@ function normalizeWorkspaceProject(input: unknown): WorkspaceProject | null {
   };
 }
 
+export type WorkspaceProjectPathConflict = {
+  pathKey: string;
+  retainedIndex: number;
+  duplicateIndexes: number[];
+};
+
+type WorkspaceProjectPathEntry = {
+  path: unknown;
+};
+
+export function diagnoseWorkspaceProjectPathConflicts(
+  projects: readonly WorkspaceProjectPathEntry[],
+): WorkspaceProjectPathConflict[] {
+  const retainedIndexByPath = new Map<string, number>();
+  const conflictByPath = new Map<string, WorkspaceProjectPathConflict>();
+
+  projects.forEach((project, index) => {
+    const pathKey = workspaceProjectPathKey(project.path);
+    if (!pathKey) return;
+    const retainedIndex = retainedIndexByPath.get(pathKey);
+    if (retainedIndex === undefined) {
+      retainedIndexByPath.set(pathKey, index);
+      return;
+    }
+    const conflict = conflictByPath.get(pathKey) ?? {
+      pathKey,
+      retainedIndex,
+      duplicateIndexes: [],
+    };
+    conflict.duplicateIndexes.push(index);
+    conflictByPath.set(pathKey, conflict);
+  });
+
+  return [...conflictByPath.values()];
+}
+
+export function repairWorkspaceProjectPathConflicts<T extends WorkspaceProjectPathEntry>(
+  projects: readonly T[],
+): T[] {
+  const seenPaths = new Set<string>();
+  return projects.filter((project) => {
+    const pathKey = workspaceProjectPathKey(project.path);
+    if (!pathKey || seenPaths.has(pathKey)) return false;
+    seenPaths.add(pathKey);
+    return true;
+  });
+}
+
 function normalizeWorkspaceProjects(input: unknown): WorkspaceProject[] {
   if (!Array.isArray(input)) return [];
+  const normalizedProjects = input
+    .map(normalizeWorkspaceProject)
+    .filter((project): project is WorkspaceProject => project !== null);
+  const projects = repairWorkspaceProjectPathConflicts(normalizedProjects);
   const out: WorkspaceProject[] = [];
-  const seenPaths = new Set<string>();
   const seenIds = new Set<string>();
-  for (const raw of input) {
-    const project = normalizeWorkspaceProject(raw);
-    if (!project) continue;
-    const pathKey = workspaceProjectPathKey(project.path);
-    if (!pathKey || seenPaths.has(pathKey)) continue;
-    seenPaths.add(pathKey);
+  for (const project of projects) {
     let id = project.id;
     if (seenIds.has(id)) {
       id = createUuid();
