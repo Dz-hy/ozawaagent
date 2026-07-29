@@ -227,15 +227,6 @@ export const BUILTIN_TOOL_CATALOG: readonly BuiltinToolCatalogEntry[] = [
     runtimeScopes: CHAT_AND_CRON,
   },
   {
-    id: "tunnel_manager",
-    toolName: "TunnelManager",
-    icon: "globe",
-    categoryId: "connectivity",
-    isReadOnly: false,
-    runtimeScopes: CHAT_ONLY,
-    conditional: true,
-  },
-  {
     id: "ssh_manager",
     toolName: "SSHManager",
     icon: "server",

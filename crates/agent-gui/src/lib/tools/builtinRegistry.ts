@@ -25,7 +25,6 @@ import { createSkillTools } from "./skillTools";
 import { createSSHManagerTools, type SshManagerSessionChange } from "./sshManagerTools";
 import type { SystemToolId, SystemToolRuntimeScope } from "./systemToolOptions";
 import { createTodoTools, type TodoToolState } from "./todoTools";
-import { createTunnelManagerTools, type TunnelManagerChange } from "./tunnelManagerTools";
 
 export type BuiltinToolRegistry = {
   tools: BuiltinToolBundle["tools"];
@@ -136,14 +135,11 @@ type BuildBuiltinBaseToolRegistryParams = {
   /** Id-keyed merge commit into the authoritative settings; absent in read-only scopes. */
   applyMcpOps?: (ops: McpSettingsOp[]) => void;
   memoryToolMode?: "rw" | "ro";
-  remoteWebTunnelsEnabled?: boolean;
   tunnelProjectPathKey?: string;
-  tunnelPublicBaseUrl?: string;
   sshHosts?: SshHostConfig[];
   associatedSshHostIds?: string[];
   sshManagerRemoteAllowed?: boolean;
   onSshSessionsChanged?: (change: SshManagerSessionChange) => void | Promise<void>;
-  onTunnelsChanged?: (change: TunnelManagerChange) => void | Promise<void>;
 };
 
 const resolveHomeDir = () => homeDir();
@@ -192,13 +188,6 @@ async function buildBaseBuiltinToolBundles(params: BuildBuiltinBaseToolRegistryP
     createMemoryTools({
       workdir: params.workdir,
       mode: params.memoryToolMode ?? "rw",
-    }),
-    createTunnelManagerTools({
-      enabled: params.remoteWebTunnelsEnabled === true && params.runtimeScope === "chat",
-      runtimeScope: params.runtimeScope,
-      projectPathKey: params.tunnelProjectPathKey,
-      publicBaseUrl: params.tunnelPublicBaseUrl,
-      onTunnelsChanged: params.onTunnelsChanged,
     }),
     createSSHManagerTools({
       enabled:

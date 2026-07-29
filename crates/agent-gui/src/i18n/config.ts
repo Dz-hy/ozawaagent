@@ -1329,10 +1329,6 @@ export const translations: Record<Locale, Record<string, string>> = {
     "settings.builtinTool.mcp_manager.desc": "管理 MCP 服务器的接入与开关",
     "settings.builtinTool.mcp_manager.detail":
       "让模型添加、启停与管理 MCP 服务器，接入外部工具生态。MCP 服务器带来的具体工具由各服务器自身提供。",
-    "settings.builtinTool.tunnel_manager.name": "隧道管理",
-    "settings.builtinTool.tunnel_manager.desc": "管理本地服务的公网隧道",
-    "settings.builtinTool.tunnel_manager.detail":
-      "创建与管理本地服务的公网访问隧道，便于分享开发中的页面。需要启用远程 Web 隧道功能；仅在对话场景注册。",
     "settings.builtinTool.ssh_manager.name": "SSH 管理",
     "settings.builtinTool.ssh_manager.desc": "连接与操作已关联的 SSH 主机",
     "settings.builtinTool.ssh_manager.detail":
@@ -3458,10 +3454,6 @@ export const translations: Record<Locale, Record<string, string>> = {
     "settings.builtinTool.mcp_manager.desc": "Manage MCP server connections and toggles",
     "settings.builtinTool.mcp_manager.detail":
       "Lets the model add, toggle and manage MCP servers to tap into external tool ecosystems. The concrete tools each server contributes come from the server itself.",
-    "settings.builtinTool.tunnel_manager.name": "Tunnel Manager",
-    "settings.builtinTool.tunnel_manager.desc": "Manage public tunnels for local services",
-    "settings.builtinTool.tunnel_manager.detail":
-      "Creates and manages public tunnels that expose local services, useful for sharing work-in-progress pages. Requires the remote web tunnel feature; chat sessions only.",
     "settings.builtinTool.ssh_manager.name": "SSH Manager",
     "settings.builtinTool.ssh_manager.desc": "Connect to and operate associated SSH hosts",
     "settings.builtinTool.ssh_manager.detail":
