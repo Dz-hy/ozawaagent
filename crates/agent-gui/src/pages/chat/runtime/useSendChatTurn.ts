@@ -36,7 +36,6 @@ import type { useGatewayRuntimeSnapshots } from "../gateway/useGatewayRuntimeSna
 import type { PersistConversationParams } from "../history/useConversationHistoryActions";
 import type { useChatPageRuntimeStore } from "../hooks/useChatPageRuntimeStore";
 import type { useLiveTranscriptController } from "../hooks/useLiveTranscriptController";
-import type { createChatRuntimeHost } from "./ChatRuntimeHost";
 import { expandGaCommandPrompt } from "./gaCommands";
 import { runGaChatTurn } from "./runGaChatTurn";
 
@@ -57,7 +56,6 @@ type UseSendChatTurnParams = {
   t: (key: string) => string;
   sidebarStore: SidebarStore;
   titleJobRef: MutableRefObject<TitleJobRefValue>;
-  chatRuntimeHost: ReturnType<typeof createChatRuntimeHost>;
   subagentStoresRef: MutableRefObject<SubagentStoreManager>;
   scrollFollowRef: MutableRefObject<ScrollFollowHandle | null>;
   composerRef: MutableRefObject<MentionComposerHandle | null>;
