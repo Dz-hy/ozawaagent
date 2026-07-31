@@ -3,8 +3,8 @@ use std::sync::Arc;
 use tauri::State;
 
 use crate::runtime::sftp::{
-    SftpActionResponse, SftpListResponse, SftpReadTextResponse, SftpSessionRegistry,
-    SftpStatResponse, SftpTransferResponse,
+    SftpActionResponse, SftpListResponse, SftpSessionRegistry, SftpStatResponse,
+    SftpTransferResponse,
 };
 
 #[tauri::command(rename_all = "snake_case")]
@@ -32,42 +32,6 @@ pub async fn sftp_stat(
 ) -> Result<SftpStatResponse, String> {
     registry
         .stat(session_id, project_path_key, workdir, side, path)
-        .await
-}
-
-#[tauri::command(rename_all = "snake_case")]
-pub async fn sftp_read_text(
-    registry: State<'_, Arc<SftpSessionRegistry>>,
-    session_id: String,
-    project_path_key: Option<String>,
-    path: String,
-    offset: Option<u64>,
-    max_bytes: Option<usize>,
-) -> Result<SftpReadTextResponse, String> {
-    registry
-        .read_text(session_id, project_path_key, path, offset, max_bytes)
-        .await
-}
-
-#[tauri::command(rename_all = "snake_case")]
-pub async fn sftp_write_text(
-    registry: State<'_, Arc<SftpSessionRegistry>>,
-    session_id: String,
-    project_path_key: Option<String>,
-    path: String,
-    content: String,
-    overwrite: Option<bool>,
-    create_parent_dirs: Option<bool>,
-) -> Result<SftpActionResponse, String> {
-    registry
-        .write_text(
-            session_id,
-            project_path_key,
-            path,
-            content,
-            overwrite.unwrap_or(true),
-            create_parent_dirs.unwrap_or(true),
-        )
         .await
 }
 
@@ -164,13 +128,4 @@ pub fn sftp_cancel_transfer(
     transfer_id: String,
 ) -> Result<(), String> {
     registry.cancel_transfer(session_id, transfer_id)
-}
-
-#[tauri::command(rename_all = "snake_case")]
-pub fn sftp_transfer_status(
-    registry: State<'_, Arc<SftpSessionRegistry>>,
-    session_id: String,
-    transfer_id: String,
-) -> Result<SftpTransferResponse, String> {
-    registry.transfer_status(session_id, transfer_id)
 }

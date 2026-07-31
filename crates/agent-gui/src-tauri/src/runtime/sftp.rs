@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter};
-use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
 use crate::runtime::platform::expand_tilde_path;
@@ -19,8 +19,6 @@ use crate::runtime::terminal::{
 };
 
 const TRANSFER_BUFFER_BYTES: usize = 64 * 1024;
-const SFTP_READ_TEXT_DEFAULT_BYTES: usize = 200 * 1024;
-const SFTP_READ_TEXT_MAX_BYTES: usize = 1024 * 1024;
 pub const SFTP_EVENT_NAME: &str = "sftp:event";
 
 #[derive(Debug, Clone, Serialize)]
@@ -70,17 +68,6 @@ pub struct SftpTransferState {
 #[serde(rename_all = "camelCase")]
 pub struct SftpTransferResponse {
     pub transfer: SftpTransferState,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SftpReadTextResponse {
-    pub path: String,
-    pub content: String,
-    pub offset: u64,
-    pub bytes_read: usize,
-    pub size_bytes: u64,
-    pub truncated: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -251,67 +238,6 @@ impl SftpSessionRegistry {
             }
             _ => Err("side must be local or remote".to_string()),
         }
-    }
-
-    pub async fn read_text(
-        &self,
-        session_id: String,
-        project_path_key: Option<String>,
-        path: String,
-        offset: Option<u64>,
-        max_bytes: Option<usize>,
-    ) -> Result<SftpReadTextResponse, String> {
-        self.ensure_session_allowed(&session_id, project_path_key.as_deref())?;
-        let remote_path = normalize_remote_path(&path);
-        self.read_text_remote(session_id, remote_path, offset.unwrap_or(0), max_bytes)
-            .await
-    }
-
-    pub async fn write_text(
-        &self,
-        session_id: String,
-        project_path_key: Option<String>,
-        path: String,
-        content: String,
-        overwrite: bool,
-        create_parent_dirs: bool,
-    ) -> Result<SftpActionResponse, String> {
-        self.ensure_session_allowed(&session_id, project_path_key.as_deref())?;
-        let remote_path = normalize_remote_path(&path);
-        let connection = self.connection_for_session(&session_id).await?;
-        let guard = connection.lock().await;
-        if !overwrite
-            && guard
-                .session
-                .try_exists(remote_path.clone())
-                .await
-                .unwrap_or(false)
-        {
-            return Err(format!("target already exists: {remote_path}"));
-        }
-        if create_parent_dirs {
-            if let Some(parent) = remote_parent_path(&remote_path) {
-                ensure_remote_dir_all(&guard.session, &parent).await?;
-            }
-        }
-        let mut file = guard
-            .session
-            .create(remote_path.clone())
-            .await
-            .map_err(|error| format!("failed to create remote file: {error}"))?;
-        file.write_all(content.as_bytes())
-            .await
-            .map_err(|error| format!("failed to write remote file: {error}"))?;
-        file.shutdown()
-            .await
-            .map_err(|error| format!("failed to close remote file: {error}"))?;
-        let entry = remote_entry_from_metadata(&guard.session, &remote_path).await?;
-        Ok(SftpActionResponse {
-            action: "write_text".to_string(),
-            path: remote_path,
-            entry: Some(entry),
-            transfer: None,
-        })
     }
 
     pub async fn mkdir(
@@ -566,22 +492,6 @@ impl SftpSessionRegistry {
             .ok_or_else(|| "SFTP transfer not found".to_string())?;
         task.cancelled.store(true, Ordering::SeqCst);
         Ok(())
-    }
-
-    pub fn transfer_status(
-        &self,
-        session_id: String,
-        transfer_id: String,
-    ) -> Result<SftpTransferResponse, String> {
-        let key = format!("{}:{}", session_id.trim(), transfer_id.trim());
-        let transfer = self
-            .transfer_states
-            .lock()
-            .map_err(|_| "SFTP transfer state registry poisoned".to_string())?
-            .get(&key)
-            .cloned()
-            .ok_or_else(|| "SFTP transfer not found".to_string())?;
-        Ok(SftpTransferResponse { transfer })
     }
 
     fn ensure_session_allowed(
@@ -852,83 +762,6 @@ impl SftpSessionRegistry {
         }
     }
 
-    async fn read_text_remote(
-        &self,
-        session_id: String,
-        remote_path: String,
-        offset: u64,
-        max_bytes: Option<usize>,
-    ) -> Result<SftpReadTextResponse, String> {
-        match self
-            .read_text_remote_once(&session_id, remote_path.clone(), offset, max_bytes)
-            .await
-        {
-            Ok(response) => Ok(response),
-            Err(error) if is_session_closed_error(&error) => {
-                self.invalidate_session_connection(&session_id);
-                self.read_text_remote_once(&session_id, remote_path, offset, max_bytes)
-                    .await
-            }
-            Err(error) => Err(error),
-        }
-    }
-
-    async fn read_text_remote_once(
-        &self,
-        session_id: &str,
-        remote_path: String,
-        offset: u64,
-        max_bytes: Option<usize>,
-    ) -> Result<SftpReadTextResponse, String> {
-        let limit = normalize_read_text_max_bytes(max_bytes);
-        let connection = self.connection_for_session(session_id).await?;
-        let guard = connection.lock().await;
-        let metadata = guard
-            .session
-            .metadata(remote_path.clone())
-            .await
-            .map_err(|error| format!("remote stat failed: {error}"))?;
-        if metadata.is_dir() {
-            return Err("remote path is a directory".to_string());
-        }
-        let size_bytes = metadata.size.unwrap_or(0);
-        let mut file = guard
-            .session
-            .open(remote_path.clone())
-            .await
-            .map_err(|error| format!("failed to open remote file: {error}"))?;
-        if offset > 0 {
-            file.seek(io::SeekFrom::Start(offset))
-                .await
-                .map_err(|error| format!("failed to seek remote file: {error}"))?;
-        }
-        let mut buffer = Vec::with_capacity(limit.saturating_add(1));
-        let mut chunk = vec![0u8; TRANSFER_BUFFER_BYTES.min(limit.saturating_add(1).max(1))];
-        while buffer.len() <= limit {
-            let want = (limit + 1 - buffer.len()).min(chunk.len());
-            let bytes_read = file
-                .read(&mut chunk[..want])
-                .await
-                .map_err(|error| format!("failed to read remote file: {error}"))?;
-            if bytes_read == 0 {
-                break;
-            }
-            buffer.extend_from_slice(&chunk[..bytes_read]);
-        }
-        let actual_read = buffer.len();
-        buffer.truncate(actual_read.min(limit));
-        let truncated = actual_read > limit
-            || (offset as u128).saturating_add(buffer.len() as u128) < u128::from(size_bytes);
-        Ok(SftpReadTextResponse {
-            path: remote_path,
-            content: String::from_utf8_lossy(&buffer).to_string(),
-            offset,
-            bytes_read: buffer.len(),
-            size_bytes,
-            truncated,
-        })
-    }
-
     async fn upload(
         &self,
         session_id: &str,
@@ -1180,13 +1013,6 @@ fn normalize_transfer_target_path(direction: &str, path: &str) -> String {
     } else {
         normalize_local_path(path)
     }
-}
-
-fn normalize_read_text_max_bytes(max_bytes: Option<usize>) -> usize {
-    max_bytes
-        .filter(|value| *value > 0)
-        .unwrap_or(SFTP_READ_TEXT_DEFAULT_BYTES)
-        .clamp(4 * 1024, SFTP_READ_TEXT_MAX_BYTES)
 }
 
 fn canonicalize_workdir(workdir: &str) -> Result<PathBuf, String> {
