@@ -48,7 +48,7 @@
 |---|---|
 | Chat history | `chat_history_list/search/get/upsert/upsert_active_segment/append_segment/rename/set_pinned/share_get/share_set/delete` |
 | Subagent store | `subagent_identity_upsert/list`、`subagent_run_save/list/load/prune`、`subagent_message_append/list` |
-| File system | `fs_read_text/read_image_source/write_text/edit_text/delete/list/glob/grep/mention_list` |
+| File system | `fs_read_text/read_workspace_image/write_text/edit_text/delete/list/glob/grep/mention_list` |
 | Subagent worktree | `subagent_worktree_create/status/apply/cleanup` |
 | MCP runtime | `mcp_list_tools/call_tool/runtime_status/stop_server/test_server/restart_server` |
 | Memory | `memory_list/read/search/write/update/delete/accept/apply_batch/organize_* /index_overview/paths_info/recent_rejections/today_daily/wipe_all` |
