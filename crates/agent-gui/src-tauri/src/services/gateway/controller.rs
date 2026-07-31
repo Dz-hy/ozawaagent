@@ -322,12 +322,6 @@ impl GatewayController {
         Ok(())
     }
 
-    pub fn disconnect_runtime(self: &Arc<Self>) -> Result<(), String> {
-        let mut config = self.config_tx.borrow().clone();
-        config.enabled = false;
-        self.apply_config(config)
-    }
-
     pub fn status(&self) -> GatewayStatusSnapshot {
         self.status
             .lock()
