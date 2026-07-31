@@ -1,4 +1,3 @@
-export { createSubagentTools, type SubagentRuntimeConfig } from "./agentTool";
 export { renderMessageBusSnapshot } from "./bus";
 export { isSubagentCardToolCall } from "./card";
 export type { SubagentStoreIpc } from "./ipc/store";
@@ -12,7 +11,6 @@ export type {
 } from "./protocol";
 export { buildSubagentCardToolCallId, isSubagentCardArguments } from "./protocol";
 export { buildRosterReminder } from "./roster";
-export type { SubagentProviderRuntime } from "./run";
 export {
   createSubagentScheduler,
   DEFAULT_SUBAGENT_MAX_PARALLEL_RUNS,
