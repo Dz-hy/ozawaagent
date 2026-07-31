@@ -56,7 +56,7 @@
 | Hooks/Cron | `hook_run_script/run_http_requests`、`cron_validate_expression/list_logs/clear_logs/take_pending_prompt_runs/complete_prompt_run` |
 | Shell/process | `shell_run/cancel`、`managed_process_start/status/stop/read_log` |
 | System | folder/file picker、uploads、skill metadata/text/manage、debug jsonl、power activity、cron task manage |
-| Gateway | `gateway_connect/disconnect/status/nudge_connection/send_chat_event/publish_conversation_activity/publish_settings_sync` |
+| Gateway | `gateway_status/nudge_connection/send_chat_event/publish_settings_sync`，以及 chat queue/runtime snapshot 与 tunnel/workspace watch 命令 |
 | Proxy | `proxy_get_server_info` |
 
 ## Rust Services 与 Runtime

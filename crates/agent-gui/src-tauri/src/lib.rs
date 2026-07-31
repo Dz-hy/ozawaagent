@@ -252,8 +252,6 @@ macro_rules! app_invoke_handler {
             commands::system::system_append_debug_jsonl,
             commands::system::system_begin_power_activity,
             commands::system::system_end_power_activity,
-            commands::gateway::gateway_connect,
-            commands::gateway::gateway_disconnect,
             commands::gateway::gateway_status,
             commands::gateway::gateway_nudge_connection,
             commands::gateway::gateway_send_chat_event,
