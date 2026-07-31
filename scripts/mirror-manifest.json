@@ -78,7 +78,6 @@
     "lib/managed-process/store.ts",
     "lib/managed-process/types.ts",
     "lib/tools/systemToolOptions.ts",
-    "lib/tools/builtinToolCatalog.ts",
     "lib/skills/builtin.ts",
     "lib/skills/clawHub.ts",
     "lib/skills/clawHubCategories.ts",
