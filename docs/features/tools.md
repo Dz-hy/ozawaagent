@@ -16,7 +16,7 @@
 | Todo / AskUser | `todoTools.ts`、`askUserQuestionTools.ts` | 独立状态与交互 bundle；不构成主对话本地注册表。 |
 | Subagent 支撑 | `src/lib/subagents/*` | 保留会话持久化、消息总线与 SendMessage/卡片展示适配；Agent 执行与模型工具所有权属于 GenericAgent runtime。 |
 
-Rust 的 FS、Shell/process、Skills、MCP、Cron 等命令与 service 仍可供桌面功能调用，但“后端能力存在”不等于 GUI 已向模型注册同名工具。
+Rust 的 FS、Shell/process、Skills、Cron 等命令与 service 仍可供桌面功能调用；MCP settings 由桌面配置层写入并同步，协议执行由 GenericAgent MCP Connector 负责。
 
 ## 执行边界
 
@@ -24,12 +24,12 @@ Rust 的 FS、Shell/process、Skills、MCP、Cron 等命令与 service 仍可供
 |---|---|---|
 | GenericAgent runtime | 主对话模型与工具执行 | 接收 prompt，维护 session，并产生消息、tool call/result 与终态。 |
 | GUI 本地 Chat | bridge 与渲染 | 启动/连接 runtime、提交 prompt、读取权威 HTTP snapshot；WebSocket 只用于低延迟刷新提示。 |
-| Tauri Rust | 本地系统能力与 runtime supervisor | 提供文件、进程、Skills/MCP 等后端命令，并负责 GenericAgent runtime 生命周期。 |
+| Tauri Rust | 本地系统能力与 runtime supervisor | 提供文件、进程、Skills 等桌面后端命令，并负责 GenericAgent runtime 生命周期；MCP 协议执行由 GenericAgent MCP Connector 负责。 |
 | WebUI / Gateway | 远程传输 | 转发 chat command/event 与维护 buffer，不在 Gateway 内执行业务工具。 |
 
 ## MCP 管理边界
 
-Settings/MCP Hub 维护 server 配置，Tauri/Rust runtime 负责 server lifecycle 和 MCP 协议能力。GUI 已不再包含本地 `McpManager` 工具适配器；主对话可见的 MCP 管理或动态 MCP 工具以 GenericAgent runtime 实际暴露为准。
+Settings/MCP Hub 维护 server 配置并通过 `mcpOps.ts` 写入/同步；GenericAgent MCP Connector 负责 server lifecycle、tools/list、call_tool、动态工具暴露与健康状态。GUI 不维护本地 `McpManager` 或 MCP runtime。
 
 ## Skills 管理边界
 

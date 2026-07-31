@@ -63,18 +63,12 @@ UI 后台安装 job 使用 `install_start` 启动带进度的后台安装线程�
 | MCP settings | `settings.mcp.servers`、`settings.mcp.selected` | server 配置与启用选择。 |
 | MCP Hub UI | `src/pages/mcp-hub/*`、WebUI mirror | server form、registry browser、preview drawer、install draft。 |
 | Registry client | `src/lib/mcpRegistry/index.ts`（Gateway WebUI） | official registry、Smithery、Glama 等 registry 归一化。 |
-| Rust runtime | `src-tauri/src/commands/mcp.rs` | stdio/http/sse server lifecycle、tools/list、call_tool、test/restart/stop/status。 |
-| Agent runtime | GenericAgent | 主对话中的 MCP 配置语义与动态工具暴露；GUI 不维护本地 `McpManager` 工具适配器。 |
+| Agent/Connector runtime | GenericAgent MCP Connector | 根据启用配置管理 MCP server 生命周期、tools/list、call_tool、健康状态与动态工具暴露；GUI 不维护本地 MCP runtime。 |
 | Write path | `src/lib/settings/mcpOps.ts` | 唯一的 MCP 配置写路径：`McpSettingsOp`（upsert/patch/remove/setEnabled）+ 纯 reducer `applyMcpOps`，按 id 合并进 `setSettings(prev => ...)`；工具读取走 `getMcpSettings` 实时 getter（权威 `settingsRef`），不做 turn 级快照，读改写决策与提交在同一同步段内完成，从根上消除多写者覆盖。 |
 
-## MCP Runtime 生命周期
+## MCP 执行边界
 
-| 阶段 | 说明 |
-|---|---|
-| 配置 | 用户在 MCP Hub/Settings 添加 server，支持 stdio/http/sse 等 transport。 |
-| 选择 | enabled 且 selected 的 server 构成当前启用配置。 |
-| 管理 | MCP Hub/Settings 经配置写路径执行 add/update/delete/enable/disable；Tauri 命令提供 status/test/restart/stop/tools/list。桌面写操作仍按先 commit 配置、后 best-effort 停旧 runtime 的顺序执行（stop 失败降级为 warning，由下次 `ensure_client` 配置判等自愈）。主对话是否暴露 MCP 管理或动态工具由 GenericAgent runtime 决定。 |
-| Runtime | Tauri/Rust 命令负责 server lifecycle、tools/list 与 call_tool；`McpRuntimeManager` 的 clients map 锁只做 get/insert 短持有，绝不在持 map 锁时锁单个 client 或 spawn——同 id 调用在 client 锁上串行，不同 server 互不阻塞。 |
+MCP Hub/Settings 负责配置、授权与展示；配置通过 `mcpOps.ts` 写入并经 Gateway 同步。GenericAgent MCP Connector 读取启用配置，按需负责 server 生命周期、tools/list、call_tool、动态工具暴露与健康状态。桌面端不再提供独立的 MCP runtime 命令或 `McpRuntimeManager`。
 
 ## MCP Registry
 

@@ -57,7 +57,6 @@
 | Chat history commands | `crates/agent-gui/src-tauri/src/commands/chat_history.rs` |
 | Settings commands | `crates/agent-gui/src-tauri/src/commands/settings.rs` |
 | Memory commands | `crates/agent-gui/src-tauri/src/commands/memory.rs` |
-| MCP commands/runtime | `crates/agent-gui/src-tauri/src/commands/mcp.rs` |
 | File commands | `crates/agent-gui/src-tauri/src/commands/fs.rs` |
 | Shell/process commands | `crates/agent-gui/src-tauri/src/commands/shell.rs`、`process.rs` |
 | System commands | `crates/agent-gui/src-tauri/src/commands/system.rs`、`system_tools.rs` |

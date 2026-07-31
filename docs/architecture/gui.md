@@ -13,7 +13,7 @@
 | 前端设置库 | `src/lib/settings/*` | 默认值、normalize、storage、Gateway sync snapshot、provider redaction。 |
 | GenericAgent bridge | `src/lib/ga/*`、`src/pages/chat/runtime/*` | runtime supervisor 的 typed client、HTTP session snapshot、WebSocket refresh hint 与对话状态映射。 |
 | 工具展示/兼容层 | `src/lib/tools/builtinToolCatalog.ts`、`src/pages/chat/components/*` | 展示工具目录与 tool call/result 卡片；不注册或执行主对话工具。 |
-| Tauri 后端 | `src-tauri/src` | 系统命令、SQLite、MCP runtime、MemoryStore、GatewayController、CronManager、代理服务。 |
+| Tauri 后端 | `src-tauri/src` | 系统命令、SQLite、MCP 配置持久化、MemoryStore、GatewayController、CronManager、代理服务。 |
 
 ## App Shell
 
@@ -50,7 +50,6 @@
 | Subagent store | `subagent_identity_upsert/list`、`subagent_run_save/list/load/prune`、`subagent_message_append/list` |
 | File system | `fs_read_text/read_workspace_image/write_text/edit_text/delete/list/glob/grep/mention_list` |
 | Subagent worktree | `subagent_worktree_create/status/apply/cleanup` |
-| MCP runtime | `mcp_list_tools/call_tool/runtime_status/stop_server/test_server/restart_server` |
 | Memory | `memory_list/read/search/write/update/delete/accept/apply_batch/organize_* /index_overview/paths_info/recent_rejections/today_daily/wipe_all` |
 | Settings | `settings_load_all/save_providers/save_system/save_mcp/save_agents/save_hooks/save_cron/save_remote/save_memory` |
 | Hooks/Cron | `hook_run_script/run_http_requests`、`cron_validate_expression/list_logs/clear_logs/take_pending_prompt_runs/complete_prompt_run` |
@@ -100,7 +99,7 @@
 | 取舍 | 原因 |
 |---|---|
 | ChatPage 仍是总编排层 | 对话运行时跨模型、工具、历史、压缩、记忆、Gateway、上传和 UI 状态，保留一个编排中心能减少跨模块隐式状态。 |
-| 高权限能力放 Rust | 文件系统、Shell、MCP 进程、SQLite、Gateway 连接、Cron 更适合在 Tauri 后端做权限与生命周期控制。 |
+| 高权限能力放 Rust | 文件系统、Shell、SQLite、Gateway 连接、Cron 更适合在 Tauri 后端做权限与生命周期控制；MCP 协议执行归 GenericAgent/Connector。 |
 | GUI 与 WebUI 复制部分 UI | 两端运行环境不同，WebUI 不能直接调用 Tauri，但需要维持体验 parity，因此复制 settings/hub/chat 组件并接入 shims。 |
 | Settings 按域保存 | provider secret、remote、cron、memory 等域有不同验证和同步策略，分域保存便于限制泄露与减少误覆盖。 |
 | Gateway 控制面优先 | 远程首条 Chat command 与 Ping/Pong 必须先于大体积状态 reconciliation；后台 snapshot replay 只负责最终一致性，不阻塞 inbound。 |

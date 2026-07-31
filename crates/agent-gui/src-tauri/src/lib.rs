@@ -86,13 +86,6 @@ macro_rules! app_invoke_handler {
             commands::subagent_worktree::subagent_worktree_status,
             commands::subagent_worktree::subagent_worktree_apply,
             commands::subagent_worktree::subagent_worktree_cleanup,
-            // MCP
-            commands::mcp::mcp_list_tools,
-            commands::mcp::mcp_call_tool,
-            commands::mcp::mcp_runtime_status,
-            commands::mcp::mcp_stop_server,
-            commands::mcp::mcp_test_server,
-            commands::mcp::mcp_restart_server,
             // Memory
             commands::memory::memory_list,
             commands::memory::memory_read,
@@ -508,7 +501,6 @@ pub fn run() {
         )
         .manage(Arc::new(commands::app::GlobalShortcutRegistry::default()))
         .manage(Arc::new(commands::app::WindowPinState::default()))
-        .manage(Arc::new(commands::mcp::McpRuntimeManager::default()))
         .manage(Arc::clone(&memory_store))
         .manage(Arc::clone(&power_activity))
         .manage(Arc::new(runtime::shell_runner::ShellRunRegistry::default()))
