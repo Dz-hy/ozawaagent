@@ -73,8 +73,6 @@
     "lib/automation/store.ts",
     "lib/automation/index.ts",
     "pages/settings/httpRequestEditor.tsx",
-    "pages/settings/HookModal.tsx",
-    "pages/settings/HooksSection.tsx",
     "pages/settings/CronTaskModal.tsx",
     "pages/settings/CronTaskViewModal.tsx",
     "lib/managed-process/store.ts",
@@ -93,8 +91,6 @@
     "pages/settings/SystemToolsSection.tsx",
     "pages/settings/SshSection.tsx",
     "lib/terminal/types.ts",
-    "components/ui/confirm-dialog.tsx",
-    "pages/mcp-hub/McpHubPage.tsx",
-    "pages/mcp-hub/McpImportView.tsx"
+    "components/ui/confirm-dialog.tsx"
   ]
 }
