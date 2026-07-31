@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { createTsModuleLoader } from "../helpers/load-ts-module.mjs";
 
-const loader = createTsModuleLoader();
+const webRoot = fileURLToPath(new URL("../../../agent-gateway/web/", import.meta.url));
+const loader = createTsModuleLoader({ rootDir: webRoot });
 const categories = loader.loadModule("src/lib/skills/clawHubCategories.ts");
 
 function classify(card) {

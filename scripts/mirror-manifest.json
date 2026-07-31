@@ -80,7 +80,6 @@
     "lib/tools/systemToolOptions.ts",
     "lib/skills/builtin.ts",
     "lib/skills/clawHub.ts",
-    "lib/skills/clawHubCategories.ts",
     "lib/skills/index.ts",
     "lib/skills/skillCardIdentity.ts",
     "lib/skills/skillCardMetadata.ts",
