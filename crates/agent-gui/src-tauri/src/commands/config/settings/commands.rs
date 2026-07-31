@@ -92,16 +92,6 @@ pub async fn settings_save_agents(payload: Value) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn settings_save_ssh(payload: Value) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let mut conn = open_db()?;
-        save_ssh(&mut conn, payload)
-    })
-    .await
-    .map_err(|e| format!("settings_save_ssh join 失败：{e}"))?
-}
-
-#[tauri::command]
 pub async fn settings_apply_ssh_patch(payload: Value) -> Result<SshPatchApplyResponse, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let mut conn = open_db()?;

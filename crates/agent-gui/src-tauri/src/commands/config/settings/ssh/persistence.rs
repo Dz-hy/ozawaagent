@@ -62,10 +62,10 @@ fn insert_ssh_settings_row(
 }
 
 fn save_ssh_rows(conn: &Connection, payload: Value) -> Result<(), String> {
-    let mut ssh = expect_object(payload, "settings_save_ssh payload")?;
+    let mut ssh = expect_object(payload, "SSH settings payload")?;
     let hosts = expect_array(
         ssh.remove("hosts").unwrap_or(Value::Array(Vec::new())),
-        "settings_save_ssh payload.hosts",
+        "SSH settings payload.hosts",
     )?;
     let raw_project_host_associations = ssh
         .remove("projectHostAssociations")
@@ -79,8 +79,8 @@ fn save_ssh_rows(conn: &Connection, payload: Value) -> Result<(), String> {
     let mut seen = HashSet::new();
     for (sort_index, host) in hosts.into_iter().enumerate() {
         let (host_id, payload) = validate_and_normalize_ssh_host(
-            expect_object(host, "settings_save_ssh payload.hosts[]")?,
-            "settings_save_ssh payload.hosts[]",
+            expect_object(host, "SSH settings payload.hosts[]")?,
+            "SSH settings payload.hosts[]",
         )?;
         if !seen.insert(host_id.clone()) {
             return Err(format!("{SSH_SETTINGS_TABLE}.host_id 重复：{host_id}"));
@@ -105,6 +105,7 @@ fn save_ssh_rows(conn: &Connection, payload: Value) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(test)]
 fn save_ssh(conn: &mut Connection, payload: Value) -> Result<(), String> {
     let tx = conn
         .transaction()
