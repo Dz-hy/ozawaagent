@@ -62,7 +62,7 @@ UI 后台安装 job 使用 `install_start` 启动带进度的后台安装线程�
 |---|---|---|
 | MCP settings | `settings.mcp.servers`、`settings.mcp.selected` | server 配置与启用选择。 |
 | MCP Hub UI | `src/pages/mcp-hub/*`、WebUI mirror | server form、registry browser、preview drawer、install draft。 |
-| Registry client | `src/lib/mcpRegistry/index.ts`、WebUI copy | official registry、Smithery、Glama 等 registry 归一化。 |
+| Registry client | `src/lib/mcpRegistry/index.ts`（Gateway WebUI） | official registry、Smithery、Glama 等 registry 归一化。 |
 | Rust runtime | `src-tauri/src/commands/mcp.rs` | stdio/http/sse server lifecycle、tools/list、call_tool、test/restart/stop/status。 |
 | Agent runtime | GenericAgent | 主对话中的 MCP 配置语义与动态工具暴露；GUI 不维护本地 `McpManager` 工具适配器。 |
 | Write path | `src/lib/settings/mcpOps.ts` | 唯一的 MCP 配置写路径：`McpSettingsOp`（upsert/patch/remove/setEnabled）+ 纯 reducer `applyMcpOps`，按 id 合并进 `setSettings(prev => ...)`；工具读取走 `getMcpSettings` 实时 getter（权威 `settingsRef`），不做 turn 级快照，读改写决策与提交在同一同步段内完成，从根上消除多写者覆盖。 |

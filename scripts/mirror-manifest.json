@@ -85,7 +85,6 @@
     "lib/skills/skillCardIdentity.ts",
     "lib/skills/skillCardMetadata.ts",
     "lib/skills/skillTriggerHint.ts",
-    "lib/mcpRegistry/index.ts",
     "lib/shared/id.ts",
     "pages/settings/SystemToolsSection.tsx",
     "pages/settings/SshSection.tsx",
