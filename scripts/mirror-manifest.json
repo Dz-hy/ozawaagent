@@ -69,8 +69,6 @@
     "lib/memory/schema.ts",
     "lib/memory/config.ts",
     "lib/memory/api.ts",
-    "lib/memory/organizer/runRecord.ts",
-    "lib/memory/organizer/quota.ts",
     "lib/automation/types.ts",
     "lib/automation/store.ts",
     "lib/automation/index.ts",

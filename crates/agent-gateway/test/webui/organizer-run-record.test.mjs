@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTsModuleLoader } from "../helpers/load-ts-module.mjs";
+import { createWebModuleLoader } from "../helpers/load-web-module.mjs";
 
-const loader = createTsModuleLoader();
+const loader = createWebModuleLoader();
 const runRecord = loader.loadModule("src/lib/memory/organizer/runRecord.ts");
 const quota = loader.loadModule("src/lib/memory/organizer/quota.ts");
 const {
