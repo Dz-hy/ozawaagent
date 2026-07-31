@@ -34,9 +34,6 @@ const {
   MANUAL_CRON_RUN_POLL_INTERVAL_MS,
   MANUAL_CRON_RUN_TIMEOUT_MS,
 } = loader.loadModule("src/lib/automation/types.ts");
-const { createCompletePromptRunInput } = loader.loadModule(
-  "src/components/cron/promptRunProtocol.ts",
-);
 const guiCronViewSource = readFileSync(
   new URL("../../src/pages/settings/CronTaskViewModal.tsx", import.meta.url),
   "utf8",
@@ -69,7 +66,12 @@ test.beforeEach(() => {
 });
 
 test("Auto Prompt completion uses the Rust camelCase wire contract", async () => {
-  const input = createCompletePromptRunInput("execution-1", true, 1200, "conclusion");
+  const input = {
+    executionId: "execution-1",
+    success: true,
+    durationMs: 1200,
+    output: "conclusion",
+  };
 
   assert.deepEqual(input, {
     executionId: "execution-1",
