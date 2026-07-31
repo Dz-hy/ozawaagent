@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { createTsModuleLoader } from "../helpers/load-ts-module.mjs";
 
+const webRoot = fileURLToPath(new URL("../../../agent-gateway/web/", import.meta.url));
 const loader = createTsModuleLoader();
+const webLoader = createTsModuleLoader({ rootDir: webRoot });
 const providers = loader.loadModule("src/lib/providers/llm.ts");
 const proxy = loader.loadModule("src/lib/providers/proxy.ts");
 const customHeaderHelpers = loader.loadModule("src/lib/providers/customHeaders.ts");
-const providerUtils = loader.loadModule("src/pages/settings/providerUtils.ts");
+const providerUtils = webLoader.loadModule("src/pages/settings/providerUtils.ts");
 
 function createMockAssistantStream() {
   return {

@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { createTsModuleLoader } from "../helpers/load-ts-module.mjs";
 
 const gatewayInvokeCalls = [];
+const webRoot = fileURLToPath(new URL("../../../agent-gateway/web/", import.meta.url));
 const loader = createTsModuleLoader({
+  rootDir: webRoot,
   mocks: {
     "@tauri-apps/api/core": {
       invoke(command, args) {
