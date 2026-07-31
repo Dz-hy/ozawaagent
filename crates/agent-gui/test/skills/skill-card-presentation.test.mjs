@@ -5,10 +5,6 @@ import { createTsModuleLoader } from "../helpers/load-ts-module.mjs";
 
 const implementations = [
   {
-    label: "GUI",
-    loader: createTsModuleLoader(),
-  },
-  {
     label: "WebUI",
     loader: createTsModuleLoader({
       rootDir: fileURLToPath(new URL("../../../agent-gateway/web/", import.meta.url)),
