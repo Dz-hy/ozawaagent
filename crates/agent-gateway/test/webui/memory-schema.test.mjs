@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTsModuleLoader } from "../helpers/load-ts-module.mjs";
+import { createWebModuleLoader } from "../helpers/load-web-module.mjs";
 
-const loader = createTsModuleLoader();
+const loader = createWebModuleLoader();
 const schema = loader.loadModule("src/lib/memory/schema.ts");
 
 test("scope/type/confidence enums are complete and closed", () => {

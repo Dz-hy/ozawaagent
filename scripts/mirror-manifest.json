@@ -66,7 +66,6 @@
     "lib/sidebar/openController.ts",
     "lib/workspaceProjects.ts",
     "lib/subagents/protocol.ts",
-    "lib/memory/schema.ts",
     "lib/memory/config.ts",
     "lib/memory/api.ts",
     "lib/automation/types.ts",
