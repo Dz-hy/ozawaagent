@@ -198,12 +198,3 @@ pub struct TerminalStreamSnapshotResponse {
     pub output_start_offset: u64,
     pub output_end_offset: u64,
 }
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TerminalReadTailResponse {
-    pub sessions: Vec<TerminalSessionRecord>,
-    pub selected_session: Option<TerminalSessionRecord>,
-    pub output: String,
-    pub truncated: bool,
-}

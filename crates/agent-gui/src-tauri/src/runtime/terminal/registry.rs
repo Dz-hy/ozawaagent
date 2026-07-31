@@ -438,51 +438,6 @@ impl TerminalSessionRegistry {
             .unwrap_or(0)
     }
 
-    pub fn read_tail(
-        &self,
-        project_path_key: String,
-        session_id: Option<String>,
-        max_bytes: Option<usize>,
-    ) -> Result<TerminalReadTailResponse, String> {
-        let project_key = normalize_project_path_key(&project_path_key);
-        if project_key.is_empty() {
-            return Err("project_path_key is required".to_string());
-        }
-        let sessions = self.list(Some(project_key.clone())).sessions;
-        if sessions.is_empty() {
-            return Ok(TerminalReadTailResponse {
-                sessions: Vec::new(),
-                selected_session: None,
-                output: String::new(),
-                truncated: false,
-            });
-        }
-        let requested_session_id = session_id
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(str::to_string);
-        if requested_session_id.is_none() && sessions.len() > 1 {
-            return Ok(TerminalReadTailResponse {
-                sessions,
-                selected_session: None,
-                output: String::new(),
-                truncated: false,
-            });
-        }
-        let selected_id = requested_session_id.unwrap_or_else(|| sessions[0].id.clone());
-        let snapshot = self.snapshot(selected_id, max_bytes)?;
-        if !project_path_keys_equal(&snapshot.session.project_path_key, &project_key) {
-            return Err("terminal session is outside the current project".to_string());
-        }
-        Ok(TerminalReadTailResponse {
-            sessions,
-            selected_session: Some(snapshot.session),
-            output: snapshot.output,
-            truncated: snapshot.truncated,
-        })
-    }
-
     pub(crate) fn close_ids(&self, ids: Vec<String>) -> Result<TerminalListResponse, String> {
         let mut sessions = Vec::new();
         for id in ids {

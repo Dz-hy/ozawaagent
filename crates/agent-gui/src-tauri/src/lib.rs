@@ -181,7 +181,6 @@ macro_rules! app_invoke_handler {
             commands::terminal::terminal_rename,
             commands::terminal::terminal_close,
             commands::terminal::terminal_close_project,
-            commands::terminal::terminal_read_tail,
             commands::sftp::sftp_list,
             commands::sftp::sftp_stat,
             commands::sftp::sftp_mkdir,

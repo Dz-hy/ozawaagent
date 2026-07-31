@@ -5,7 +5,7 @@ use tauri::State;
 use crate::runtime::sftp::SftpSessionRegistry;
 use crate::runtime::terminal::{
     terminal_shell_options as runtime_terminal_shell_options, SshTerminalTabsSnapshot,
-    TerminalListResponse, TerminalReadTailResponse, TerminalSessionRecord, TerminalSessionRegistry,
+    TerminalListResponse, TerminalSessionRecord, TerminalSessionRegistry,
     TerminalShellOptionsResponse, TerminalSnapshotResponse, TerminalSshCreateResponse,
     TerminalSshExecResponse, TerminalSshLatencyResponse, TerminalStreamSnapshotResponse,
 };
@@ -200,14 +200,4 @@ pub fn terminal_close_project(
         sftp_registry.close_session(&session.id);
     }
     Ok(response)
-}
-
-#[tauri::command(rename_all = "snake_case")]
-pub fn terminal_read_tail(
-    registry: State<'_, Arc<TerminalSessionRegistry>>,
-    project_path_key: String,
-    session_id: Option<String>,
-    max_bytes: Option<usize>,
-) -> Result<TerminalReadTailResponse, String> {
-    registry.read_tail(project_path_key, session_id, max_bytes)
 }

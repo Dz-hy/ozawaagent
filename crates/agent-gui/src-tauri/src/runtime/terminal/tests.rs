@@ -791,49 +791,6 @@ fn registry_closes_project_sessions() {
     assert_eq!(registry.running_session_count(), 0);
 }
 
-#[test]
-fn read_tail_requires_terminal_id_when_project_has_multiple_sessions() {
-    let registry = Arc::new(TerminalSessionRegistry::default());
-    let tempdir = tempfile::tempdir().expect("tempdir");
-    let cwd = tempdir.path().display().to_string();
-
-    let first = registry
-        .create(
-            cwd.clone(),
-            Some(cwd.clone()),
-            None,
-            Some("First".to_string()),
-            Some(80),
-            Some(24),
-        )
-        .expect("create first terminal session");
-    registry
-        .create(
-            cwd.clone(),
-            Some(cwd.clone()),
-            None,
-            Some("Second".to_string()),
-            Some(80),
-            Some(24),
-        )
-        .expect("create second terminal session");
-
-    let ambiguous = registry
-        .read_tail(cwd.clone(), None, Some(1024))
-        .expect("read ambiguous terminal tail");
-    assert_eq!(ambiguous.sessions.len(), 2);
-    assert!(ambiguous.selected_session.is_none());
-    assert!(ambiguous.output.is_empty());
-
-    let selected = registry
-        .read_tail(cwd, Some(first.session.id), Some(1024))
-        .expect("read selected terminal tail");
-    assert!(selected.selected_session.is_some());
-    assert_eq!(selected.sessions.len(), 2);
-
-    registry.close_all().expect("close terminal sessions");
-}
-
 // Throwaway ed25519 keypair generated exclusively for these tests; it is not
 // authorized on any host.
 const TEST_ED25519_PRIVATE_KEY: &str = "-----BEGIN OPENSSH PRIVATE KEY-----
