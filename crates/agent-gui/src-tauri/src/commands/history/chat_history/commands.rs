@@ -43,15 +43,6 @@ pub async fn chat_history_shared_list(
     .map_err(|e| format!("chat_history_shared_list join failed: {e}"))?
 }
 
-#[tauri::command]
-pub async fn chat_history_search(
-    args: ChatHistorySearchArgs,
-) -> Result<ChatHistorySearchResponse, String> {
-    tauri::async_runtime::spawn_blocking(move || search_chat_history_sync(args))
-        .await
-        .map_err(|e| format!("chat_history_search join 失败：{e}"))?
-}
-
 pub(crate) async fn chat_history_get_summary_inner(
     id: String,
 ) -> Result<ChatHistorySummary, String> {

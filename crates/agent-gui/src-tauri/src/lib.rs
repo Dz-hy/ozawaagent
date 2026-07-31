@@ -43,7 +43,6 @@ macro_rules! app_invoke_handler {
             commands::chat_history::chat_history_list,
             commands::chat_history::chat_history_workdirs,
             commands::chat_history::chat_history_shared_list,
-            commands::chat_history::chat_history_search,
             commands::chat_history::chat_history_get,
             commands::chat_history::chat_history_get_active_segment,
             commands::chat_history::chat_history_upsert,
