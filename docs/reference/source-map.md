@@ -41,7 +41,6 @@
 | Display-only builtin tool catalog | `crates/agent-gui/src/lib/tools/builtinToolCatalog.ts` |
 | Tool types/options/policies | `crates/agent-gui/src/lib/tools/builtinTypes.ts`、`systemToolOptions.ts`、`skillAccessPolicy.ts` |
 | FS backend adapter | `crates/agent-gui/src/lib/tools/fsBackend.ts` |
-| Memory tools（background workflows） | `crates/agent-gui/src/lib/tools/memoryTools.ts` |
 | Todo / AskUser bundles | `crates/agent-gui/src/lib/tools/todoTools.ts`、`askUserQuestionTools.ts` |
 | Subagent support | `crates/agent-gui/src/lib/subagents/*` |
 | Conversation state | `crates/agent-gui/src/lib/chat/conversation/*` |

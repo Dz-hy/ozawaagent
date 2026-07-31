@@ -12,7 +12,7 @@
 |---|---|---|
 | 展示目录与类型 | `builtinToolCatalog.ts`、`builtinTypes.ts`、`systemToolOptions.ts` | 工具名称、分类、只读标记、runtime scope 与 UI 选项。 |
 | 文件后端适配 | `fsBackend.ts`、`pathUtils.ts`、`skillAccessPolicy.ts`、`bashTimeoutPolicy.ts` | Tauri FS 错误归一、路径与 Skills 访问策略、Shell timeout 策略；不组成模型工具注册表。 |
-| Memory | `memoryTools.ts` | 供旧 Memory extraction/organizer 后台闭包使用；主对话和 Settings 已断开该闭包。 |
+| Memory | GenericAgent runtime 的 MemoryManager | GUI 不再保留旧 LiveAgent Memory extraction/organizer 工具执行器；主对话与 Settings 的 Memory 能力以 runtime/Gateway 契约为准。 |
 | Todo / AskUser | `todoTools.ts`、`askUserQuestionTools.ts` | 独立状态与交互 bundle；不构成主对话本地注册表。 |
 | Subagent 支撑 | `src/lib/subagents/*` | 保留子代理领域、持久化、worktree 与消息总线实现；主对话工具所有权仍属于 GenericAgent runtime。 |
 
@@ -42,7 +42,7 @@ Settings/MCP Hub 维护 server 配置，Tauri/Rust runtime 负责 server lifecyc
 
 ## Memory 工具边界
 
-`memoryTools.ts` 只被尚待清理的旧 extraction/organizer 后台闭包引用。主对话已不接入 extraction controller，应用启动不再挂载 organizer，Settings Memory 只读展示 GenericAgent memory layers；因此它不是当前主对话或设置页的工具入口。
+GUI 不再保留旧 LiveAgent Memory extraction/organizer 工具执行器。主对话的 MemoryManager、Settings Memory 展示与 Gateway memory.manage 均以 GenericAgent runtime 的 MemoryStore 和契约为准。
 
 ## Subagent（Agent / SendMessage）
 
