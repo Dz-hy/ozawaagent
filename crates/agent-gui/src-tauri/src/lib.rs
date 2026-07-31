@@ -257,7 +257,6 @@ macro_rules! app_invoke_handler {
             commands::gateway::gateway_send_chat_event,
             commands::gateway::gateway_chat_claim_next,
             commands::gateway::gateway_chat_mark_started,
-            commands::gateway::gateway_chat_mark_local_started,
             commands::gateway::gateway_chat_mark_queued_in_gui,
             commands::gateway::gateway_chat_complete,
             commands::gateway::gateway_chat_fail,

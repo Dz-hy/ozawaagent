@@ -403,21 +403,6 @@ impl GatewayController {
             .await
     }
 
-    pub async fn mark_local_chat_run_started(
-        &self,
-        request_id: String,
-        conversation_id: String,
-    ) -> Result<(), String> {
-        let request_id = request_id.trim().to_string();
-        let conversation_id = conversation_id.trim().to_string();
-        if request_id.is_empty() || conversation_id.is_empty() {
-            return Ok(());
-        }
-        self.ledger_mark_run_running(&request_id, &conversation_id)?;
-        self.send_gateway_chat_control_event(request_id, conversation_id, "started")
-            .await
-    }
-
     pub async fn mark_chat_request_queued_in_gui(
         &self,
         request_id: String,

@@ -66,17 +66,6 @@ pub async fn gateway_chat_mark_started(
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn gateway_chat_mark_local_started(
-    request_id: String,
-    conversation_id: String,
-    gateway_controller: tauri::State<'_, Arc<GatewayController>>,
-) -> Result<(), String> {
-    gateway_controller
-        .mark_local_chat_run_started(request_id, conversation_id)
-        .await
-}
-
-#[tauri::command(rename_all = "snake_case")]
 pub async fn gateway_chat_mark_queued_in_gui(
     request_id: String,
     conversation_id: String,
