@@ -39,7 +39,7 @@
 | GenericAgent bridge client | `crates/agent-gui/src/lib/ga/GaBridgeClient.ts` |
 | GenericAgent chat turn | `crates/agent-gui/src/pages/chat/runtime/runGaChatTurn.ts` |
 | Display-only builtin tool catalog | `crates/agent-gui/src/lib/tools/builtinToolCatalog.ts` |
-| Tool types/options/policies | `crates/agent-gui/src/lib/tools/builtinTypes.ts`、`systemToolOptions.ts`、`skillAccessPolicy.ts` |
+| Tool types/options | `crates/agent-gui/src/lib/tools/builtinTypes.ts`、`systemToolOptions.ts` |
 | FS backend adapter | `crates/agent-gui/src/lib/tools/fsBackend.ts` |
 | Todo / AskUser bundles | `crates/agent-gui/src/lib/tools/todoTools.ts`、`askUserQuestionTools.ts` |
 | Subagent support | `crates/agent-gui/src/lib/subagents/*` |

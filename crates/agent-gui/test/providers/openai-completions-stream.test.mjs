@@ -135,46 +135,6 @@ test("openai-completions: unrelated errors are never recovered", async () => {
   assert.equal((await stream.result()).stopReason, "error");
 });
 
-test("openai-completions: recovered tool calls retain truncation guard coverage", async () => {
-  const loader = createTsModuleLoader();
-  const { recoverOpenAICompletionsMissingFinishReason } = loader.loadModule(
-    "src/lib/providers/runtime/openAICompletionsStream.ts",
-  );
-  const { wrapStreamWithToolCallArgumentGuard } = loader.loadModule(
-    "src/lib/chat/runner/toolCallArgumentGuard.ts",
-  );
-  const toolCall = {
-    type: "toolCall",
-    id: "call_1",
-    name: "read_file",
-    arguments: { path: "/tmp" },
-  };
-  const assistant = createAssistant([toolCall]);
-  const source = createErrorSource(assistant, [
-    { type: "toolcall_start", contentIndex: 0, partial: assistant },
-    {
-      type: "toolcall_delta",
-      contentIndex: 0,
-      delta: '{"path":"/tmp',
-      partial: assistant,
-    },
-    { type: "toolcall_end", contentIndex: 0, toolCall, partial: assistant },
-  ]);
-  const incomplete = [];
-  const recovered = recoverOpenAICompletionsMissingFinishReason(source);
-  const guarded = wrapStreamWithToolCallArgumentGuard(recovered, (call, reason) => {
-    incomplete.push({ call, reason });
-  });
-  const events = await collectEvents(guarded);
-  const result = await guarded.result();
-
-  assert.equal(events.at(-1).type, "done");
-  assert.equal(result.stopReason, "toolUse");
-  assert.equal(incomplete.length, 1);
-  assert.equal(incomplete[0].call.id, "call_1");
-  assert.match(incomplete[0].reason, /before it was complete/);
-});
-
 test("openai-completions: compatibility is enabled only for non-official endpoints", () => {
   const loader = createTsModuleLoader();
   const { finalizeProviderStreamOptions } = loader.loadModule(

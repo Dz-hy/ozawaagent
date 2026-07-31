@@ -30,13 +30,14 @@ GenericAgent 是 Agent Memory 的唯一真相源。桌面 GUI 不维护第二套
 |---|---|---|
 | organizer service | Desktop `src/lib/memory/organizer/service.ts` 已删除；WebUI 仍通过 legacy panel 使用其自身支撑路径 | App shell 不再运行本地 organizer；桌面残余 organizer helpers 需按后续孤儿闭包继续审计。 |
 | legacy Settings panel | Desktop `src/pages/settings/memory/*` 已删除；WebUI 对应目录仍保留 | 桌面 Settings 仅使用 `GaMemorySection`；WebUI legacy panel 仍在线，待独立迁移后再清理。 |
-| prompts / schema / API | `src/lib/memory/{prompts,schema,config,api}.ts` | extraction 与 organizer 专属 prompt 已删除；其余文件仍被 WebUI 或 subagent 支撑代码引用，不能孤立删除。 |
 | Rust MemoryStore / commands | `src-tauri/src/services/memory/*`、`src-tauri/src/commands/integration/memory.rs` | 旧本地持久化能力尚在仓库中，但不拥有当前 Agent Memory 语义。 |
-| Gateway/WebUI memory mirror | `scripts/mirror-manifest.json` 登记的 memory 文件 | 随后续 Gateway/WebUI 与旧 Memory 闭包清理统一处理，避免破坏镜像契约。 |
+| Gateway/WebUI memory mirror | `scripts/mirror-manifest.json` 登记的 memory 文件 | Gateway/WebUI 保留当前 MemoryStore 契约；桌面侧旧 API/config/schema/prompt 副本已删除，镜像登记已解除。 |
+
+本轮又删除了无 GUI 生产消费者的桌面 `lib/memory/api.ts`、`config.ts`、`prompts/injection.ts` 与 `prompts/shared.ts`，以及对应的旧契约测试；Gateway/WebUI 的 Memory 真相源与 Rust 契约未改动。
 
 ## 后续清理纪律
 
-1. 先从生产入口生成静态 import/调用图，再按闭包删除；不要删除仍被 `lib/subagents/run.ts` 使用的共享 `agentRunner`。
+1. 先从生产入口生成静态 import/调用图，再按闭包删除；共享 Memory、Gateway bridge 与桌面能力分属不同失败半径，分别验证。
 2. 涉及 `scripts/mirror-manifest.json` 的文件必须同步处理 desktop/WebUI mirror 和镜像测试。
 3. Rust MemoryStore、Gateway bridge 与 Settings mirror 属不同失败半径，分别提交并独立验证。
 4. `docs/phase0/*` 是历史快照，保留当时路径与哈希，不随当前源码删除改写。

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createTsModuleLoader } from "../helpers/load-ts-module.mjs";
-import { createAgentToolCall, createSubagentHarness } from "./harness.mjs";
 
 const loader = createTsModuleLoader();
 const validate = loader.loadModule("src/lib/subagents/validate.ts");
@@ -333,81 +332,4 @@ test("concurrency clamps to [1, MAX_AGENTS] and never exceeds the agent count", 
   });
   assert.equal(defaulted.ok, true);
   assert.equal(defaulted.batch.concurrency, 3);
-});
-
-test("rejected Agent call returns the structured rejection payload and starts no agents", async () => {
-  const harness = await createSubagentHarness();
-  await harness.storeIpc.upsertIdentity({
-    parentConversationId: "conversation-1",
-    agentId: "veteran",
-    name: "Veteran",
-    role: "History",
-    identityPrompt: "",
-    lastMode: "readonly",
-  });
-  harness.store.invalidate();
-  await harness.store.ready();
-
-  const result = await harness.bundle.executeToolCall(
-    createAgentToolCall({
-      agents: [
-        { id: "dup", prompt: "one" },
-        { id: "DUP", prompt: "two" },
-        { id: "third", prompt: "", template: "ghost" },
-      ],
-    }),
-  );
-
-  assert.equal(result.isError, true);
-  assert.equal(result.details.kind, "subagent_batch");
-  assert.equal(result.details.status, "rejected");
-  assert.equal(result.details.agentCount, 0);
-  assert.deepEqual(result.details.agents, []);
-  assert.deepEqual(
-    result.details.issues.map((item) => item.code).sort(),
-    ["duplicate_agent_id", "invalid_arguments", "unknown_template"],
-  );
-  assert.deepEqual(
-    result.details.roster.map((entry) => entry.id),
-    ["veteran"],
-  );
-  assert.deepEqual(
-    result.details.templates.map((entry) => entry.id),
-    ["reviewer"],
-  );
-
-  const text = result.content[0].text;
-  assert.match(text, /Agent rejected this call\. No subagents were started\./);
-  assert.match(text, /\[duplicate_agent_id\]/);
-  assert.match(text, /\[unknown_template\]/);
-  assert.match(text, /prompt is required/);
-  assert.match(text, /id=veteran name=Veteran role=History mode=readonly/);
-  assert.match(text, /reviewer \(Reviewer\) - Review code paths/);
-
-  // Atomicity: no runner call, no persistence, no worktree activity.
-  assert.equal(harness.runnerCalls.length, 0);
-  assert.equal(harness.storeIpc.issuedSaves.length, 0);
-  assert.equal(harness.worktreeIpc.creates.length, 0);
-});
-
-test("allowed_output_paths escaping the workspace reject the batch before any run starts", async () => {
-  const harness = await createSubagentHarness();
-  const result = await harness.bundle.executeToolCall(
-    createAgentToolCall({
-      agents: [
-        {
-          id: "writer",
-          prompt: "produce a doc",
-          mode: "worktree",
-          apply_policy: "explicit",
-          allowed_output_paths: ["../outside.md"],
-        },
-      ],
-    }),
-  );
-  assert.equal(result.isError, true);
-  assert.equal(result.details.status, "rejected");
-  assert.equal(result.details.issues[0].code, "output_path_outside_workspace");
-  assert.equal(harness.runnerCalls.length, 0);
-  assert.equal(harness.worktreeIpc.creates.length, 0);
 });

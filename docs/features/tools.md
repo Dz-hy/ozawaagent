@@ -11,10 +11,10 @@
 | 模块 | 主要路径 | 职责 |
 |---|---|---|
 | 展示目录与类型 | `builtinToolCatalog.ts`、`builtinTypes.ts`、`systemToolOptions.ts` | 工具名称、分类、只读标记、runtime scope 与 UI 选项。 |
-| 文件后端适配 | `fsBackend.ts`、`pathUtils.ts`、`skillAccessPolicy.ts`、`bashTimeoutPolicy.ts` | Tauri FS 错误归一、路径与 Skills 访问策略、Shell timeout 策略；不组成模型工具注册表。 |
+| 文件后端适配 | `fsBackend.ts`、`bashTimeoutPolicy.ts` | Tauri FS 错误归一与 Shell timeout 策略；不组成模型工具注册表。 |
 | Memory | GenericAgent runtime 的 MemoryManager | GUI 不再保留旧 LiveAgent Memory extraction/organizer 工具执行器；主对话与 Settings 的 Memory 能力以 runtime/Gateway 契约为准。 |
 | Todo / AskUser | `todoTools.ts`、`askUserQuestionTools.ts` | 独立状态与交互 bundle；不构成主对话本地注册表。 |
-| Subagent 支撑 | `src/lib/subagents/*` | 保留子代理领域、持久化、worktree 与消息总线实现；主对话工具所有权仍属于 GenericAgent runtime。 |
+| Subagent 支撑 | `src/lib/subagents/*` | 保留会话持久化、消息总线与 SendMessage/卡片展示适配；Agent 执行与模型工具所有权属于 GenericAgent runtime。 |
 
 Rust 的 FS、Shell/process、Skills、MCP、Cron 等命令与 service 仍可供桌面功能调用，但“后端能力存在”不等于 GUI 已向模型注册同名工具。
 
@@ -37,7 +37,7 @@ Settings/MCP Hub 维护 server 配置，Tauri/Rust runtime 负责 server lifecyc
 |---|---|
 | 固定 root | 旧 LiveAgent Skills runtime root 是 `~/.liveagent/skills`；当前 Agent 语义以 GenericAgent 为唯一真相源。 |
 | 桌面管理 | Skills Hub 与 Tauri/Rust skills service 可继续提供安装、校验和打包等桌面管理能力。 |
-| 文件访问 | `SkillAccessPolicy` 与路径辅助模块仍服务保留的桌面/后台调用，但 GUI 不再注册 `SkillsManager` 模型工具。 |
+| 文件访问 | `fsBackend.ts` 与桌面文件树/预览适配器继续提供本地文件能力；GUI 不再注册 `SkillsManager` 模型工具。 |
 | 主对话 | 可见 Skills 与相关工具以 GenericAgent runtime 实际暴露为准。 |
 
 ## Memory 工具边界
@@ -50,23 +50,18 @@ GUI 不再保留旧 LiveAgent Memory extraction/organizer 工具执行器。主�
 
 | 层 | 文件 | 职责 |
 |---|---|---|
-| L1 纯领域 | `types.ts`、`protocol.ts`、`errors.ts`、`validate.ts`、`policy.ts`、`prompts.ts`、`bus.ts`、`roster.ts`、`utils.ts` | 类型与常量、UI wire protocol、结构化错误、批量校验、readonly/worktree 工具选择与 apply/cleanup 决策、system prompt 构造、Message Bus 渲染、roster/template 汇总。无 IPC、无副作用。 |
+| L1 纯领域 | `types.ts`、`protocol.ts`、`errors.ts`、`validate.ts`、`bus.ts`、`roster.ts`、`utils.ts` | 类型与常量、UI wire protocol、结构化错误、收件人/参数校验、Message Bus 渲染、roster/template 汇总。无 IPC、无模型执行。 |
 | L2 ipc | `ipc/store.ts`、`ipc/worktree.ts` | 持久化与 worktree 的 Tauri invoke 端口（`subagent_*` 命令），null→absent 归一，同一 run 的写入串行化；测试可注入替身。 |
-| L3 runtime | `scheduler.ts`、`store.ts`、`run.ts` | `SubagentScheduler` 信号量并发调度；`SubagentConversationStore` 是会话级唯一真源（roster、latest run、hydrated 私有上下文 LRU、Message Bus）；`run.ts` 是单次 run 状态机（worktree 创建 → tool loop → apply/cleanup → 持久化）。 |
-| L4 工具适配 | `agentTool.ts`、`sendMessageTool.ts`、`cards.ts`、`index.ts` | 生成 `Agent`/`SendMessage` 的 tool schema 与 executor、per-agent 卡片 tool call/result、对外导出面。 |
+| L3 runtime | `scheduler.ts`、`store.ts` | `SubagentScheduler` 信号量并发调度；`SubagentConversationStore` 是会话级唯一真源（roster、latest run、hydrated 私有上下文 LRU、Message Bus）。模型执行由 GenericAgent runtime 负责。 |
+| L4 适配 | `sendMessageTool.ts`、`card.ts`、`index.ts` | SendMessage 投递、卡片识别与对外导出面；不拥有 Agent loop 或模型工具注册。 |
 
-`Agent` 工具语义：
+`SendMessage` 适配语义：
 
 | 能力 | 说明 |
 |---|---|
-| 结构化参数 | `agents` 数组（每项 `id/prompt/name/role/identity/template/mode/apply_policy/allowed_output_paths/resume/retain_worktree`）+ 顶层 `concurrency`，单次最多 8 个 agent 并行。 |
-| 稳定 id 与复用 | 同一会话内复用 id 即恢复该子代理的私有上下文；`name/role/identity/template` 只在 id 首次创建时生效，对既有 id 传入不同值会被拒绝。`resume=false` 为同一 id 开启全新私有上下文。 |
-| mode | `readonly`（新 agent 默认，只读工具）用于调研/评审；`worktree` 在隔离 git worktree 内提供文件+shell 工具。resume 的 agent 默认沿用上次 mode。 |
-| apply_policy | `none`（默认，不回灌）/`auto`（自动 apply patch）/`explicit`（仅当所有变更文件命中 `allowed_output_paths` 才 apply；路径必须解析进 workspace）。`retain_worktree=true` 保留可安全清理的 worktree 供复查。 |
-| 原子校验 | 校验失败时不启动任何 agent，返回结构化错误并附上当前 roster 与已启用模板列表；`AgentPromptTemplate.enabled` 生效，`template` 只能引用已启用模板（按 id 或 name 解析）。 |
-| SendMessage | `to=parent`（父私有）/`to=*`（共享广播）/`to=<agent id>`（直达），收件人按 roster 校验，未知收件人直接拒绝；channel 为 direct/shared/decision/question，消息在下一轮 turn 边界投递。 |
-| 持久化 | run 在每个 turn 边界通过 `subagent_run_save` 增量落盘，中断的 run 可从最后完成的 round 恢复；run status 含 `cancelled`。identity/run/message/worktree 各有 Tauri 命令族（见 architecture/gui.md）。 |
-| UI 协议 | details kind 为 `subagent_batch`/`subagent_card`/`subagent_message`；per-agent 卡片以 `subagent_card: true` 标记的合成 tool call 渲染，被拒绝的 Agent 调用也会可见渲染；`lib/subagents/protocol.ts` 在 GUI/WebUI 间逐字节镜像（scripts/mirror-manifest.json）。 |
+| 收件人 | `to=parent`（父私有）/`to=*`（共享广播）/`to=<agent id>`（直达），收件人按 roster 校验，未知收件人直接拒绝。 |
+| 投递 | channel 为 direct/shared/decision/question，消息在下一轮 turn 边界投递；桌面只负责持久化与展示权威结果。 |
+| UI 协议 | details kind 为 `subagent_message`/`subagent_card`；`lib/subagents/protocol.ts` 在 GUI/WebUI 间逐字节镜像。 |
 
 ## 工具改造检查表
 
