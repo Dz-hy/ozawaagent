@@ -13,11 +13,6 @@ pub struct GaRuntimeStartResponse {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn ga_runtime_status(supervisor: State<'_, Arc<GaRuntimeSupervisor>>) -> GaRuntimeStatus {
-    supervisor.status()
-}
-
-#[tauri::command(rename_all = "snake_case")]
 pub fn ga_runtime_start(
     supervisor: State<'_, Arc<GaRuntimeSupervisor>>,
     ga_root: Option<String>,
@@ -34,17 +29,4 @@ pub fn ga_runtime_start(
         base_url: format!("http://127.0.0.1:{port}"),
         token,
     })
-}
-
-#[tauri::command(rename_all = "snake_case")]
-pub fn ga_runtime_stop(supervisor: State<'_, Arc<GaRuntimeSupervisor>>) -> GaRuntimeStatus {
-    supervisor.stop()
-}
-
-#[tauri::command(rename_all = "snake_case")]
-pub fn ga_runtime_read_log(
-    supervisor: State<'_, Arc<GaRuntimeSupervisor>>,
-    max_bytes: Option<usize>,
-) -> Result<String, String> {
-    supervisor.read_log(max_bytes.unwrap_or(64 * 1024))
 }

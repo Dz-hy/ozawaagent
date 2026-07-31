@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::fs::{self, File, OpenOptions};
-use std::io::Read;
+use std::fs::{self, OpenOptions};
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -412,20 +411,6 @@ impl GaRuntimeSupervisor {
 
     pub fn stop(&self) -> GaRuntimeStatus {
         self.stop_internal(None)
-    }
-
-    pub fn read_log(&self, max_bytes: usize) -> Result<String, String> {
-        let path = self
-            .status()
-            .log_path
-            .ok_or_else(|| "GA runtime has no log yet".to_string())?;
-        let mut data = Vec::new();
-        File::open(path)
-            .map_err(|e| e.to_string())?
-            .read_to_end(&mut data)
-            .map_err(|e| e.to_string())?;
-        let start = data.len().saturating_sub(max_bytes.min(512 * 1024));
-        Ok(String::from_utf8_lossy(&data[start..]).into_owned())
     }
 }
 

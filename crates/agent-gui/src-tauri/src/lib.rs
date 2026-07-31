@@ -159,10 +159,7 @@ macro_rules! app_invoke_handler {
             commands::cron::automation_release_prompt_run,
             commands::cron::automation_complete_prompt_run,
             // GenericAgent runtime supervisor
-            commands::runtime_commands::ga_runtime::ga_runtime_status,
             commands::runtime_commands::ga_runtime::ga_runtime_start,
-            commands::runtime_commands::ga_runtime::ga_runtime_stop,
-            commands::runtime_commands::ga_runtime::ga_runtime_read_log,
             // Local command execution
             commands::shell::shell_run,
             commands::shell::shell_cancel,
