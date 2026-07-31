@@ -20,7 +20,7 @@ GenericAgent 是 Agent Memory 的唯一真相源。桌面 GUI 不维护第二套
 - Settings Memory 已由 `GaMemorySection` 取代旧 `MemoryPanel`。
 - 主对话工具注册表已经退役，`memoryTools.ts` 不是当前主对话入口。
 
-本切片删除了因此失去生产消费者的 `src/lib/chat/memory/extractionController.ts` 与 `src/components/memory/useMemoryOrganizer.ts`，并删除前者的专属旧行为测试。`ga-automation-ui-contract.test.mjs` 继续约束 `App`/`ChatPage` 不得恢复这些接线。
+本轮先删除了因此失去生产消费者的 `src/lib/chat/memory/extractionController.ts` 与 `src/components/memory/useMemoryOrganizer.ts`；后续切片又删除了完整的旧 extraction engine 闭包（`extractionEngine.ts`、`extraction/context.ts`、`extraction/planTool.ts`、`prompts/extraction.ts`）及其专属行为测试。`ga-automation-ui-contract.test.mjs` 继续约束 `App`/`ChatPage` 不得恢复这些接线。
 
 ## 尚存的旧 LiveAgent Memory 闭包
 
@@ -28,10 +28,9 @@ GenericAgent 是 Agent Memory 的唯一真相源。桌面 GUI 不维护第二套
 
 | 闭包 | 主要路径 | 当前状态 |
 |---|---|---|
-| extraction engine | `src/lib/chat/memory/extractionEngine.ts`、`src/lib/memory/extraction/*` | 已无生产入口；内部仍引用旧 runner、prompts、API 与 `memoryTools`。 |
 | organizer service | `src/lib/memory/organizer/*` | App shell 已不启动；旧 Settings platform 闭包仍有内部引用。 |
 | legacy Settings panel | `src/pages/settings/memory/*` | 当前 `SettingsPage` 不再渲染；部分文件按 mirror manifest 与旧 WebUI 对应。 |
-| prompts / schema / API | `src/lib/memory/{prompts,schema,config,api}.ts` | 被上述残留闭包和部分旧 runner/subagent 支撑代码引用，不能孤立删除。 |
+| prompts / schema / API | `src/lib/memory/{prompts,schema,config,api}.ts` | extraction 专属 prompt 已删除；其余文件仍被 organizer、旧 Settings 或 subagent 支撑代码引用，不能孤立删除。 |
 | Rust MemoryStore / commands | `src-tauri/src/services/memory/*`、`src-tauri/src/commands/integration/memory.rs` | 旧本地持久化能力尚在仓库中，但不拥有当前 Agent Memory 语义。 |
 | Gateway/WebUI memory mirror | `scripts/mirror-manifest.json` 登记的 memory 文件 | 随后续 Gateway/WebUI 与旧 Memory 闭包清理统一处理，避免破坏镜像契约。 |
 

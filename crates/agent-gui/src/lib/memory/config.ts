@@ -1,28 +1,6 @@
 // Every tunable number and locale-sensitive word list in the memory system
 // lives here. No other memory module may declare a magic number.
 
-// --- Extraction ------------------------------------------------------------
-
-/** Hard wall-clock budget for one hidden extraction round. */
-export const EXTRACTION_TIMEOUT_MS = 45_000;
-/** How many trailing user-turns the compact extraction window keeps: one
- *  target turn plus resolution context for corrections and pronouns. */
-export const EXTRACTION_TURN_WINDOW = 4;
-/** Per-message and whole-window character caps for the extraction window. */
-export const EXTRACTION_MESSAGE_CHAR_CAP = 2_000;
-export const EXTRACTION_WINDOW_CHAR_CAP = 12_000;
-/** Cap for an optional conversation-compaction summary block. */
-export const EXTRACTION_SUMMARY_CHAR_CAP = 1_000;
-/** How many existing entries / recent rejections the hidden prompt shows. */
-export const EXTRACTION_CANDIDATE_LIMIT = 30;
-export const EXTRACTION_REJECTION_DAYS = 7;
-/** Max plan items accepted from a single SubmitMemoryPlan call. */
-export const EXTRACTION_PLAN_ITEM_LIMIT = 8;
-/** Ring cap of slugs written this turn (feeds already-written dedup). */
-export const EXTRACTION_WRITTEN_SLUG_LIMIT = 16;
-/** LRU cap on tracked conversations before oldest state is pruned. */
-export const EXTRACTION_CONVERSATION_STATE_LIMIT = 128;
-
 // --- Memory Index injection --------------------------------------------------
 
 export const INDEX_MAX_PROMPT_CHARS = 16_000;
