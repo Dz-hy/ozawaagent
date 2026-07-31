@@ -65,12 +65,9 @@ macro_rules! app_invoke_handler {
             commands::subagent_store::subagent_message_append,
             commands::subagent_store::subagent_message_list,
             // File system
-            commands::fs::fs_read_text,
             commands::fs::fs_read_editable_text,
-            commands::fs::fs_path_status,
             commands::fs::fs_read_workspace_image,
             commands::fs::fs_write_text,
-            commands::fs::fs_edit_text,
             commands::fs::fs_delete,
             commands::fs::fs_open_workspace_path,
             commands::fs::fs_create_dir,
@@ -78,8 +75,6 @@ macro_rules! app_invoke_handler {
             commands::fs::fs_roots,
             commands::fs::fs_list_dirs,
             commands::fs::fs_list,
-            commands::fs::fs_glob,
-            commands::fs::fs_grep,
             commands::fs::fs_mention_list,
             // Subagent worktrees
             commands::subagent_worktree::subagent_worktree_create,

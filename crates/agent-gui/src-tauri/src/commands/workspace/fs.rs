@@ -2322,25 +2322,6 @@ fn fs_read_text_impl(
     })
 }
 
-#[tauri::command(rename_all = "snake_case")]
-pub async fn fs_read_text(
-    workdir: String,
-    path: String,
-    start_line: Option<usize>,
-    limit: Option<usize>,
-    page_start: Option<usize>,
-    page_limit: Option<usize>,
-    cell_start: Option<usize>,
-    cell_limit: Option<usize>,
-) -> Result<ReadResponse, FsCommandError> {
-    run_blocking_fs("fs_read_text", move || {
-        fs_read_text_sync(
-            workdir, path, start_line, limit, page_start, page_limit, cell_start, cell_limit,
-        )
-    })
-    .await
-}
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReadEditableTextResponse {
@@ -2482,14 +2463,6 @@ fn fs_path_status_impl(wd: &Path, path: &str) -> Result<PathStatusResponse, FsEr
         }),
         Err(err) => Err(FsError::Io(err)),
     }
-}
-
-#[tauri::command(rename_all = "snake_case")]
-pub async fn fs_path_status(
-    workdir: String,
-    path: String,
-) -> Result<PathStatusResponse, FsCommandError> {
-    run_blocking_fs("fs_path_status", move || fs_path_status_sync(workdir, path)).await
 }
 
 #[derive(Debug, Serialize)]
@@ -2723,32 +2696,6 @@ fn fs_edit_text_impl(
         total_lines: count_text_lines(&next),
         file_id: Some(file_identity(&md, &target)),
     })
-}
-
-#[tauri::command(rename_all = "snake_case")]
-pub async fn fs_edit_text(
-    workdir: String,
-    path: String,
-    old_string: String,
-    new_string: String,
-    expected_replacements: Option<usize>,
-    replace_all: Option<bool>,
-    expected_mtime_ms: Option<u64>,
-    expected_content_hash: Option<String>,
-) -> Result<EditTextResponse, FsCommandError> {
-    run_blocking_fs("fs_edit_text", move || {
-        fs_edit_text_sync(
-            workdir,
-            path,
-            old_string,
-            new_string,
-            expected_replacements,
-            replace_all,
-            expected_mtime_ms,
-            expected_content_hash,
-        )
-    })
-    .await
 }
 
 #[derive(Debug, Serialize)]
@@ -3563,21 +3510,6 @@ fn fs_glob_impl(
     })
 }
 
-#[tauri::command(rename_all = "snake_case")]
-pub async fn fs_glob(
-    workdir: String,
-    path: Option<String>,
-    pattern: String,
-    offset: Option<usize>,
-    max_results: Option<usize>,
-    sort_by: Option<String>,
-) -> Result<GlobResponse, FsCommandError> {
-    run_blocking_fs("fs_glob", move || {
-        fs_glob_sync(workdir, path, pattern, offset, max_results, sort_by)
-    })
-    .await
-}
-
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GrepMatch {
@@ -3881,36 +3813,6 @@ fn fs_grep_impl(
         files,
         target_kind: Some(target_kind.to_string()),
     })
-}
-
-#[tauri::command(rename_all = "snake_case")]
-pub async fn fs_grep(
-    workdir: String,
-    path: Option<String>,
-    pattern: String,
-    file_pattern: Option<String>,
-    ignore_case: Option<bool>,
-    output_mode: Option<String>,
-    head_limit: Option<usize>,
-    offset: Option<usize>,
-    context: Option<usize>,
-    multiline: Option<bool>,
-) -> Result<GrepResponse, FsCommandError> {
-    run_blocking_fs("fs_grep", move || {
-        fs_grep_sync(
-            workdir,
-            path,
-            pattern,
-            file_pattern,
-            ignore_case,
-            output_mode,
-            head_limit,
-            offset,
-            context,
-            multiline,
-        )
-    })
-    .await
 }
 
 // ---- File mention listing (gitignore-aware) ----
