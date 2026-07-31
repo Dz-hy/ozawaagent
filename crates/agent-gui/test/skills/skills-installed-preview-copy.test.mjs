@@ -4,13 +4,6 @@ import test from "node:test";
 
 const pageSources = [
   {
-    label: "GUI",
-    source: readFileSync(
-      new URL("../../src/pages/skills-hub/SkillsHubPage.tsx", import.meta.url),
-      "utf8",
-    ),
-  },
-  {
     label: "WebUI",
     source: readFileSync(
       new URL(

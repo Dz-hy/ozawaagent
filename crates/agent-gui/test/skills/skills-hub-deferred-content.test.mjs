@@ -4,11 +4,6 @@ import test from "node:test";
 
 const implementations = [
   {
-    label: "GUI",
-    page: new URL("../../src/pages/skills-hub/SkillsHubPage.tsx", import.meta.url),
-    i18n: new URL("../../src/i18n/config.ts", import.meta.url),
-  },
-  {
     label: "WebUI",
     page: new URL(
       "../../../agent-gateway/web/src/pages/skills-hub/SkillsHubPage.tsx",

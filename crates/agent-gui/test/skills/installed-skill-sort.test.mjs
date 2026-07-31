@@ -6,11 +6,6 @@ import { createTsModuleLoader } from "../helpers/load-ts-module.mjs";
 
 const implementations = [
   {
-    label: "GUI",
-    loader: createTsModuleLoader(),
-    page: new URL("../../src/pages/skills-hub/SkillsHubPage.tsx", import.meta.url),
-  },
-  {
     label: "WebUI",
     loader: createTsModuleLoader({
       rootDir: fileURLToPath(new URL("../../../agent-gateway/web/", import.meta.url)),

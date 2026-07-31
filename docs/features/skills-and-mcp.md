@@ -9,7 +9,7 @@
 | Rust service | `src-tauri/src/services/skills/*` | seed builtin、list/read/manage/install/create/validate/package/ClawHub。写侧由进程级 `skills_write_guard()` 串行化（agent 调用、gateway 转发、UI 后台安装线程、builtin seeding 四路写者）；安装走 stage-then-swap：内容（含 `_meta.json`）先在 `<root>/.staging/` 完整构建，再原子 rename 入位，读者永远看不到半成品。 |
 | Frontend lib | `src/lib/skills/*`、WebUI copy | managed skills metadata、展示 prompt 辅助、ClawHub client、install status。 |
 | Agent runtime | GenericAgent | 主对话中的 Skills/SOP 发现、选择与工具暴露。 |
-| Hub UI | `src/pages/skills-hub/SkillsHubPage.tsx`、WebUI mirror | Installed/Store 两个视图，选择、扫描、预览、安装。 |
+| Hub UI | `crates/agent-gateway/web/src/pages/skills-hub/SkillsHubPage.tsx`（Gateway WebUI） | Installed/Store 两个视图，选择、扫描、预览、安装。 |
 
 ## Builtin Skills
 
