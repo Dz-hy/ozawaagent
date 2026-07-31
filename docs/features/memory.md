@@ -28,7 +28,7 @@ GenericAgent 是 Agent Memory 的唯一真相源。桌面 GUI 不维护第二套
 
 | 闭包 | 主要路径 | 当前状态 |
 |---|---|---|
-| organizer service | `src/lib/memory/organizer/*` | App shell 已不启动；仍被旧 WebUI Memory panel 与相关支撑代码引用。 |
+| organizer service | Desktop `src/lib/memory/organizer/service.ts` 已删除；WebUI 仍通过 legacy panel 使用其自身支撑路径 | App shell 不再运行本地 organizer；桌面残余 organizer helpers 需按后续孤儿闭包继续审计。 |
 | legacy Settings panel | Desktop `src/pages/settings/memory/*` 已删除；WebUI 对应目录仍保留 | 桌面 Settings 仅使用 `GaMemorySection`；WebUI legacy panel 仍在线，待独立迁移后再清理。 |
 | prompts / schema / API | `src/lib/memory/{prompts,schema,config,api}.ts` | extraction 专属 prompt 已删除；其余文件仍被 organizer、WebUI 或 subagent 支撑代码引用，不能孤立删除。 |
 | Rust MemoryStore / commands | `src-tauri/src/services/memory/*`、`src-tauri/src/commands/integration/memory.rs` | 旧本地持久化能力尚在仓库中，但不拥有当前 Agent Memory 语义。 |
