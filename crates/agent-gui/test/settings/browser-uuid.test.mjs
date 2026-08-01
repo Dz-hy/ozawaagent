@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createWebModuleLoader } from "../../../agent-gateway/test/helpers/load-web-module.mjs";
 import { createTsModuleLoader } from "../helpers/load-ts-module.mjs";
 
 const loader = createTsModuleLoader();
+const webLoader = createWebModuleLoader();
 const { createUuid } = loader.loadModule("src/lib/shared/id.ts");
 const { createHookRunScope } = loader.loadModule("src/lib/automation/hookRunner.ts");
-const { createEmptyRequestDraft } = loader.loadModule("src/pages/settings/httpRequestEditor.tsx");
+const { createEmptyRequestDraft } = webLoader.loadModule(
+  "src/pages/settings/httpRequestEditor.tsx",
+);
 const { normalizeAgentPromptTemplate, normalizeCustomProvider, normalizeSshSettings } =
   loader.loadModule("src/lib/settings/index.ts");
 
@@ -100,7 +104,7 @@ test("settings normalize generated IDs without crypto.randomUUID", () => {
   });
 });
 
-test("hook scopes and Hook/Cron HTTP request drafts work without crypto.randomUUID", () => {
+test("Hook scopes and WebUI Cron HTTP request drafts work without crypto.randomUUID", () => {
   withCrypto({}, () => {
     const scope = createHookRunScope({ hooks: [], conversationId: "conversation-id" });
     const request = createEmptyRequestDraft();
