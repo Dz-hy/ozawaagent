@@ -73,7 +73,6 @@ macro_rules! app_invoke_handler {
             commands::fs::fs_create_dir,
             commands::fs::fs_rename,
             commands::fs::fs_roots,
-            commands::fs::fs_list_dirs,
             commands::fs::fs_list,
             commands::fs::fs_mention_list,
             // Subagent worktrees

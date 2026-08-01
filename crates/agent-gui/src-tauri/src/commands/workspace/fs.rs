@@ -3180,14 +3180,6 @@ pub(crate) fn fs_list_dirs_sync(
     })
 }
 
-#[tauri::command(rename_all = "snake_case")]
-pub async fn fs_list_dirs(
-    path: String,
-    max_results: Option<usize>,
-) -> Result<FsListDirsResponse, String> {
-    run_blocking("fs_list_dirs", move || fs_list_dirs_sync(path, max_results)).await
-}
-
 #[derive(Clone, Copy)]
 struct WalkerVisibility {
     include_system_hidden: bool,
