@@ -108,25 +108,6 @@ pub struct SshTerminalTabsSnapshot {
     pub revision: u64,
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TerminalSshExecResponse {
-    pub session_id: String,
-    pub command: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cwd: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub exit_code: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub exit_signal: Option<String>,
-    pub stdout: String,
-    pub stderr: String,
-    pub stdout_truncated: bool,
-    pub stderr_truncated: bool,
-    pub timed_out: bool,
-    pub duration_ms: u128,
-}
-
 #[derive(Debug, Clone)]
 pub struct TerminalSshSessionInfo {
     pub project_path_key: String,

@@ -159,7 +159,6 @@ macro_rules! app_invoke_handler {
             commands::terminal::terminal_cancel_ssh_prompt,
             commands::terminal::terminal_ssh_reconnect,
             commands::terminal::terminal_ssh_latency,
-            commands::terminal::terminal_ssh_exec,
             commands::terminal::ssh_terminal_tabs_list,
             commands::terminal::ssh_terminal_tab_open,
             commands::terminal::ssh_terminal_tab_close,

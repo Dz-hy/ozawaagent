@@ -66,10 +66,6 @@ pub(crate) const SSH_STATUS_RECONNECTING: &str = "reconnecting";
 pub(crate) const SSH_STATUS_DISCONNECTED: &str = "disconnected";
 pub const TERMINAL_EVENT_NAME: &str = "terminal:event";
 pub const TERMINAL_STREAM_EVENT_NAME: &str = "terminal:stream";
-pub(crate) const SSH_EXEC_DEFAULT_MAX_BYTES: usize = 64 * 1024;
-pub(crate) const SSH_EXEC_MAX_BYTES: usize = 256 * 1024;
-pub(crate) const SSH_EXEC_DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
-pub(crate) const SSH_EXEC_MAX_TIMEOUT: Duration = Duration::from_secs(300);
 
 #[derive(Default)]
 pub struct TerminalSessionRegistry {
