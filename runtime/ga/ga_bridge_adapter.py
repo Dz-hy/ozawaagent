@@ -8,6 +8,7 @@ from contextvars import ContextVar
 import hashlib
 import importlib.util
 import json
+import math
 import os
 import re
 import secrets
@@ -21,11 +22,15 @@ from typing import Any, Iterable
 
 from aiohttp import web
 
-ADAPTER_VERSION = "1.3.0"
+ADAPTER_VERSION = "1.4.0"
 API_VERSION = "v1"
 COMMAND_API_VERSION = "1"
 MAX_COMMAND_ARGUMENT_CHARS = 32_768
 MAX_AUTOMATION_PROMPT_CHARS = 32_768
+MAX_TOKEN_RECORDS = 1_000
+MAX_TOKEN_COUNT = 10**15
+MAX_TOKEN_MODEL_CHARS = 512
+MAX_TOKEN_TIMESTAMP = 10**12
 AUTOMATION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 AUTOMATION_SCHEDULE = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 AUTOMATION_REPEAT = re.compile(r"^(?:daily|weekday|weekly|monthly|once|every_[1-9]\d*[mhd])$")
@@ -502,6 +507,65 @@ def knowledge_catalog(root: Path | None) -> dict[str, Any]:
     return snapshot
 
 
+def safe_token_count(value: Any) -> int:
+    if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= MAX_TOKEN_COUNT:
+        return value
+    return 0
+
+
+def safe_token_model(value: Any) -> str:
+    return value[:MAX_TOKEN_MODEL_CHARS] if isinstance(value, str) else ""
+
+
+def safe_token_timestamp(value: Any) -> int | float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    numeric = float(value)
+    if not math.isfinite(numeric) or not 0 <= numeric <= MAX_TOKEN_TIMESTAMP:
+        return None
+    return value
+
+
+def safe_token_record(value: Any, *, include_timestamp: bool) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    record: dict[str, Any] = {
+        "input": safe_token_count(value.get("input")),
+        "output": safe_token_count(value.get("output")),
+        "cacheCreate": safe_token_count(value.get("cacheCreate")),
+        "cacheRead": safe_token_count(value.get("cacheRead")),
+        "model": safe_token_model(value.get("model")),
+    }
+    if include_timestamp:
+        timestamp = safe_token_timestamp(value.get("ts"))
+        if timestamp is not None:
+            record["timestamp"] = timestamp
+    return record
+
+
+async def read_official_token_json(official_module: Any, handler_name: str, request: web.Request) -> dict[str, Any]:
+    handler = getattr(official_module, handler_name, None)
+    if not callable(handler):
+        raise RuntimeError("official token usage contract unavailable")
+    response = await handler(request)
+    if not isinstance(response, web.Response) or response.status >= 400:
+        raise RuntimeError("official token usage request failed")
+    try:
+        body = json.loads(response.body.decode(response.charset or "utf-8"))
+    except (AttributeError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise RuntimeError("official token usage response was invalid") from error
+    if not isinstance(body, dict):
+        raise RuntimeError("official token usage response was invalid")
+    return body
+
+
+def token_usage_error(request: web.Request) -> web.Response:
+    return _json("error", {
+        "code": "token_usage_unavailable",
+        "message": "GenericAgent token usage is unavailable",
+    }, 503, request.headers.get("X-Request-Id", ""))
+
+
 PROJECT_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 _CURRENT_PROJECT_ID: ContextVar[str | None] = ContextVar("ga_current_project_id", default=None)
 
@@ -639,6 +703,46 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
             payload["status"] = "available" if content.strip() else "empty"
             payload["updatedAt"] = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
         return _json("project.memory-status", payload, 200, request.headers.get("X-Request-Id", ""))
+
+    async def token_stats_handler(request: web.Request) -> web.Response:
+        try:
+            document = await read_official_token_json(official_module, "token_stats_handler", request)
+            raw_records = document.get("records")
+            if not isinstance(raw_records, list):
+                raise RuntimeError("official token usage response was invalid")
+            records = [
+                record
+                for raw in raw_records[:MAX_TOKEN_RECORDS]
+                if (record := safe_token_record(raw, include_timestamp=False)) is not None
+            ]
+            payload = {
+                "schema": "ga.token_usage.v1",
+                "records": records,
+                "truncated": len(raw_records) > MAX_TOKEN_RECORDS,
+            }
+        except Exception:
+            return token_usage_error(request)
+        return _json("token-usage.stats", payload, 200, request.headers.get("X-Request-Id", ""))
+
+    async def token_history_handler(request: web.Request) -> web.Response:
+        try:
+            document = await read_official_token_json(official_module, "get_token_history_handler", request)
+            raw_history = document.get("history")
+            if not isinstance(raw_history, list):
+                raise RuntimeError("official token usage response was invalid")
+            history = [
+                record
+                for raw in raw_history[:MAX_TOKEN_RECORDS]
+                if (record := safe_token_record(raw, include_timestamp=True)) is not None
+            ]
+            payload = {
+                "schema": "ga.token_usage.v1",
+                "history": history,
+                "truncated": len(raw_history) > MAX_TOKEN_RECORDS,
+            }
+        except Exception:
+            return token_usage_error(request)
+        return _json("token-usage.history", payload, 200, request.headers.get("X-Request-Id", ""))
 
     def model_profiles_error(request: web.Request, code: str, status: int) -> web.Response:
         messages = {
@@ -940,6 +1044,8 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
     app.router.add_get("/api/v1/health", health_handler)
     app.router.add_get("/api/v1/knowledge", knowledge_handler)
     app.router.add_get("/api/v1/projects/{project_id}/memory-status", project_memory_handler)
+    app.router.add_get("/api/v1/token-stats", token_stats_handler)
+    app.router.add_get("/api/v1/token-history", token_history_handler)
     app.router.add_get("/api/v1/model-profiles", model_profiles_handler)
     app.router.add_post("/api/v1/model-profiles", create_model_profile_handler)
     app.router.add_get("/api/v1/model-profiles/{profile_id}", model_profile_handler)

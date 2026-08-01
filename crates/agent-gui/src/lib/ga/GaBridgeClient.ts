@@ -23,6 +23,8 @@ import type {
   GaServiceState,
   GaSessionDto,
   GaSessionSnapshot,
+  GaTokenHistorySnapshot,
+  GaTokenStatsSnapshot,
 } from "./types";
 import { GaBridgeError } from "./types";
 
@@ -173,6 +175,12 @@ export class GaBridgeClient {
   getProjectMemoryStatus(projectId: string): Promise<GaProjectMemoryStatus> {
     return this.request(`/api/v1/projects/${encodeURIComponent(projectId)}/memory-status`);
   }
+  getTokenStats(): Promise<GaTokenStatsSnapshot> {
+    return this.request("/api/v1/token-stats");
+  }
+  getTokenHistory(): Promise<GaTokenHistorySnapshot> {
+    return this.request("/api/v1/token-history");
+  }
   listModelProfiles(): Promise<GaModelProfilesSnapshot> {
     return this.request("/api/v1/model-profiles");
   }
@@ -182,7 +190,10 @@ export class GaBridgeClient {
     );
     return result.profile;
   }
-  async createModelProfile(input: Required<Pick<GaModelProfileInput, "protocol" | "model" | "apibase">> & GaModelProfileInput): Promise<GaModelProfile> {
+  async createModelProfile(
+    input: Required<Pick<GaModelProfileInput, "protocol" | "model" | "apibase">> &
+      GaModelProfileInput,
+  ): Promise<GaModelProfile> {
     const result = await this.request<{ profile: GaModelProfile }>("/api/v1/model-profiles", {
       method: "POST",
       body: JSON.stringify(input),

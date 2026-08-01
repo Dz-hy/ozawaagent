@@ -9,6 +9,7 @@
     "sessions",
     "history",
     "model_profiles",
+    "token_usage",
     "services",
     "command_registry",
     "automation_registry",

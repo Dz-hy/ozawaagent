@@ -12,6 +12,7 @@ export type SectionId =
   | "agents"
   | "ssh"
   | "memory"
+  | "usage"
   | "hooks"
   | "cron"
   | "remote"

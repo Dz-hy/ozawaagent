@@ -37,13 +37,43 @@ def fake_official_module():
     async def explode(request):
         raise RuntimeError(r"failed at D:\\private\\secret.txt using token=hidden")
 
+    async def token_stats_handler(request):
+        return web.json_response({"records": [{
+            "thread": "GA-secret-session",
+            "input": 12,
+            "output": 34,
+            "cacheCreate": 5,
+            "cacheRead": 6,
+            "model": "model-safe",
+            "path": r"D:\\private\\stats.json",
+            "api_key": "token-secret",
+        }]})
+
+    async def get_token_history_handler(request):
+        return web.json_response({"history": [{
+            "sessionId": "secret-session",
+            "title": "private title",
+            "input": 7,
+            "output": 8,
+            "cacheCreate": 9,
+            "cacheRead": 10,
+            "model": "history-model",
+            "ts": 1720000000,
+            "path": r"D:\\private\\history.json",
+            "password": "history-secret",
+        }], "snap": {"secret": "not-returned"}})
+
     def create_app():
         app = web.Application(middlewares=[unsafe_legacy_cors])
         app.router.add_get("/status", status)
         app.router.add_get("/explode", explode)
         return app
 
-    return SimpleNamespace(create_app=create_app)
+    return SimpleNamespace(
+        create_app=create_app,
+        token_stats_handler=token_stats_handler,
+        get_token_history_handler=get_token_history_handler,
+    )
 
 
 def fake_model_manager():
@@ -385,6 +415,7 @@ async def test_v1_envelope_version_capabilities_and_health(client):
     assert "command_registry" in capabilities["capabilities"]
     assert "automation_registry" in capabilities["capabilities"]
     assert "hooks_observability" in capabilities["capabilities"]
+    assert "token_usage" in capabilities["capabilities"]
     assert "ask_user.requested" in capabilities["events"]
     assert not any(event.startswith("command.") for event in capabilities["events"])
 
@@ -810,3 +841,93 @@ async def test_new_session_project_id_is_request_scoped():
     assert second_payload["projectId"] is None
     assert bad.status == 400
     assert bad_payload["payload"]["code"] == "invalid_project_id"
+
+
+@pytest.mark.asyncio
+async def test_token_usage_endpoints_are_read_only_and_redacted(client):
+    stats_response = await client.get("/api/v1/token-stats", headers=AUTH)
+    history_response = await client.get("/api/v1/token-history", headers=AUTH)
+    assert stats_response.status == 200
+    assert history_response.status == 200
+
+    stats = (await stats_response.json())["payload"]
+    history = (await history_response.json())["payload"]
+    assert stats == {
+        "schema": "ga.token_usage.v1",
+        "records": [{
+            "input": 12,
+            "output": 34,
+            "cacheCreate": 5,
+            "cacheRead": 6,
+            "model": "model-safe",
+        }],
+        "truncated": False,
+    }
+    assert history == {
+        "schema": "ga.token_usage.v1",
+        "history": [{
+            "input": 7,
+            "output": 8,
+            "cacheCreate": 9,
+            "cacheRead": 10,
+            "model": "history-model",
+            "timestamp": 1720000000,
+        }],
+        "truncated": False,
+    }
+    encoded = json.dumps({"stats": stats, "history": history})
+    for secret in ("GA-secret-session", "secret-session", "private title", "D:\\\\private", "token-secret", "history-secret", "not-returned"):
+        assert secret not in encoded
+
+    post = await client.post("/api/v1/token-history", headers=AUTH, json={"history": []})
+    assert post.status == 405
+
+
+@pytest.mark.asyncio
+async def test_token_usage_is_bounded_and_reports_truncation(monkeypatch):
+    official = fake_official_module()
+    original = official.token_stats_handler
+
+    async def many_records(request):
+        response = await original(request)
+        document = json.loads(response.body)
+        document["records"] = [{"input": index} for index in range(4)]
+        return web.json_response(document)
+
+    official.token_stats_handler = many_records
+    monkeypatch.setattr(adapter, "MAX_TOKEN_RECORDS", 2)
+    app = adapter.create_app(
+        official_module=official, token=TOKEN, allowed_origins=(ORIGIN,), manifest=adapter.load_manifest()
+    )
+    async with TestClient(TestServer(app)) as client:
+        response = await client.get("/api/v1/token-stats", headers=AUTH)
+        assert response.status == 200
+        payload = (await response.json())["payload"]
+    assert len(payload["records"]) == 2
+    assert payload["records"][0]["input"] == 0
+    assert payload["records"][1]["input"] == 1
+    assert payload["truncated"] is True
+
+
+@pytest.mark.asyncio
+async def test_token_usage_contract_failures_are_redacted():
+    async def fail(request):
+        raise RuntimeError(r"failed at D:\\private\\token-history.json with api_key=secret")
+
+    official = fake_official_module()
+    official.token_stats_handler = fail
+    official.get_token_history_handler = None
+    app = adapter.create_app(
+        official_module=official, token=TOKEN, allowed_origins=(ORIGIN,), manifest=adapter.load_manifest()
+    )
+    async with TestClient(TestServer(app)) as client:
+        stats_response = await client.get("/api/v1/token-stats", headers=AUTH)
+        history_response = await client.get("/api/v1/token-history", headers=AUTH)
+        assert stats_response.status == 503
+        assert history_response.status == 503
+        stats_body = await stats_response.json()
+        history_body = await history_response.json()
+    encoded = json.dumps([stats_body, history_body])
+    assert "token_usage_unavailable" in encoded
+    assert "token-history.json" not in encoded
+    assert "secret" not in encoded

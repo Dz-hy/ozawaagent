@@ -10,6 +10,7 @@ import {
   Key,
   Keyboard,
   Settings2,
+  Wallet,
   Wrench,
   Zap,
 } from "../components/icons";
@@ -22,6 +23,7 @@ import { GaAutomationSection } from "./settings/GaAutomationSection";
 import { GaHooksSection } from "./settings/GaHooksSection";
 import { GaMemorySection } from "./settings/GaMemorySection";
 import { GaModelProfilesSection } from "./settings/GaModelProfilesSection";
+import { GaUsageSection } from "./settings/GaUsageSection";
 import { GlobalShortcutsSection } from "./settings/GlobalShortcutsSection";
 import { RemoteSection } from "./settings/RemoteSection";
 import { SshSection } from "./settings/SshSection";
@@ -104,6 +106,7 @@ const NAV_GROUPS: NavGroup[] = [
     labelKey: "settings.groupIntelligence",
     items: [
       { id: "memory", icon: <Brain className="h-3.5 w-3.5" /> },
+      { id: "usage", icon: <Wallet className="h-3.5 w-3.5" /> },
       { id: "systemTools", icon: <Wrench className="h-3.5 w-3.5" /> },
     ],
   },
@@ -151,6 +154,7 @@ export function SettingsPage(props: SettingsPageProps) {
     agents: t("settings.navAgents"),
     ssh: t("settings.navSsh"),
     memory: t("settings.navMemory"),
+    usage: t("settings.navUsage"),
     hooks: t("settings.navHooks"),
     cron: t("settings.navCron"),
     remote: t("settings.navRemote"),
@@ -204,6 +208,8 @@ export function SettingsPage(props: SettingsPageProps) {
         return <RemoteSection settings={settings} setSettings={setSettings} />;
       case "memory":
         return <GaMemorySection />;
+      case "usage":
+        return <GaUsageSection />;
       case "about":
         return <AboutSection settings={settings} setSettings={setSettings} appUpdate={appUpdate} />;
       default: {
@@ -288,7 +294,10 @@ export function SettingsPage(props: SettingsPageProps) {
           >
             <div
               className={`settings-section-shell ${
-                section === "hooks" || section === "providers" || section === "memory"
+                section === "hooks" ||
+                section === "providers" ||
+                section === "memory" ||
+                section === "usage"
                   ? "flex min-h-0 flex-1 flex-col"
                   : "min-h-full"
               }`}

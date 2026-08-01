@@ -87,6 +87,24 @@ export type GaProjectMemoryStatus = {
   lineCount: number;
   updatedAt: string | null;
 };
+export type GaTokenUsageRecord = {
+  input: number;
+  output: number;
+  cacheCreate: number;
+  cacheRead: number;
+  model: string;
+  timestamp?: number;
+};
+export type GaTokenStatsSnapshot = {
+  schema: "ga.token_usage.v1";
+  records: GaTokenUsageRecord[];
+  truncated: boolean;
+};
+export type GaTokenHistorySnapshot = {
+  schema: "ga.token_usage.v1";
+  history: GaTokenUsageRecord[];
+  truncated: boolean;
+};
 export type GaModelProtocol = "oai" | "claude" | "unknown";
 export type GaModelProtocolSource = "official" | "var_name_heuristic" | "unknown";
 export type GaModelProfile = {

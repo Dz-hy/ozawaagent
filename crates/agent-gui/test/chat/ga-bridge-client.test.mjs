@@ -103,6 +103,48 @@ test("client reads project memory metadata without requesting content", async ()
   assert.equal(calls[0].options.body, undefined);
 });
 
+test("client reads token stats and history through read-only GA routes", async () => {
+  const calls = [];
+  const fetcher = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    const path = new URL(String(url)).pathname;
+    if (path === "/api/v1/token-stats") {
+      return response(200, {
+        payload: {
+          schema: "ga.token_usage.v1",
+          records: [{ input: 12, output: 34, cacheCreate: 5, cacheRead: 6, model: "model-safe" }],
+          truncated: false,
+        },
+      });
+    }
+    return response(200, {
+      payload: {
+        schema: "ga.token_usage.v1",
+        history: [{
+          input: 7,
+          output: 8,
+          cacheCreate: 9,
+          cacheRead: 10,
+          model: "history-model",
+          timestamp: 1_720_000_000,
+        }],
+        truncated: false,
+      },
+    });
+  };
+  const client = new GaBridgeClient(fetcher);
+  assert.equal((await client.getTokenStats()).records[0].output, 34);
+  assert.equal((await client.getTokenHistory()).history[0].timestamp, 1_720_000_000);
+  assert.deepEqual(calls.map((call) => [new URL(call.url).pathname, call.options.method ?? "GET"]), [
+    ["/api/v1/token-stats", "GET"],
+    ["/api/v1/token-history", "GET"],
+  ]);
+  for (const call of calls) {
+    assert.equal(call.options.body, undefined);
+    assert.equal(call.options.headers.Authorization, `Bearer ${runtime.token}`);
+  }
+});
+
 test("client preserves typed bridge failures without exposing credentials", async () => {
   const client = new GaBridgeClient(async () =>
     response(503, { payload: { code: "runtime_busy", message: "temporarily unavailable" } }),
