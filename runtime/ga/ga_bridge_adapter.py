@@ -13,12 +13,13 @@ import math
 import os
 import re
 import secrets
+import shutil
 import subprocess
 import sys
 import threading
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
 from aiohttp import ClientSession, ClientTimeout, web
@@ -185,6 +186,61 @@ def verify_official_bridge(root: Path, manifest: dict[str, Any]) -> None:
         result = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10)
         if result.returncode or result.stdout.strip() != manifest["ga_commit"]:
             raise RuntimeError("GenericAgent commit does not match the pinned runtime manifest")
+
+
+def _safe_runtime_path(value: Any) -> PurePosixPath:
+    if not isinstance(value, str) or not value or "\\" in value:
+        raise RuntimeError("runtime manifest contains an unsafe relative path")
+    path = PurePosixPath(value)
+    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+        raise RuntimeError("runtime manifest contains an unsafe relative path")
+    if any(part in {".git", "__pycache__", ".pytest_cache", "temp", "memory", "mykey.py", "mykey.json", "auth.json"}
+               for part in path.parts):
+        raise RuntimeError("runtime manifest contains a writable or sensitive path")
+    return path
+
+
+def _copy_runtime_file(source_root: Path, data_root: Path, relative: PurePosixPath) -> None:
+    source = source_root.joinpath(*relative.parts)
+    if source.is_symlink() or not source.is_file():
+        raise RuntimeError(f"bundled runtime file is missing or symbolic: {relative}")
+    destination = data_root.joinpath(*relative.parts)
+    cursor = data_root
+    for part in relative.parts[:-1]:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise RuntimeError(f"writable runtime path is symbolic: {relative}")
+        cursor.mkdir(exist_ok=True)
+    if destination.is_symlink():
+        raise RuntimeError(f"writable runtime file is symbolic: {relative}")
+    temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        shutil.copy2(source, temporary)
+        os.replace(temporary, destination)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def prepare_data_root(source_root: Path, data_root: Path, manifest: dict[str, Any]) -> Path:
+    source_root = source_root.resolve()
+    data_root = data_root.expanduser().resolve()
+    if data_root == source_root or data_root in source_root.parents or source_root in data_root.parents:
+        raise RuntimeError("writable GA data root must be separate from the bundled source root")
+    if data_root.exists() and data_root.is_symlink():
+        raise RuntimeError("writable GA data root cannot be symbolic")
+    data_root.mkdir(parents=True, exist_ok=True)
+    staging = manifest.get("staging")
+    files = staging.get("files") if isinstance(staging, dict) else None
+    if not isinstance(files, list) or not files:
+        raise RuntimeError("bundled runtime manifest has no staging file allowlist")
+    relative_files = [_safe_runtime_path(item) for item in files]
+    bridge_path = _safe_runtime_path(manifest["official_bridge"]["path"])
+    if bridge_path not in relative_files:
+        raise RuntimeError("staging allowlist does not contain the official bridge")
+    for relative in (*relative_files, PurePosixPath("ga_bridge_adapter.py"), PurePosixPath("runtime_manifest.json")):
+        _copy_runtime_file(source_root, data_root, relative)
+    return data_root
 
 
 def load_official_module(root: Path, manifest: dict[str, Any]):
@@ -1197,24 +1253,28 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ga-root")
+    parser.add_argument("--data-root", help="Writable per-user root for bundled GenericAgent files")
     parser.add_argument("--host", default=os.environ.get("BRIDGE_HOST", "127.0.0.1"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("BRIDGE_PORT", "14168")))
     parser.add_argument("--check", action="store_true", help="Verify the pinned runtime without importing or starting it")
     args = parser.parse_args(argv)
     if args.host != "127.0.0.1":
         parser.error("--host must be 127.0.0.1")
-    manifest = load_manifest()
-    root = resolve_ga_root(args.ga_root)
-    verify_official_bridge(root, manifest)
+    source_root = resolve_ga_root(args.ga_root)
+    source_manifest = load_manifest(source_root / "runtime_manifest.json")
+    verify_official_bridge(source_root, source_manifest)
+    root = prepare_data_root(source_root, Path(args.data_root), source_manifest) if args.data_root else source_root
+    runtime_manifest = load_manifest(root / "runtime_manifest.json")
+    verify_official_bridge(root, runtime_manifest)
     if args.check:
-        print(json.dumps({"status": "compatible", "ga_commit": manifest["ga_commit"]}))
+        print(json.dumps({"status": "compatible", "ga_commit": runtime_manifest["ga_commit"], "ga_root": str(root)}))
         return 0
     token = os.environ.get("GA_BRIDGE_TOKEN", "")
     if len(token) < 32:
         parser.error("GA_BRIDGE_TOKEN must contain at least 32 characters")
-    module = load_official_module(root, manifest)
+    module = load_official_module(root, runtime_manifest)
     app = create_app(official_module=module, token=token,
-                     allowed_origins=parse_origins(os.environ.get("GA_BRIDGE_ALLOWED_ORIGINS")), manifest=manifest,
+                     allowed_origins=parse_origins(os.environ.get("GA_BRIDGE_ALLOWED_ORIGINS")), manifest=runtime_manifest,
                      ga_root=root)
     web.run_app(app, host="127.0.0.1", port=args.port, print=None)
     return 0

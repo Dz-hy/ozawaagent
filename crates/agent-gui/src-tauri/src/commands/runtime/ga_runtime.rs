@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::State;
+use tauri::{Manager, State};
 
 use crate::runtime::ga_supervisor::{GaRuntimeStatus, GaRuntimeSupervisor};
 
@@ -14,12 +14,37 @@ pub struct GaRuntimeStartResponse {
 
 #[tauri::command(rename_all = "snake_case")]
 pub fn ga_runtime_start(
+    app: tauri::AppHandle,
     supervisor: State<'_, Arc<GaRuntimeSupervisor>>,
     ga_root: Option<String>,
     bundled_root: Option<String>,
 ) -> Result<GaRuntimeStartResponse, String> {
-    let bundled = bundled_root.as_deref().map(PathBuf::from);
-    let launch = GaRuntimeSupervisor::discover(ga_root.as_deref(), bundled.as_deref())?;
+    let bundled = match bundled_root {
+        Some(root) => Some(PathBuf::from(root)),
+        None => {
+            let resource_root = app
+                .path()
+                .resource_dir()
+                .map_err(|e| format!("Cannot resolve Tauri resource directory: {e}"))?
+                .join("ga-runtime");
+            resource_root.is_dir().then_some(resource_root)
+        }
+    };
+    let bundled_data = if bundled.is_some() {
+        Some(
+            app.path()
+                .app_data_dir()
+                .map_err(|e| format!("Cannot resolve LiveAgent data directory: {e}"))?
+                .join("ga-runtime"),
+        )
+    } else {
+        None
+    };
+    let launch = GaRuntimeSupervisor::discover(
+        ga_root.as_deref(),
+        bundled.as_deref(),
+        bundled_data.as_deref(),
+    )?;
     let (status, token) = supervisor.start_with_credentials(launch)?;
     let port = status
         .port

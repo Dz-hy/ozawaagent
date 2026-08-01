@@ -3,7 +3,7 @@
   "ga_commit": "51f769295b3f20c9be62edc658b4462dae97525a",
   "official_bridge": {
     "path": "frontends/desktop_bridge.py",
-    "sha256": "a1eb52870dc006cc43e96253f9c8138001eb9cd87a6b041584bfbbfab979fd5f"
+    "sha256": "d2a0c66fc88618ef23f323685e152077a046f02dd1c9f73f1b0db1ee0313512b"
   },
   "capabilities": [
     "sessions",

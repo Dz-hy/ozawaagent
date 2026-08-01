@@ -32,7 +32,10 @@ struct BridgeManifest {
 #[derive(Debug, Clone)]
 pub struct GaRuntimeLaunch {
     pub python: PathBuf,
+    /// Immutable source/resource root used for manifest and bridge validation.
     pub ga_root: PathBuf,
+    /// Writable per-user root used by bundled GenericAgent, if applicable.
+    pub data_root: Option<PathBuf>,
     pub adapter: PathBuf,
     pub manifest: PathBuf,
     pub extra_args: Vec<String>,
@@ -128,7 +131,11 @@ impl GaRuntimeSupervisor {
     pub fn discover(
         external_root: Option<&str>,
         bundled_root: Option<&Path>,
+        bundled_data_root: Option<&Path>,
     ) -> Result<GaRuntimeLaunch, String> {
+        let is_bundled = external_root.is_none()
+            && std::env::var_os("GA_ROOT").is_none()
+            && bundled_root.is_some();
         let root = external_root
             .map(PathBuf::from)
             .or_else(|| std::env::var_os("GA_ROOT").map(PathBuf::from))
@@ -156,9 +163,17 @@ impl GaRuntimeSupervisor {
         };
         let python = find_python(&root)?;
         validate_manifest(&root, &manifest)?;
+        let data_root = if is_bundled {
+            let path = bundled_data_root
+                .ok_or_else(|| "Bundled GenericAgent data directory is unavailable".to_string())?;
+            Some(fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()))
+        } else {
+            None
+        };
         Ok(GaRuntimeLaunch {
             python,
             ga_root: root,
+            data_root,
             adapter,
             manifest,
             extra_args: Vec::new(),
@@ -233,8 +248,22 @@ impl GaRuntimeSupervisor {
             phase: GaRuntimePhase::Starting,
             port: Some(port),
             pid: Some(pid),
-            ga_root: Some(launch.ga_root.to_string_lossy().into_owned()),
-            runtime_kind: Some("external".into()),
+            ga_root: Some(
+                launch
+                    .data_root
+                    .as_ref()
+                    .unwrap_or(&launch.ga_root)
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+            runtime_kind: Some(
+                if launch.data_root.is_some() {
+                    "bundled"
+                } else {
+                    "external"
+                }
+                .into(),
+            ),
             restart_count: 0,
             last_error: None,
             log_path: Some(log_path.to_string_lossy().into_owned()),
@@ -437,10 +466,12 @@ fn spawn_runtime_child(
         .open(log_path)
         .map_err(|e| format!("Cannot open GA runtime log: {e}"))?;
     let mut command = Command::new(&launch.python);
+    command.arg(&launch.adapter);
+    command.arg("--ga-root").arg(&launch.ga_root);
+    if let Some(data_root) = &launch.data_root {
+        command.arg("--data-root").arg(data_root);
+    }
     command
-        .arg(&launch.adapter)
-        .arg("--ga-root")
-        .arg(&launch.ga_root)
         .arg("--port")
         .arg(port.to_string())
         .args(&launch.extra_args)
@@ -591,6 +622,7 @@ HTTPServer(('127.0.0.1',a.port),H).serve_forever()
         let launch = GaRuntimeLaunch {
             python: find_python(root.path()).unwrap(),
             ga_root: root.path().to_path_buf(),
+            data_root: None,
             adapter: script,
             manifest: PathBuf::new(),
             extra_args: Vec::new(),
@@ -635,6 +667,7 @@ HTTPServer(('127.0.0.1',a.port),H).serve_forever()
         let launch = GaRuntimeLaunch {
             python: find_python(root.path()).unwrap(),
             ga_root: root.path().to_path_buf(),
+            data_root: None,
             adapter: script,
             manifest: PathBuf::new(),
             extra_args: vec!["--marker".into(), marker.to_string_lossy().into_owned()],

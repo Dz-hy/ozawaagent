@@ -50,6 +50,9 @@ chatroom
 .pnpm-store
 workspace.zip
 
+# Generated bundled GenericAgent runtime (staged in release CI)
+crates/agent-gui/src-tauri/ga-runtime/
+
 # Python runtime caches
 __pycache__/
 *.py[cod]
