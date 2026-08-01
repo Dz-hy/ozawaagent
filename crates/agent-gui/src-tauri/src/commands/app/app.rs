@@ -157,6 +157,12 @@ pub fn app_set_close_window_behavior(
 }
 
 #[tauri::command]
+pub fn app_legacy_archive_dir() -> Result<Option<String>, String> {
+    crate::services::legacy_archive::complete_archive_dir()
+        .map(|path| path.map(|value| value.to_string_lossy().into_owned()))
+}
+
+#[tauri::command]
 pub fn app_confirmed_exit(
     app: AppHandle,
     allow_exit: State<'_, Arc<AtomicBool>>,

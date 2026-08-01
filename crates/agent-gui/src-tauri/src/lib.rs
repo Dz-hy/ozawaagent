@@ -98,6 +98,7 @@ macro_rules! app_invoke_handler {
             commands::app::app_set_global_shortcuts,
             commands::app::app_window_pinned,
             commands::app::app_toggle_window_pin,
+            commands::app::app_legacy_archive_dir,
             commands::app::app_confirmed_exit,
             commands::app::app_macos_traffic_light_metrics,
             // Hooks
@@ -418,6 +419,9 @@ fn configure_windows_window_chrome(app: &tauri::App) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if let Err(error) = services::legacy_archive::archive_once() {
+        eprintln!("failed to create legacy data archive: {error}");
+    }
     let automation_store = Arc::new(
         services::automation::AutomationStore::open()
             .expect("failed to initialize LiveAgent automation store"),

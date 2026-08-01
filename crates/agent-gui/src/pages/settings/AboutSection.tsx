@@ -1,6 +1,9 @@
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   AlertTriangle,
+  Archive,
   CheckCircle2,
   Download,
   ExternalLink,
@@ -61,6 +64,8 @@ function releaseNotesBody(result?: AppUpdateCheckResult) {
 export function AboutSection(props: AboutSectionProps) {
   const { settings, setSettings, appUpdate } = props;
   const { t } = useLocale();
+  const [archiveOpening, setArchiveOpening] = useState(false);
+  const [archiveError, setArchiveError] = useState(false);
   const includePrereleases = settings.updates.includePrereleases;
   const checkState = appUpdate.state;
 
@@ -71,6 +76,24 @@ export function AboutSection(props: AboutSectionProps) {
   async function handleRestartApp() {
     if (checkState.status !== "installed") return;
     await appUpdate.restart().catch(() => undefined);
+  }
+
+  async function handleOpenArchive() {
+    if (archiveOpening) return;
+    setArchiveOpening(true);
+    setArchiveError(false);
+    try {
+      const archivePath = await invoke<string | null>("app_legacy_archive_dir");
+      if (!archivePath) {
+        setArchiveError(true);
+        return;
+      }
+      await revealItemInDir(archivePath);
+    } catch {
+      setArchiveError(true);
+    } finally {
+      setArchiveOpening(false);
+    }
   }
 
   const latestResult = appUpdate.result;
@@ -155,6 +178,20 @@ export function AboutSection(props: AboutSectionProps) {
             type="button"
             variant="outline"
             size="sm"
+            onClick={() => void handleOpenArchive()}
+            disabled={archiveOpening}
+          >
+            {archiveOpening ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Archive className="h-3.5 w-3.5" />
+            )}
+            {t("settings.aboutOpenArchive")}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
             onClick={() => void appUpdate.runCheck().catch(() => undefined)}
             disabled={checking || installing || restarting}
           >
@@ -166,6 +203,11 @@ export function AboutSection(props: AboutSectionProps) {
             {t("settings.aboutCheckUpdate")}
           </Button>
         </div>
+        {archiveError ? (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            {t("settings.aboutArchiveUnavailable")}
+          </p>
+        ) : null}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">

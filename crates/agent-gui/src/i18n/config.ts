@@ -1164,6 +1164,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     "settings.aboutDescription": "查看当前版本、发布说明和桌面端更新状态。",
     "settings.aboutCurrentVersion": "当前版本",
     "settings.aboutOpenRelease": "发布页",
+    "settings.aboutOpenArchive": "打开数据归档",
+    "settings.aboutArchiveUnavailable": "当前没有可打开的归档，或归档目录暂时不可用。",
     "settings.aboutCheckUpdate": "检查更新",
     "settings.aboutInstallUpdate": "安装更新",
     "settings.aboutRestartApp": "重启应用",
@@ -3325,6 +3327,9 @@ export const translations: Record<Locale, Record<string, string>> = {
       "View the current version, release notes, and desktop update status.",
     "settings.aboutCurrentVersion": "Current Version",
     "settings.aboutOpenRelease": "Release",
+    "settings.aboutOpenArchive": "Open data archive",
+    "settings.aboutArchiveUnavailable":
+      "No completed archive is available, or the archive directory is temporarily unavailable.",
     "settings.aboutCheckUpdate": "Check",
     "settings.aboutInstallUpdate": "Install Update",
     "settings.aboutRestartApp": "Restart App",
