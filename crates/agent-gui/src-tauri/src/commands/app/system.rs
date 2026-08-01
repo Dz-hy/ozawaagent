@@ -1466,13 +1466,6 @@ pub async fn system_read_uploaded_native_attachment(
 }
 
 #[tauri::command]
-pub async fn system_list_skill_files() -> Result<SystemListSkillFilesResponse, String> {
-    tauri::async_runtime::spawn_blocking(system_list_skill_files_sync)
-        .await
-        .map_err(|e| format!("system_list_skill_files join 失败：{e}"))?
-}
-
-#[tauri::command]
 pub async fn system_ensure_builtin_skills(
 ) -> Result<Vec<crate::services::skills::SystemBuiltinSkillSeedResponse>, String> {
     tauri::async_runtime::spawn_blocking(crate::services::skills::ensure_builtin_agent_skills_sync)
