@@ -70,7 +70,6 @@
     "lib/automation/store.ts",
     "lib/automation/index.ts",
     "pages/settings/httpRequestEditor.tsx",
-    "pages/settings/CronTaskViewModal.tsx",
     "lib/managed-process/store.ts",
     "lib/managed-process/types.ts",
     "lib/tools/systemToolOptions.ts",

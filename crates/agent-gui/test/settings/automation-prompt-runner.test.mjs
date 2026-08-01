@@ -34,10 +34,6 @@ const {
   MANUAL_CRON_RUN_POLL_INTERVAL_MS,
   MANUAL_CRON_RUN_TIMEOUT_MS,
 } = loader.loadModule("src/lib/automation/types.ts");
-const guiCronViewSource = readFileSync(
-  new URL("../../src/pages/settings/CronTaskViewModal.tsx", import.meta.url),
-  "utf8",
-);
 const webCronViewSource = readFileSync(
   new URL(
     "../../../agent-gateway/web/src/pages/settings/CronTaskViewModal.tsx",
@@ -110,16 +106,15 @@ test("Cron manual run uses the task-scoped run-now command", async () => {
   ]);
 });
 
-test("Cron manual run stays wired across GUI and WebUI", () => {
-  for (const source of [guiCronViewSource, webCronViewSource]) {
-    assert.match(source, /const response = await runCronNow\(selectedTaskId\)/);
-    assert.match(source, /disabled=\{isRunningNow\}/);
-    assert.match(source, /if \(runNowLockRef\.current\) return/);
-    assert.match(source, /setManualRunStartedAt\(response\.startedAt\)/);
-    assert.match(source, /listCronRuns\(taskId, 500\)/);
-    assert.match(source, /settings\.cronViewRunNow/);
-    assert.match(source, /<Play className="h-3\.5 w-3\.5" \/>/);
-  }
+test("Cron manual run stays wired in the active WebUI view modal", () => {
+  const source = webCronViewSource;
+  assert.match(source, /const response = await runCronNow\(selectedTaskId\)/);
+  assert.match(source, /disabled=\{isRunningNow\}/);
+  assert.match(source, /if \(runNowLockRef\.current\) return/);
+  assert.match(source, /setManualRunStartedAt\(response\.startedAt\)/);
+  assert.match(source, /listCronRuns\(taskId, 500\)/);
+  assert.match(source, /settings\.cronViewRunNow/);
+  assert.match(source, /<Play className="h-3\.5 w-3\.5" \/>/);
   assert.match(
     webAutomationBackendSource,
     /return cronManage<CronRunNowResponse>\("run_now", taskId\)/,
@@ -187,7 +182,5 @@ test("Cron workspace pin stays wired in the active WebUI modal", () => {
     );
     assert.match(source, /: findWorkspaceOptionByPath\(workspaceOptions, workdir\)/);
   }
-  for (const source of [guiCronViewSource, webCronViewSource]) {
-    assert.match(source, /\{task\.workdir \? \(/);
-  }
+  assert.match(webCronViewSource, /\{task\.workdir \? \(/);
 });
