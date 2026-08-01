@@ -13,6 +13,7 @@ export type SectionId =
   | "ssh"
   | "memory"
   | "usage"
+  | "conductor"
   | "hooks"
   | "cron"
   | "remote"

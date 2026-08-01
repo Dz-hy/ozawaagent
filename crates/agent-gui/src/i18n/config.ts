@@ -921,6 +921,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     "settings.navMemory": "记忆",
     "settings.navAbout": "关于",
     "settings.navUsage": "用量",
+    "settings.navConductor": "指挥家",
     "settings.groupGeneral": "通用",
     "settings.groupIntelligence": "智能",
     "settings.groupAutomation": "自动化",
@@ -953,6 +954,24 @@ export const translations: Record<Locale, Record<string, string>> = {
     "settings.usageHistoryTotal": "历史合计",
     "settings.usagePrivacyNote":
       "此页面只读 GenericAgent 统计，不读取或编辑本地记忆、会话正文或密钥。",
+    "settings.conductorTitle": "GA 指挥家",
+    "settings.conductorDescription": "查看官方 Conductor/Hive 的只读运行快照。",
+    "settings.conductorRefresh": "刷新",
+    "settings.conductorLoading": "正在加载指挥家状态…",
+    "settings.conductorRunning": "运行中",
+    "settings.conductorStopped": "已停止",
+    "settings.conductorAgents": "个子代理",
+    "settings.conductorTotal": "总子代理",
+    "settings.conductorSubagentsTitle": "子代理编排",
+    "settings.conductorSubagentsDescription": "官方 Conductor/Hive 当前可见的子代理状态。",
+    "settings.conductorNoSubagents": "暂无子代理快照。",
+    "settings.conductorPrompt": "任务提示",
+    "settings.conductorReply": "最近回复",
+    "settings.conductorChatTitle": "指挥家消息",
+    "settings.conductorChatDescription": "仅显示官方 Conductor 提供的最近消息。",
+    "settings.conductorNoChat": "暂无指挥家消息。",
+    "settings.conductorReadOnlyNote":
+      "此页面仅通过桥接层读取受限快照，不启动、停止、干预或向 Conductor/Hive 发送任务。",
 
     /* ── Settings Memory ── */
     "settings.memoryTitle": "记忆",
@@ -3049,6 +3068,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     "settings.navMemory": "Memory",
     "settings.navAbout": "About",
     "settings.navUsage": "Usage",
+    "settings.navConductor": "Conductor",
     "settings.groupGeneral": "General",
     "settings.groupIntelligence": "Intelligence",
     "settings.groupAutomation": "Automation",
@@ -3082,6 +3102,26 @@ export const translations: Record<Locale, Record<string, string>> = {
     "settings.usageHistoryTotal": "History total",
     "settings.usagePrivacyNote":
       "This page reads GenericAgent statistics only; it does not read or edit local memory, conversation content, or secrets.",
+    "settings.conductorTitle": "GA Conductor",
+    "settings.conductorDescription":
+      "Read-only visibility into the official Conductor/Hive runtime.",
+    "settings.conductorRefresh": "Refresh",
+    "settings.conductorLoading": "Loading Conductor status…",
+    "settings.conductorRunning": "Running",
+    "settings.conductorStopped": "Stopped",
+    "settings.conductorAgents": "subagents",
+    "settings.conductorTotal": "Total subagents",
+    "settings.conductorSubagentsTitle": "Subagent roster",
+    "settings.conductorSubagentsDescription":
+      "Currently visible subagent status from the official Conductor/Hive.",
+    "settings.conductorNoSubagents": "No subagent snapshot is available.",
+    "settings.conductorPrompt": "Task prompt",
+    "settings.conductorReply": "Latest reply",
+    "settings.conductorChatTitle": "Conductor messages",
+    "settings.conductorChatDescription": "Recent messages provided by the official Conductor only.",
+    "settings.conductorNoChat": "No Conductor messages are available.",
+    "settings.conductorReadOnlyNote":
+      "This page reads a bounded bridge snapshot only; it never starts, stops, intervenes in, or sends tasks to Conductor/Hive.",
 
     /* ── Settings Memory ── */
     "settings.memoryTitle": "Memory",

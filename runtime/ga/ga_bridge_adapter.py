@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 from collections import deque
 from contextvars import ContextVar
 import hashlib
@@ -20,9 +21,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from aiohttp import web
+from aiohttp import ClientSession, ClientTimeout, web
 
-ADAPTER_VERSION = "1.4.0"
+ADAPTER_VERSION = "1.5.0"
 API_VERSION = "v1"
 COMMAND_API_VERSION = "1"
 MAX_COMMAND_ARGUMENT_CHARS = 32_768
@@ -31,6 +32,12 @@ MAX_TOKEN_RECORDS = 1_000
 MAX_TOKEN_COUNT = 10**15
 MAX_TOKEN_MODEL_CHARS = 512
 MAX_TOKEN_TIMESTAMP = 10**12
+MAX_CONDUCTOR_ITEMS = 100
+MAX_CONDUCTOR_CHAT_ITEMS = 50
+MAX_CONDUCTOR_TEXT_CHARS = 2_000
+MAX_CONDUCTOR_RESPONSE_BYTES = 256 * 1024
+CONDUCTOR_TIMEOUT_SECONDS = 1.0
+CONDUCTOR_BASE_URL = "http://127.0.0.1:8900"
 AUTOMATION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 AUTOMATION_SCHEDULE = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 AUTOMATION_REPEAT = re.compile(r"^(?:daily|weekday|weekly|monthly|once|every_[1-9]\d*[mhd])$")
@@ -566,6 +573,129 @@ def token_usage_error(request: web.Request) -> web.Response:
     }, 503, request.headers.get("X-Request-Id", ""))
 
 
+_CONDUCTOR_SECRET_TEXT = re.compile(
+    r"(?i)(?:api[_ -]?key|access[_ -]?token|bearer|password|passwd|secret|credential)"
+    r"\s*[:=]\s*[^\s,;]+"
+)
+
+
+def safe_conductor_text(value: Any, *, limit: int = MAX_CONDUCTOR_TEXT_CHARS) -> str:
+    """Keep Conductor previews bounded and remove paths/obvious inline secrets."""
+    if not isinstance(value, str):
+        return ""
+    text = redact(value)
+    text = _CONDUCTOR_SECRET_TEXT.sub(lambda match: f"{match.group(0).split(':', 1)[0].split('=', 1)[0]}=[REDACTED]", text)
+    text = "".join(char for char in text if char in "\n\r\t" or ord(char) >= 32)
+    return text[:limit]
+
+
+def safe_conductor_id(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return value[:128]
+
+
+def safe_conductor_time(value: Any) -> int | float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    numeric = float(value)
+    if not math.isfinite(numeric) or not 0 <= numeric <= MAX_TOKEN_TIMESTAMP:
+        return None
+    return value
+
+
+def safe_conductor_subagent(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    item: dict[str, Any] = {
+        "id": safe_conductor_id(value.get("id")),
+        "status": value.get("status") if value.get("status") in {"running", "stopped"} else "unknown",
+        "prompt": safe_conductor_text(value.get("prompt")),
+        "reply": safe_conductor_text(value.get("reply")),
+    }
+    if not item["id"]:
+        return None
+    for source, target in (("created_at", "createdAt"), ("updated_at", "updatedAt")):
+        timestamp = safe_conductor_time(value.get(source))
+        if timestamp is not None:
+            item[target] = timestamp
+    return item
+
+
+def safe_conductor_chat(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    item = {
+        "id": safe_conductor_id(value.get("id")),
+        "role": value.get("role") if value.get("role") in {"conductor", "system", "user"} else "unknown",
+        "message": safe_conductor_text(value.get("msg")),
+    }
+    if not item["id"]:
+        return None
+    timestamp = safe_conductor_time(value.get("ts"))
+    if timestamp is not None:
+        item["timestamp"] = timestamp
+    return item
+
+
+def _conductor_items(document: Any, key: str, limit: int) -> list[Any]:
+    if not isinstance(document, dict) or not isinstance(document.get(key), list):
+        raise RuntimeError("Conductor response was invalid")
+    return document[key][:limit]
+
+
+async def _read_conductor_json(session: ClientSession, path: str) -> dict[str, Any]:
+    async with session.get(
+        f"{CONDUCTOR_BASE_URL}{path}",
+        allow_redirects=False,
+        headers={"Accept": "application/json"},
+    ) as response:
+        if response.status != 200:
+            raise RuntimeError("Conductor request failed")
+        body = await response.content.read(MAX_CONDUCTOR_RESPONSE_BYTES + 1)
+        if len(body) > MAX_CONDUCTOR_RESPONSE_BYTES:
+            raise RuntimeError("Conductor response was too large")
+        document = json.loads(body.decode(response.charset or "utf-8"))
+        if not isinstance(document, dict):
+            raise RuntimeError("Conductor response was invalid")
+        return document
+
+
+async def conductor_snapshot_handler(request: web.Request) -> web.Response:
+    try:
+        timeout = ClientTimeout(total=CONDUCTOR_TIMEOUT_SECONDS)
+        async with ClientSession(timeout=timeout) as session:
+            subagents_doc, chat_doc = await asyncio.gather(
+                _read_conductor_json(session, "/subagent"),
+                _read_conductor_json(session, "/chat?last=50"),
+            )
+        subagents = [
+            item for raw in _conductor_items(subagents_doc, "items", MAX_CONDUCTOR_ITEMS)
+            if (item := safe_conductor_subagent(raw)) is not None
+        ]
+        chat = [
+            item for raw in _conductor_items(chat_doc, "items", MAX_CONDUCTOR_CHAT_ITEMS)
+            if (item := safe_conductor_chat(raw)) is not None
+        ]
+        payload = {
+            "schema": "ga.conductor.v1",
+            "read_only": True,
+            "available": True,
+            "subagents": subagents,
+            "chat": chat,
+            "counts": {
+                "running": sum(item["status"] == "running" for item in subagents),
+                "stopped": sum(item["status"] == "stopped" for item in subagents),
+            },
+        }
+    except Exception:
+        return _json("error", {
+            "code": "conductor_unavailable",
+            "message": "GenericAgent Conductor is unavailable",
+        }, 503, request.headers.get("X-Request-Id", ""))
+    return _json("conductor.snapshot", payload, 200, request.headers.get("X-Request-Id", ""))
+
+
 PROJECT_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 _CURRENT_PROJECT_ID: ContextVar[str | None] = ContextVar("ga_current_project_id", default=None)
 
@@ -1055,6 +1185,7 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
     app.router.add_get("/api/v1/commands", commands_handler)
     app.router.add_post("/api/v1/commands/{command_id}/execute", execute_command_handler)
     app.router.add_get("/api/v1/hooks", hooks_handler)
+    app.router.add_get("/api/v1/conductor", conductor_snapshot_handler)
     app.router.add_get("/api/v1/automations", automations_handler)
     app.router.add_post("/api/v1/automations", create_automation_handler)
     app.router.add_patch("/api/v1/automations/{automation_id}", patch_automation_handler)

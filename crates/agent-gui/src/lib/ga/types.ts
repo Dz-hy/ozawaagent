@@ -188,6 +188,28 @@ export type GaServiceState = {
   lastError?: string;
 };
 export type GaServicePanel = { services: GaServiceState[] };
+export type GaConductorSubagent = {
+  id: string;
+  status: "running" | "stopped" | "unknown";
+  prompt: string;
+  reply: string;
+  createdAt?: number;
+  updatedAt?: number;
+};
+export type GaConductorChatItem = {
+  id: string;
+  role: "conductor" | "system" | "user" | "unknown";
+  message: string;
+  timestamp?: number;
+};
+export type GaConductorSnapshot = {
+  schema: "ga.conductor.v1";
+  read_only: true;
+  available: boolean;
+  subagents: GaConductorSubagent[];
+  chat: GaConductorChatItem[];
+  counts: { running: number; stopped: number };
+};
 export type GaSessionSnapshot = {
   sessionId: string;
   session: GaSessionDto;

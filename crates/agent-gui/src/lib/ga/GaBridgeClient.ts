@@ -7,6 +7,7 @@ import type {
   GaBridgeEvent,
   GaCommandDto,
   GaCommandResult,
+  GaConductorSnapshot,
   GaEnvelope,
   GaHooksSnapshot,
   GaKnowledgeCatalog,
@@ -259,6 +260,9 @@ export class GaBridgeClient {
     return result.service;
   }
 
+  getConductorSnapshot(): Promise<GaConductorSnapshot> {
+    return this.request("/api/v1/conductor");
+  }
   events(): GaWebSocketManager {
     this.wsManager ??= new GaWebSocketManager(() => this.ensureRuntime(true));
     return this.wsManager;

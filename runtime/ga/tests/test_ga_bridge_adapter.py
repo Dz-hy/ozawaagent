@@ -416,6 +416,7 @@ async def test_v1_envelope_version_capabilities_and_health(client):
     assert "automation_registry" in capabilities["capabilities"]
     assert "hooks_observability" in capabilities["capabilities"]
     assert "token_usage" in capabilities["capabilities"]
+    assert "conductor_snapshot" in capabilities["capabilities"]
     assert "ask_user.requested" in capabilities["events"]
     assert not any(event.startswith("command.") for event in capabilities["events"])
 
@@ -814,6 +815,69 @@ def test_project_manager_make_agent_enters_project_mode():
 
     agent = manager.make_agent(session)
     assert agent.project_calls == ["project-agent"]
+
+
+@pytest.mark.asyncio
+async def test_conductor_snapshot_is_read_only_bounded_and_redacted(monkeypatch, client):
+    async def fake_read(_session, path):
+        if path == "/subagent":
+            return {"items": [
+                {
+                    "id": "agent-1", "status": "running",
+                    "prompt": "inspect C:\\Users\\me\\repo api_key=inline-secret",
+                    "reply": "reply text", "created_at": 1720000000,
+                    "updated_at": 1720000001, "ignored": "must not escape",
+                },
+                {"id": "", "status": "running", "prompt": "drop"},
+            ]}
+        assert path == "/chat?last=50"
+        return {"items": [{
+            "id": "chat-1", "role": "user", "msg": "hello",
+            "ts": 1720000002, "secret": "drop",
+        }]}
+
+    monkeypatch.setattr(adapter, "_read_conductor_json", fake_read)
+    response = await client.get("/api/v1/conductor", headers=AUTH)
+    assert response.status == 200
+    payload = (await response.json())["payload"]
+    assert payload["schema"] == "ga.conductor.v1"
+    assert payload["read_only"] is True
+    assert payload["counts"] == {"running": 1, "stopped": 0}
+    assert payload["subagents"] == [{
+        "id": "agent-1", "status": "running",
+        "prompt": "inspect [REDACTED_PATH] api_key=[REDACTED]",
+        "reply": "reply text", "createdAt": 1720000000,
+        "updatedAt": 1720000001,
+    }]
+    assert payload["chat"] == [{
+        "id": "chat-1", "role": "user", "message": "hello",
+        "timestamp": 1720000002,
+    }]
+    encoded = json.dumps(payload)
+    assert "ignored" not in encoded
+    assert "inline-secret" not in encoded
+    assert "C:\\\\Users" not in encoded
+
+
+@pytest.mark.asyncio
+async def test_conductor_snapshot_failure_is_generic_503(monkeypatch, client):
+    async def fail(_session, _path):
+        raise RuntimeError("upstream secret C:\\private\\conductor.log")
+
+    monkeypatch.setattr(adapter, "_read_conductor_json", fail)
+    response = await client.get("/api/v1/conductor", headers=AUTH)
+    assert response.status == 503
+    body = await response.text()
+    assert "conductor_unavailable" in body
+    assert "conductor.log" not in body
+    assert "C:\\\\private" not in body
+
+
+@pytest.mark.asyncio
+async def test_conductor_route_has_no_mutation_endpoint(client):
+    routes = {(route.method, route.resource.canonical) for route in client.app.router.routes()}
+    assert ("GET", "/api/v1/conductor") in routes
+    assert not any(path.startswith("/api/v1/conductor/") for _, path in routes)
 
 
 @pytest.mark.asyncio

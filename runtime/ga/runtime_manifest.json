@@ -14,6 +14,7 @@
     "command_registry",
     "automation_registry",
     "hooks_observability",
+    "conductor_snapshot",
     "http_commands",
     "websocket_events"
   ],

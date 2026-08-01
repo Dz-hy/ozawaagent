@@ -301,6 +301,33 @@ test("sidebar treats WS as a hint and hydrates an authoritative session snapshot
 });
 
 
+test("client reads the Conductor snapshot through a read-only route", async () => {
+  const calls = [];
+  const fetcher = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    return response(200, {
+      payload: {
+        schema: "ga.conductor.v1",
+        read_only: true,
+        available: true,
+        subagents: [{ id: "agent-1", status: "running", prompt: "Inspect", reply: "Done" }],
+        chat: [{ id: "chat-1", role: "conductor", message: "Assigned" }],
+        counts: { running: 1, stopped: 0 },
+      },
+    });
+  };
+  const client = new GaBridgeClient(fetcher);
+  const snapshot = await client.getConductorSnapshot();
+  assert.equal(snapshot.read_only, true);
+  assert.equal(snapshot.subagents[0].id, "agent-1");
+  assert.equal(snapshot.chat[0].message, "Assigned");
+  assert.deepEqual(calls.map((call) => [new URL(call.url).pathname, call.options.method ?? "GET"]), [
+    ["/api/v1/conductor", "GET"],
+  ]);
+  assert.equal(calls[0].options.body, undefined);
+});
+
+
 test("client uses typed GenericAgent hooks and automation registry routes", async () => {
   const calls = [];
   const fetcher = async (url, options = {}) => {

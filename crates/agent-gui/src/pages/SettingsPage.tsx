@@ -11,6 +11,7 @@ import {
   Keyboard,
   Settings2,
   Wallet,
+  Waypoints,
   Wrench,
   Zap,
 } from "../components/icons";
@@ -20,6 +21,7 @@ import { useLocale } from "../i18n";
 import { AboutSection } from "./settings/AboutSection";
 import { AgentsSection } from "./settings/AgentsSection";
 import { GaAutomationSection } from "./settings/GaAutomationSection";
+import { GaConductorSection } from "./settings/GaConductorSection";
 import { GaHooksSection } from "./settings/GaHooksSection";
 import { GaMemorySection } from "./settings/GaMemorySection";
 import { GaModelProfilesSection } from "./settings/GaModelProfilesSection";
@@ -107,6 +109,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "memory", icon: <Brain className="h-3.5 w-3.5" /> },
       { id: "usage", icon: <Wallet className="h-3.5 w-3.5" /> },
+      { id: "conductor", icon: <Waypoints className="h-3.5 w-3.5" /> },
       { id: "systemTools", icon: <Wrench className="h-3.5 w-3.5" /> },
     ],
   },
@@ -155,6 +158,7 @@ export function SettingsPage(props: SettingsPageProps) {
     ssh: t("settings.navSsh"),
     memory: t("settings.navMemory"),
     usage: t("settings.navUsage"),
+    conductor: t("settings.navConductor"),
     hooks: t("settings.navHooks"),
     cron: t("settings.navCron"),
     remote: t("settings.navRemote"),
@@ -210,6 +214,8 @@ export function SettingsPage(props: SettingsPageProps) {
         return <GaMemorySection />;
       case "usage":
         return <GaUsageSection />;
+      case "conductor":
+        return <GaConductorSection />;
       case "about":
         return <AboutSection settings={settings} setSettings={setSettings} appUpdate={appUpdate} />;
       default: {
@@ -297,7 +303,8 @@ export function SettingsPage(props: SettingsPageProps) {
                 section === "hooks" ||
                 section === "providers" ||
                 section === "memory" ||
-                section === "usage"
+                section === "usage" ||
+                section === "conductor"
                   ? "flex min-h-0 flex-1 flex-col"
                   : "min-h-full"
               }`}
