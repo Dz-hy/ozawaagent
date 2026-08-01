@@ -31,7 +31,6 @@ pub use integration_commands::memory;
 
 pub use runtime_commands::process;
 pub use runtime_commands::sftp;
-pub use runtime_commands::shell;
 pub use runtime_commands::terminal;
 
 pub use workspace_commands::fs;

@@ -1,5 +1,4 @@
 use serde::Serialize;
-use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Component, Path, PathBuf};
@@ -24,43 +23,6 @@ const TERMINATION_GRACE_MS: u64 = 300;
 const STREAM_EOF_GRACE_MS: u64 = 300;
 
 pub(crate) type ShellCancelToken = Arc<AtomicBool>;
-
-#[derive(Default)]
-pub(crate) struct ShellRunRegistry {
-    runs: Mutex<HashMap<String, ShellCancelToken>>,
-}
-
-impl ShellRunRegistry {
-    pub(crate) fn register(&self, run_id: &str) -> ShellCancelToken {
-        let token = Arc::new(AtomicBool::new(false));
-        self.runs
-            .lock()
-            .expect("shell run registry poisoned")
-            .insert(run_id.to_string(), Arc::clone(&token));
-        token
-    }
-
-    pub(crate) fn cancel(&self, run_id: &str) -> bool {
-        let Some(token) = self
-            .runs
-            .lock()
-            .expect("shell run registry poisoned")
-            .get(run_id)
-            .cloned()
-        else {
-            return false;
-        };
-        token.store(true, Ordering::SeqCst);
-        true
-    }
-
-    pub(crate) fn unregister(&self, run_id: &str) {
-        self.runs
-            .lock()
-            .expect("shell run registry poisoned")
-            .remove(run_id);
-    }
-}
 
 #[derive(Debug, Serialize)]
 pub struct ShellRunResponse {
@@ -788,12 +750,14 @@ process output to a log file, for example: `nohup command > /tmp/liveagent-task.
 mod tests {
     use super::{
         default_platform_shell_profile, normalize_timeout_ms, run_shell_script,
-        sanitize_rel_path_core, ShellRunRegistry, DEFAULT_SHELL_TIMEOUT_MS, MAX_SHELL_TIMEOUT_MS,
+        sanitize_rel_path_core, DEFAULT_SHELL_TIMEOUT_MS, MAX_SHELL_TIMEOUT_MS,
         MIN_SHELL_TIMEOUT_MS,
     };
     use std::fs;
     use std::path::PathBuf;
+    #[cfg(unix)]
     use std::sync::Arc;
+    #[cfg(unix)]
     use std::time::{Duration, Instant};
 
     #[test]
@@ -893,22 +857,10 @@ mod tests {
         std::env::remove_var("CLAUDE_CODE_GIT_BASH_PATH");
     }
 
-    #[test]
-    fn shell_registry_cancel_marks_registered_run() {
-        let registry = ShellRunRegistry::default();
-        let token = registry.register("run-1");
-        assert!(!token.load(std::sync::atomic::Ordering::SeqCst));
-        assert!(registry.cancel("run-1"));
-        assert!(token.load(std::sync::atomic::Ordering::SeqCst));
-        registry.unregister("run-1");
-        assert!(!registry.cancel("run-1"));
-    }
-
     #[cfg(unix)]
     #[test]
     fn run_shell_script_can_be_cancelled_before_timeout() {
-        let registry = ShellRunRegistry::default();
-        let token = registry.register("cancel-test");
+        let token = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let temp_dir = std::env::temp_dir().join(format!(
             "liveagent-shell-cancel-test-{}",
             std::process::id()
@@ -931,13 +883,12 @@ mod tests {
         });
 
         std::thread::sleep(Duration::from_millis(150));
-        assert!(registry.cancel("cancel-test"));
+        token.store(true, std::sync::atomic::Ordering::SeqCst);
         let result = handle
             .join()
             .expect("shell cancel worker thread should not panic")
             .expect("shell run should return a cancelled response");
 
-        registry.unregister("cancel-test");
         let _ = fs::remove_dir_all(&temp_dir);
 
         assert!(result.cancelled);

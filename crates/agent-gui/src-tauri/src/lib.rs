@@ -143,8 +143,6 @@ macro_rules! app_invoke_handler {
             // GenericAgent runtime supervisor
             commands::runtime_commands::ga_runtime::ga_runtime_start,
             // Local command execution
-            commands::shell::shell_run,
-            commands::shell::shell_cancel,
             commands::process::managed_process_start,
             commands::process::managed_process_stop,
             commands::process::managed_process_read_log,
@@ -495,7 +493,6 @@ pub fn run() {
         .manage(Arc::new(commands::app::WindowPinState::default()))
         .manage(Arc::clone(&memory_store))
         .manage(Arc::clone(&power_activity))
-        .manage(Arc::new(runtime::shell_runner::ShellRunRegistry::default()))
         .manage(Arc::clone(&managed_process_registry))
         .manage(Arc::clone(&ga_runtime_supervisor))
         .manage(Arc::clone(&terminal_registry))
