@@ -138,11 +138,6 @@ pub struct ManagedProcessSnapshot {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ManagedProcessStartResponse {
-    pub process: ManagedProcessRecord,
-}
-
-#[derive(Debug, Serialize)]
 pub struct ManagedProcessStopResponse {
     pub stopped: bool,
     pub process: Option<ManagedProcessRecord>,
@@ -512,7 +507,7 @@ impl ManagedProcessRegistry {
         cwd: Option<String>,
         label: Option<String>,
         isolated: bool,
-    ) -> Result<ManagedProcessStartResponse, String> {
+    ) -> Result<ManagedProcessRecord, String> {
         let command = command.trim().to_string();
         if command.is_empty() {
             return Err("command cannot be empty".to_string());
@@ -559,7 +554,7 @@ impl ManagedProcessRegistry {
         });
         self.lock_processes()?.insert(id, entry);
         self.bump_and_notify();
-        Ok(ManagedProcessStartResponse { process: record })
+        Ok(record)
     }
 
     pub fn stop(&self, id: String) -> Result<ManagedProcessStopResponse, String> {
@@ -945,7 +940,7 @@ mod tests {
                 false,
             )
             .expect("process should start");
-        let process_id = started.process.id.clone();
+        let process_id = started.id.clone();
 
         let snapshot = registry.snapshot().expect("snapshot should work");
         let record = snapshot
@@ -994,7 +989,7 @@ mod tests {
                     false,
                 )
                 .expect("process should start");
-            let pid = started.process.pid;
+            let pid = started.pid;
             assert!(process_exists(pid));
             pid
         };
@@ -1019,12 +1014,10 @@ mod tests {
                 false,
             )
             .expect("process should start");
-        let pid = started.process.pid;
+        let pid = started.pid;
         assert!(process_group_exists(pid));
 
-        let stopped = registry
-            .stop(started.process.id.clone())
-            .expect("stop should work");
+        let stopped = registry.stop(started.id.clone()).expect("stop should work");
         assert!(stopped.stopped);
         assert!(
             wait_until(|| !process_group_exists(pid)),
@@ -1052,12 +1045,10 @@ mod tests {
                 false,
             )
             .expect("process should start");
-        let pid = started.process.pid;
+        let pid = started.pid;
         assert!(process_group_exists(pid));
 
-        let stopped = registry
-            .stop(started.process.id.clone())
-            .expect("stop should work");
+        let stopped = registry.stop(started.id.clone()).expect("stop should work");
         assert!(stopped.stopped);
         assert!(
             wait_until(|| !process_group_exists(pid)),
@@ -1084,7 +1075,7 @@ mod tests {
                 false,
             )
             .expect("process should start");
-        let pid = started.process.pid;
+        let pid = started.pid;
 
         assert!(wait_until(|| {
             registry.snapshot().is_ok_and(|snapshot| {
@@ -1130,11 +1121,11 @@ mod tests {
 
         registry.shutdown_cleanup();
 
-        assert!(wait_until(|| !process_exists(plain.process.pid)));
-        assert!(process_exists(isolated.process.pid));
+        assert!(wait_until(|| !process_exists(plain.pid)));
+        assert!(process_exists(isolated.pid));
 
         // Clean up the intentionally surviving isolated process.
-        signal_process_tree_by_pid(isolated.process.pid, true);
+        signal_process_tree_by_pid(isolated.pid, true);
         let _ = fs::remove_dir_all(&temp_dir);
     }
 
@@ -1168,11 +1159,7 @@ mod tests {
                     true,
                 )
                 .expect("isolated process should start");
-            let ids = (
-                plain.process.pid,
-                isolated.process.id.clone(),
-                isolated.process.pid,
-            );
+            let ids = (plain.pid, isolated.id.clone(), isolated.pid);
             std::mem::forget(registry);
             ids
         };
@@ -1240,18 +1227,18 @@ mod tests {
                 snapshot
                     .processes
                     .iter()
-                    .find(|record| record.id == finished.process.id)
+                    .find(|record| record.id == finished.id)
                     .is_some_and(|record| !record.running)
             })
         }));
 
-        assert!(registry.clear(Some(running.process.id.clone())).is_err());
+        assert!(registry.clear(Some(running.id.clone())).is_err());
 
         let snapshot = registry.clear(None).expect("clear should work");
         assert_eq!(snapshot.processes.len(), 1);
-        assert_eq!(snapshot.processes[0].id, running.process.id);
+        assert_eq!(snapshot.processes[0].id, running.id);
 
-        let _ = registry.stop(running.process.id);
+        let _ = registry.stop(running.id);
         let _ = fs::remove_dir_all(&temp_dir);
     }
 }

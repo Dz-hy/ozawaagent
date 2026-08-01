@@ -53,7 +53,7 @@
 | Memory | `memory_list/read/search/write/update/delete/accept/apply_batch/organize_* /index_overview/paths_info/recent_rejections/today_daily/wipe_all` |
 | Settings | `settings_load_all/save_providers/save_system/save_mcp/save_agents/save_hooks/save_cron/save_remote/save_memory` |
 | Hooks/Cron | `hook_run_script/run_http_requests`、`cron_validate_expression/list_logs/clear_logs/take_pending_prompt_runs/complete_prompt_run` |
-| Shell/process | `managed_process_start/stop/read_log/snapshot/clear` |
+| Shell/process | `managed_process_stop/read_log/snapshot/clear` |
 | System | folder/file picker、uploads、skill metadata/text/manage、debug jsonl、power activity、cron task manage |
 | Gateway | `gateway_status/nudge_connection/send_chat_event/publish_settings_sync`，以及 chat queue/runtime snapshot 与 tunnel/workspace watch 命令 |
 | Proxy | `proxy_get_server_info` |

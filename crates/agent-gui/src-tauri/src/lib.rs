@@ -143,7 +143,6 @@ macro_rules! app_invoke_handler {
             // GenericAgent runtime supervisor
             commands::runtime_commands::ga_runtime::ga_runtime_start,
             // Local command execution
-            commands::process::managed_process_start,
             commands::process::managed_process_stop,
             commands::process::managed_process_read_log,
             commands::process::managed_process_snapshot,

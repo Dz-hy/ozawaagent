@@ -4,20 +4,8 @@ use tauri::State;
 
 use crate::runtime::managed_process::{
     ManagedProcessLogResponse, ManagedProcessRegistry, ManagedProcessSnapshot,
-    ManagedProcessStartResponse, ManagedProcessStopResponse,
+    ManagedProcessStopResponse,
 };
-
-#[tauri::command(rename_all = "snake_case")]
-pub fn managed_process_start(
-    registry: State<'_, Arc<ManagedProcessRegistry>>,
-    workdir: String,
-    command: String,
-    cwd: Option<String>,
-    label: Option<String>,
-    isolated: Option<bool>,
-) -> Result<ManagedProcessStartResponse, String> {
-    registry.start(workdir, command, cwd, label, isolated.unwrap_or(false))
-}
 
 #[tauri::command(rename_all = "snake_case")]
 pub fn managed_process_stop(
