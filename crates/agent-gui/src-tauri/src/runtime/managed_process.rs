@@ -143,11 +143,6 @@ pub struct ManagedProcessStartResponse {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ManagedProcessStatusResponse {
-    pub processes: Vec<ManagedProcessRecord>,
-}
-
-#[derive(Debug, Serialize)]
 pub struct ManagedProcessStopResponse {
     pub stopped: bool,
     pub process: Option<ManagedProcessRecord>,
@@ -567,18 +562,6 @@ impl ManagedProcessRegistry {
         Ok(ManagedProcessStartResponse { process: record })
     }
 
-    pub fn status(&self, id: Option<String>) -> Result<ManagedProcessStatusResponse, String> {
-        let id = id
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty());
-        self.sync()?;
-        let mut records = self.collect_records()?;
-        if let Some(wanted) = id {
-            records.retain(|record| record.id == wanted);
-        }
-        Ok(ManagedProcessStatusResponse { processes: records })
-    }
-
     pub fn stop(&self, id: String) -> Result<ManagedProcessStopResponse, String> {
         let id = id.trim().to_string();
         if id.is_empty() {
@@ -964,12 +947,14 @@ mod tests {
             .expect("process should start");
         let process_id = started.process.id.clone();
 
-        let status = registry
-            .status(Some(process_id.clone()))
-            .expect("status should work");
-        assert_eq!(status.processes.len(), 1);
-        assert!(status.processes[0].running);
-        assert!(!status.processes[0].isolated);
+        let snapshot = registry.snapshot().expect("snapshot should work");
+        let record = snapshot
+            .processes
+            .iter()
+            .find(|record| record.id == process_id.as_str())
+            .expect("process should be present");
+        assert!(record.running);
+        assert!(!record.isolated);
 
         let log = wait_for_log_content(&registry, &process_id, "ready");
         assert!(log.content.contains("ready"));
@@ -980,11 +965,15 @@ mod tests {
         assert!(stopped.stopped);
         assert!(!stopped.process.expect("record should exist").running);
 
-        let status = registry
-            .status(Some(process_id))
-            .expect("status after stop should work");
-        assert_eq!(status.processes.len(), 1);
-        assert!(!status.processes[0].running);
+        let snapshot = registry
+            .snapshot()
+            .expect("snapshot after stop should work");
+        let record = snapshot
+            .processes
+            .iter()
+            .find(|record| record.id == process_id.as_str())
+            .expect("process should be present after stop");
+        assert!(!record.running);
 
         let _ = fs::remove_dir_all(&temp_dir);
     }
@@ -1098,8 +1087,13 @@ mod tests {
         let pid = started.process.pid;
 
         assert!(wait_until(|| {
-            let status = registry.status(None).expect("status should work");
-            !status.processes[0].running
+            registry.snapshot().is_ok_and(|snapshot| {
+                snapshot
+                    .processes
+                    .iter()
+                    .find(|record| record.pid == pid)
+                    .is_some_and(|record| !record.running)
+            })
         }));
         assert!(
             wait_until(|| !process_group_exists(pid)),
@@ -1242,9 +1236,13 @@ mod tests {
             .expect("long process should start");
 
         assert!(wait_until(|| {
-            registry
-                .status(Some(finished.process.id.clone()))
-                .is_ok_and(|status| !status.processes[0].running)
+            registry.snapshot().is_ok_and(|snapshot| {
+                snapshot
+                    .processes
+                    .iter()
+                    .find(|record| record.id == finished.process.id)
+                    .is_some_and(|record| !record.running)
+            })
         }));
 
         assert!(registry.clear(Some(running.process.id.clone())).is_err());

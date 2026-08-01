@@ -146,7 +146,6 @@ macro_rules! app_invoke_handler {
             commands::shell::shell_run,
             commands::shell::shell_cancel,
             commands::process::managed_process_start,
-            commands::process::managed_process_status,
             commands::process::managed_process_stop,
             commands::process::managed_process_read_log,
             commands::process::managed_process_snapshot,
