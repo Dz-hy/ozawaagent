@@ -50,7 +50,7 @@
 | Subagent store | `subagent_identity_upsert/list`、`subagent_run_save/list/load/prune`、`subagent_message_append/list` |
 | File system | `fs_read_editable_text/read_workspace_image/write_text/delete/open_workspace_path/create_dir/rename/roots/list/mention_list` |
 | Subagent worktree | `subagent_worktree_create/status/apply/cleanup` |
-| Memory | `memory_list/read/search/write/update/delete/accept/apply_batch/organize_* /index_overview/paths_info/recent_rejections/today_daily/wipe_all` |
+| Memory | —（旧 `memory_*` Tauri 命令已移除；操作经 Gateway `memory.manage` 归 GenericAgent runtime） |
 | Settings | `settings_load_all/save_providers/save_system/save_mcp/save_agents/save_hooks/save_cron/save_remote/save_memory` |
 | Hooks/Cron | `hook_run_script/run_http_requests`、`cron_validate_expression/list_logs/clear_logs/take_pending_prompt_runs/complete_prompt_run` |
 | Shell/process | `managed_process_stop/read_log/snapshot/clear` |
