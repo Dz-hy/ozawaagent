@@ -49,10 +49,6 @@ const webAutomationBackendSource = readFileSync(
   new URL("../../../agent-gateway/web/src/lib/automation/backend.ts", import.meta.url),
   "utf8",
 );
-const guiCronModalSource = readFileSync(
-  new URL("../../src/pages/settings/CronTaskModal.tsx", import.meta.url),
-  "utf8",
-);
 const webCronModalSource = readFileSync(
   new URL(
     "../../../agent-gateway/web/src/pages/settings/CronTaskModal.tsx",
@@ -157,8 +153,9 @@ test("Cron manual run remains locked until its non-skip run reaches a terminal s
   assert.equal(isManualCronRunFinished([skip, run("expired", "expired", marker + 2)], marker), true);
 });
 
-test("Cron workspace pin stays wired across GUI and WebUI", () => {
-  for (const source of [guiCronModalSource, webCronModalSource]) {
+test("Cron workspace pin stays wired in the active WebUI modal", () => {
+  const source = webCronModalSource;
+  {
     // Radix SelectItem rejects empty-string values, so "follow active" must
     // go through the sentinel and map back to "" on save; the custom-path
     // mode keeps arbitrary (tool-pinned) paths visible and editable.
