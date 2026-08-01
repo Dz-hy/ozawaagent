@@ -179,7 +179,6 @@ macro_rules! app_invoke_handler {
             commands::git::git_discover_repositories,
             commands::git::git_branches,
             commands::git::git_init,
-            commands::git::git_clone_repository,
             commands::git::git_clone_repository_start,
             commands::git::git_clone_repository_tasks,
             commands::git::git_clone_repository_cancel,

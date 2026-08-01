@@ -3186,20 +3186,6 @@ pub async fn git_init(
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn git_clone_repository(
-    parent: String,
-    name: String,
-    remote_url: String,
-    branch: Option<String>,
-) -> Result<GitOperationResponse, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        git_clone_repository_sync(parent, name, remote_url, branch)
-    })
-    .await
-    .map_err(|error| format!("git_clone_repository join 失败：{error}"))?
-}
-
-#[tauri::command(rename_all = "snake_case")]
 pub fn git_clone_repository_start(
     registry: tauri::State<'_, Arc<GitCloneTaskRegistry>>,
     parent: String,
