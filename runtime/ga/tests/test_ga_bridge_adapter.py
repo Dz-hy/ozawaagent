@@ -509,6 +509,25 @@ def test_pinned_official_bridge_contract_without_importing_user_runtime():
     assert required <= routes
 
 
+def test_load_module_from_path_registers_before_dataclass_execution(tmp_path):
+    module_name = "ga_test_dataclass_module"
+    module_path = tmp_path / "dataclass_module.py"
+    module_path.write_text(
+        "from dataclasses import dataclass\n"
+        "@dataclass\n"
+        "class Payload:\n"
+        "    value: int\n",
+        encoding="utf-8",
+    )
+    adapter.sys.modules.pop(module_name, None)
+    try:
+        module = adapter.load_module_from_path(module_name, module_path)
+        assert adapter.sys.modules[module_name] is module
+        assert module.Payload(7).value == 7
+    finally:
+        adapter.sys.modules.pop(module_name, None)
+
+
 @pytest.mark.asyncio
 async def test_adapter_exposes_model_profile_routes(model_client):
     client, _, _, _ = model_client

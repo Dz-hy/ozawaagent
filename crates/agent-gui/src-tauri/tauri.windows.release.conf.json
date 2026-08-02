@@ -17,7 +17,6 @@
     "resources": {
       "ga-runtime/": "ga-runtime/"
     },
-    "createUpdaterArtifacts": true,
     "targets": [
       "nsis",
       "msi"

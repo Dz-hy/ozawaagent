@@ -1,8 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
-import type { AppUpdateController } from "../lib/appUpdates";
 import { cn } from "../lib/shared/utils";
-import { AppUpdateButton } from "./AppUpdateButton";
 import { PanelLeft, PanelLeftClose, Settings } from "./icons";
 
 type TauriWindow = Window & { __TAURI_INTERNALS__?: unknown };
@@ -99,12 +97,10 @@ export function MacOsTitleBarToggle({
   sidebarOpen,
   onToggle,
   onOpenSettings,
-  appUpdate,
 }: {
   sidebarOpen: boolean;
   onToggle: () => void;
   onOpenSettings?: () => void;
-  appUpdate?: AppUpdateController;
 }) {
   const [show] = useState(isMacOsTauri);
   const trafficLightMetrics = useMacOsTrafficLightMetrics(show);
@@ -150,17 +146,9 @@ export function MacOsTitleBarToggle({
           <Settings className="h-4 w-4" />
         </button>
       )}
-      {!sidebarOpen && onOpenSettings && appUpdate ? (
-        <AppUpdateButton appUpdate={appUpdate} className="ml-1" />
-      ) : null}
     </div>
   );
 }
-
-/**
- * Horizontal spacer on the left of a header row — used in ChatHeader when sidebar is
- * closed on macOS to clear the traffic lights + fixed toggle button zone.
- */
 export function MacOsTitleBarLeadingInset({ className }: { className?: string }) {
   const [show] = useState(isMacOsTauri);
   if (!show) return null;

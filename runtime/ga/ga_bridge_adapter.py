@@ -243,15 +243,29 @@ def prepare_data_root(source_root: Path, data_root: Path, manifest: dict[str, An
     return data_root
 
 
+def load_module_from_path(module_name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load module: {path}")
+    module = importlib.util.module_from_spec(spec)
+    previous = sys.modules.get(module_name)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        if previous is None:
+            sys.modules.pop(module_name, None)
+        else:
+            sys.modules[module_name] = previous
+        raise
+    return module
+
+
 def load_official_module(root: Path, manifest: dict[str, Any]):
     path = root / manifest["official_bridge"]["path"]
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
-    spec = importlib.util.spec_from_file_location("liveagent_official_ga_bridge", path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("Unable to load official GenericAgent bridge")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    module = load_module_from_path("liveagent_official_ga_bridge", path)
     if not callable(getattr(module, "create_app", None)):
         raise RuntimeError("Official GenericAgent bridge has no create_app contract")
     return module
@@ -468,12 +482,8 @@ def atomic_write_automation(path: Path, automation: dict[str, Any]) -> None:
 def load_command_registry(root: Path) -> tuple[Any, list[dict[str, Any]]]:
     """Reflect GA-owned slash metadata without copying command logic into the adapter."""
     path = root / "frontends" / "slash_cmds.py"
-    spec = importlib.util.spec_from_file_location(
-        f"liveagent_ga_slash_cmds_{manifest_safe_version(root)}", path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("Unable to load GenericAgent command registry")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    module_name = f"liveagent_ga_slash_cmds_{manifest_safe_version(root)}"
+    module = load_module_from_path(module_name, path)
     entries = getattr(module, "PALETTE_ENTRIES", ())
     prompt_for = getattr(module, "prompt_for", None)
     if not callable(prompt_for) or not isinstance(entries, (list, tuple)):

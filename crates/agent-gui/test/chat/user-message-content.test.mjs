@@ -81,19 +81,19 @@ test("slash skill mentions tokenize at word boundaries but leave paths alone", (
 
 test("file mention markdown references round trip through transcript tokenization", () => {
   const token = mentionReferences.formatFileMentionToken({
-    path: "crates/agent-gui/src/components/AppUpdateButton.tsx",
+    path: "crates/agent-gui/src/pages/SettingsPage.tsx",
     kind: "file",
   });
 
   assert.equal(
     token,
-    "[AppUpdateButton.tsx](crates/agent-gui/src/components/AppUpdateButton.tsx)",
+    "[SettingsPage.tsx](crates/agent-gui/src/pages/SettingsPage.tsx)",
   );
   assert.deepEqual(compactSegments(userMessageContent.tokenizeUserMessage(`查看 ${token}`, [])), [
     { type: "text", value: "查看 " },
     {
       type: "mention",
-      path: "crates/agent-gui/src/components/AppUpdateButton.tsx",
+      path: "crates/agent-gui/src/pages/SettingsPage.tsx",
       kind: "file",
     },
   ]);

@@ -6,7 +6,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChatHistorySidebar } from "../../../components/chat/ChatHistorySidebar";
 import { useLocale } from "../../../i18n";
-import type { AppUpdateController } from "../../../lib/appUpdates";
 import { normalizeConversationTitle } from "../../../lib/chat/page/chatPageHelpers";
 import { gaBridgeClient } from "../../../lib/ga/GaBridgeClient";
 import type { GaProjectMemoryStatus } from "../../../lib/ga/types";
@@ -68,7 +67,6 @@ type ChatSidebarContainerProps = {
   onOpenSharedConversations: () => void;
   onCloseSidebar: () => void;
   onOpenSettings: () => void;
-  appUpdate?: AppUpdateController;
   onOpenKnowledgeHub: () => void;
 };
 
@@ -283,7 +281,6 @@ export function ChatSidebarContainer(props: ChatSidebarContainerProps) {
       onLoadMore={handleLoadMore}
       onCloseSidebar={props.onCloseSidebar}
       onOpenSettings={props.onOpenSettings}
-      appUpdate={props.appUpdate}
       onOpenKnowledgeHub={props.onOpenKnowledgeHub}
     />
   );

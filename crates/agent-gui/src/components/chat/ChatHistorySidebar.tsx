@@ -3,7 +3,6 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { type CSSProperties, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import iconSimpleUrl from "../../../src-tauri/icons/icon-simple.png";
 import { useLocale } from "../../i18n";
-import type { AppUpdateController } from "../../lib/appUpdates";
 import type { GaProjectMemoryStatus } from "../../lib/ga/types";
 import {
   DEFAULT_WORKSPACE_PROJECT_ID,
@@ -21,7 +20,6 @@ import type {
   SidebarListStatus,
   SidebarMutationKind,
 } from "../../lib/sidebar/types";
-import { AppUpdateButton } from "../AppUpdateButton";
 import {
   Archive,
   ArchiveRestore,
@@ -127,7 +125,6 @@ type ChatHistorySidebarProps = {
   onLoadMore: () => void;
   onCloseSidebar: () => void;
   onOpenSettings: () => void;
-  appUpdate?: AppUpdateController;
   onOpenKnowledgeHub?: () => void;
 };
 
@@ -1068,7 +1065,6 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
     onLoadMore,
     onCloseSidebar,
     onOpenSettings,
-    appUpdate,
     onOpenKnowledgeHub,
   } = props;
   const { t } = useLocale();
@@ -2139,7 +2135,7 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
           </div>
         </div>
         <div className="shrink-0 border-t border-border/50 bg-[hsl(var(--sidebar-bg))] px-2 py-1.5">
-          <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+          <div className="grid w-full">
             <Button
               type="button"
               variant="ghost"
@@ -2150,9 +2146,6 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
               <Settings className="h-4 w-4 shrink-0 text-foreground/75" />
               <span className="truncate">{t("tooltip.settings")}</span>
             </Button>
-            {appUpdate?.showUpdateButton ? (
-              <AppUpdateButton appUpdate={appUpdate} iconOnly />
-            ) : null}
           </div>
         </div>
       </div>

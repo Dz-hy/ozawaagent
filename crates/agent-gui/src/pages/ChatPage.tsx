@@ -32,7 +32,6 @@ import { expandedPathsForFileTreePath } from "../components/project-tools/rightD
 import { Button } from "../components/ui/button";
 import { useConfirmDialog } from "../components/ui/confirm-dialog";
 import { useLocale } from "../i18n";
-import type { AppUpdateController } from "../lib/appUpdates";
 import type { CompactionStatus } from "../lib/chat/compaction/types";
 import {
   buildRequestContext,
@@ -150,7 +149,6 @@ type ChatPageProps = {
   setContext: (next: Context) => void;
   onOpenSettings: (section?: SectionId) => void;
   onToggleTheme: () => void;
-  appUpdate?: AppUpdateController;
 };
 
 export function ChatPage(props: ChatPageProps) {
@@ -162,7 +160,6 @@ export function ChatPage(props: ChatPageProps) {
     setContext,
     onOpenSettings,
     onToggleTheme,
-    appUpdate,
   } = props;
   // Monaco reads NLS globals while the lazy editor module imports monaco-editor.
   setPreferredMonacoNlsLocale(settings.locale);
@@ -1565,7 +1562,6 @@ export function ChatPage(props: ChatPageProps) {
           sidebarOpen={sidebarOpen}
           onToggle={handleToggleSidebar}
           onOpenSettings={() => onOpenSettings()}
-          appUpdate={appUpdate}
         />
         {/* ---- Sidebar ---- */}
         <ChatSidebarContainer
@@ -1616,7 +1612,6 @@ export function ChatPage(props: ChatPageProps) {
           onOpenSharedConversations={handleOpenSharedHistoryManager}
           onCloseSidebar={handleCloseSidebar}
           onOpenSettings={() => onOpenSettings()}
-          appUpdate={appUpdate}
           onOpenKnowledgeHub={() => {
             cacheActiveComposerDraft();
             setRightDockOpen(false);

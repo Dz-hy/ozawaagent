@@ -7,7 +7,6 @@ import { Pin } from "./components/icons";
 import { useNativeInputContextMenu } from "./components/input-context-menu/NativeInputContextMenu";
 import { WindowsTitleBar } from "./components/WindowsTitleBar";
 import { LocaleContext, t as translate } from "./i18n";
-import { useAppUpdateController } from "./lib/appUpdates";
 import {
   type AppSettings,
   getDefaultSettings,
@@ -411,21 +410,6 @@ export default function App() {
     [settings.locale],
   );
 
-  const appUpdateMessages = useMemo(
-    () => ({
-      checkFailed: translate("settings.aboutUpdateCheckFailed", settings.locale),
-      installFailed: translate("settings.aboutUpdateInstallFailed", settings.locale),
-      restartFailed: translate("settings.aboutRestartFailed", settings.locale),
-    }),
-    [settings.locale],
-  );
-
-  const appUpdate = useAppUpdateController({
-    enabled: settingsReady,
-    includePrereleases: settings.updates.includePrereleases,
-    messages: appUpdateMessages,
-  });
-
   useEffect(() => {
     if (!settingsReady) {
       return;
@@ -487,7 +471,6 @@ export default function App() {
             setContext={setContext}
             onOpenSettings={openSettings}
             onToggleTheme={toggleTheme}
-            appUpdate={appUpdate}
           />
         </AppErrorBoundary>
         {visible && (
@@ -504,7 +487,6 @@ export default function App() {
                 saveState={settingsSaveState}
                 onBack={closeSettings}
                 initialSection={settingsSection}
-                appUpdate={appUpdate}
               />
             </AppErrorBoundary>
           </div>

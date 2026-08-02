@@ -90,9 +90,6 @@ macro_rules! app_invoke_handler {
             commands::settings::settings_reset_ssh_known_host,
             commands::settings::settings_save_remote,
             commands::settings::settings_save_memory,
-            commands::update::app_update_check,
-            commands::update::app_update_install,
-            commands::update::app_restart,
             commands::app::app_runtime_platform,
             commands::app::app_set_close_window_behavior,
             commands::app::app_set_global_shortcuts,
@@ -448,7 +445,6 @@ pub fn run() {
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_mcp_bridge::init())
         .plugin(
             tauri_plugin_window_state::Builder::new()

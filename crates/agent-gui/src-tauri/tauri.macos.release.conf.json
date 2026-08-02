@@ -4,7 +4,6 @@
     "resources": {
       "ga-runtime/": "ga-runtime/"
     },
-    "createUpdaterArtifacts": true,
     "targets": [
       "app",
       "dmg"

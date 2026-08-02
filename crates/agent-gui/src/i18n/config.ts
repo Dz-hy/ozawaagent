@@ -39,9 +39,6 @@ export const translations: Record<Locale, Record<string, string>> = {
     "tooltip.switchToAuto": "切换到自动模式",
     "tooltip.closeSidebar": "关闭边栏",
     "tooltip.openSidebar": "打开边栏",
-    "appUpdate.update": "更新",
-    "appUpdate.updateTo": "更新到 v{version}",
-    "appUpdate.failedRetry": "更新失败：{message}。点击重试。",
 
     /* ── Chat Page ── */
     "chat.newConversation": "新对话",
@@ -1161,48 +1158,17 @@ export const translations: Record<Locale, Record<string, string>> = {
 
     /* ── Settings About ── */
     "settings.aboutTitle": "关于 LiveAgent",
-    "settings.aboutDescription": "查看当前版本、发布说明和桌面端更新状态。",
+    "settings.aboutDescription": "查看当前版本、数据归档和桌面运行说明。",
     "settings.aboutCurrentVersion": "当前版本",
-    "settings.aboutOpenRelease": "发布页",
     "settings.aboutOpenArchive": "打开数据归档",
     "settings.aboutArchiveUnavailable": "当前没有可打开的归档，或归档目录暂时不可用。",
-    "settings.aboutCheckUpdate": "检查更新",
-    "settings.aboutInstallUpdate": "安装更新",
-    "settings.aboutRestartApp": "重启应用",
-    "settings.aboutChecking": "正在检查更新",
-    "settings.aboutCheckingDesc": "正在读取 GitHub Release 清单，并按当前通道筛选可用版本。",
-    "settings.aboutInstalling": "正在安装更新",
-    "settings.aboutInstallingDesc": "正在下载并校验更新包。",
-    "settings.aboutInstalled": "更新已安装",
-    "settings.aboutInstalledDesc": "更新包已安装，点击重启应用后生效。",
-    "settings.aboutRestarting": "正在重启应用",
-    "settings.aboutRestartingDesc": "LiveAgent 正在退出并重新打开。",
-    "settings.aboutUpdateAvailable": "发现新版本",
-    "settings.aboutUpdateAvailableDesc": "该版本已通过 updater 签名清单校验，可以安装。",
-    "settings.aboutUpToDate": "已是最新版本",
-    "settings.aboutUpToDateDesc": "当前通道没有比本机更新的 Release。",
-    "settings.aboutManualUpdate": "发现新版本（需手动更新）",
-    "settings.aboutManualUpdateDesc":
-      "更新清单中没有匹配当前安装方式的自动更新包，请打开 Release 页面下载新版本手动安装。",
-    "settings.aboutUpdaterNotConfigured": "更新未配置",
-    "settings.aboutUpdaterNotConfiguredDesc":
-      "Release 构建需要注入 updater 公钥后才能检查和安装更新。",
-    "settings.aboutUpdateError": "更新检查失败",
-    "settings.aboutUpdateCheckFailed": "检查更新失败。",
-    "settings.aboutUpdateInstallFailed": "安装更新失败。",
-    "settings.aboutRestartFailed": "重启应用失败。",
-    "settings.aboutLatestVersion": "最新版本",
-    "settings.aboutReleaseDate": "发布时间",
-    "settings.aboutChannelStable": "正式版本",
-    "settings.aboutChannelPrerelease": "预发布",
-    "settings.aboutPrereleaseTitle": "接收预发布版本",
-    "settings.aboutPrereleaseToggle": "接收预发布版本",
-    "settings.aboutPrereleaseDesc":
-      "关闭后只会检查正式 Release；开启后会把 beta、rc 等预发布版本纳入候选。",
-    "settings.aboutNotesTitle": "说明",
+    "settings.aboutCurrentBuild": "当前构建",
+    "settings.aboutNotesTitle": "本地运行说明",
     "settings.aboutNotesBody":
-      "自动更新只使用 GitHub Release 中的 Tauri updater 清单，版本号高于当前应用时才会提示安装。",
-    "settings.aboutSecurityBody": "更新包会通过签名校验；未通过校验的包不会安装。",
+      "本版本不检查远程更新；需要更换版本时，请通过项目提供的安装包手动安装。",
+    "settings.aboutSecurityTitle": "运行隔离",
+    "settings.aboutSecurityBody":
+      "桌面端将可写数据与内置运行时分离；打开数据归档只访问本地目录。",
 
     /* ── Settings System ── */
     "settings.appearance": "外观主题",
@@ -1210,7 +1176,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     "settings.systemProxy": "应用代理",
     "settings.systemProxyEnable": "启用应用代理",
     "settings.systemProxyDesc":
-      "生效范围：本地命令环境变量（Bash / 后台任务 / 自动化脚本）、勾选“使用应用代理”的供应商请求、Hook / Cron HTTP 任务、聊天图片加载、更新检查与技能下载。",
+      "生效范围：本地命令环境变量（Bash / 后台任务 / 自动化脚本）、勾选“使用应用代理”的供应商请求、Hook / Cron HTTP 任务、聊天图片加载与技能下载。",
     "settings.systemProxyInvalid":
       "代理已启用，请填写有效的代理地址和端口；配置有效前相关请求将直接报错。",
     "settings.systemProxyEnableHint": "请先填写有效的代理地址和端口后再启用代理。",
@@ -2150,9 +2116,6 @@ export const translations: Record<Locale, Record<string, string>> = {
     "tooltip.switchToAuto": "Switch to Auto Mode",
     "tooltip.closeSidebar": "Close Sidebar",
     "tooltip.openSidebar": "Open Sidebar",
-    "appUpdate.update": "Update",
-    "appUpdate.updateTo": "Update to v{version}",
-    "appUpdate.failedRetry": "Update failed: {message}. Click to retry.",
 
     /* ── Chat Page ── */
     "chat.newConversation": "New Conversation",
@@ -3324,53 +3287,18 @@ export const translations: Record<Locale, Record<string, string>> = {
     /* ── Settings About ── */
     "settings.aboutTitle": "About LiveAgent",
     "settings.aboutDescription":
-      "View the current version, release notes, and desktop update status.",
+      "View the current version, data archive, and desktop runtime notes.",
     "settings.aboutCurrentVersion": "Current Version",
-    "settings.aboutOpenRelease": "Release",
     "settings.aboutOpenArchive": "Open data archive",
     "settings.aboutArchiveUnavailable":
       "No completed archive is available, or the archive directory is temporarily unavailable.",
-    "settings.aboutCheckUpdate": "Check",
-    "settings.aboutInstallUpdate": "Install Update",
-    "settings.aboutRestartApp": "Restart App",
-    "settings.aboutChecking": "Checking for updates",
-    "settings.aboutCheckingDesc":
-      "Reading the GitHub Release manifest and filtering by the selected channel.",
-    "settings.aboutInstalling": "Installing update",
-    "settings.aboutInstallingDesc": "Downloading and verifying the update package.",
-    "settings.aboutInstalled": "Update installed",
-    "settings.aboutInstalledDesc":
-      "The update package has been installed. Restart LiveAgent to use it.",
-    "settings.aboutRestarting": "Restarting app",
-    "settings.aboutRestartingDesc": "LiveAgent is quitting and opening again.",
-    "settings.aboutUpdateAvailable": "New version available",
-    "settings.aboutUpdateAvailableDesc":
-      "This version passed updater manifest validation and can be installed.",
-    "settings.aboutUpToDate": "Up to date",
-    "settings.aboutUpToDateDesc": "No newer Release is available in the current channel.",
-    "settings.aboutManualUpdate": "New version available (manual update)",
-    "settings.aboutManualUpdateDesc":
-      "The update manifest has no auto-update package matching this installation. Open the Release page to download and install the new version manually.",
-    "settings.aboutUpdaterNotConfigured": "Updater not configured",
-    "settings.aboutUpdaterNotConfiguredDesc":
-      "Release builds must embed the updater public key before updates can be checked and installed.",
-    "settings.aboutUpdateError": "Update check failed",
-    "settings.aboutUpdateCheckFailed": "Failed to check for updates.",
-    "settings.aboutUpdateInstallFailed": "Failed to install update.",
-    "settings.aboutRestartFailed": "Failed to restart app.",
-    "settings.aboutLatestVersion": "Latest Version",
-    "settings.aboutReleaseDate": "Published",
-    "settings.aboutChannelStable": "Stable",
-    "settings.aboutChannelPrerelease": "Pre-release",
-    "settings.aboutPrereleaseTitle": "Receive Pre-releases",
-    "settings.aboutPrereleaseToggle": "Receive pre-release versions",
-    "settings.aboutPrereleaseDesc":
-      "When disabled, only stable Releases are checked. When enabled, beta, rc, and other pre-releases are eligible.",
-    "settings.aboutNotesTitle": "Notes",
+    "settings.aboutCurrentBuild": "Current build",
+    "settings.aboutNotesTitle": "Local runtime notes",
     "settings.aboutNotesBody":
-      "Automatic updates use the Tauri updater manifest attached to GitHub Releases and only prompt when the release version is newer than this app.",
+      "This build does not check for remote updates. To change versions, install the package provided by the project manually.",
+    "settings.aboutSecurityTitle": "Runtime isolation",
     "settings.aboutSecurityBody":
-      "Update packages are verified with signatures. Packages that fail verification are not installed.",
+      "Writable data is kept separate from the bundled runtime; opening the data archive only accesses a local directory.",
 
     /* ── Settings System ── */
     "settings.appearance": "Appearance",
@@ -3379,7 +3307,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     "settings.systemProxy": "App Proxy",
     "settings.systemProxyEnable": "Enable app proxy",
     "settings.systemProxyDesc":
-      "Applies to: local command environment (Bash / background tasks / automation scripts), providers with “Use app proxy” checked, Hook / Cron HTTP tasks, chat image loading, update checks and skill downloads.",
+      "Applies to: local command environment (Bash / background tasks / automation scripts), providers with “Use app proxy” checked, Hook / Cron HTTP tasks, chat image loading, and skill downloads.",
     "settings.systemProxyInvalid":
       "The proxy is enabled. Enter a valid host and port; affected requests fail until the configuration is valid.",
     "settings.systemProxyEnableHint":
