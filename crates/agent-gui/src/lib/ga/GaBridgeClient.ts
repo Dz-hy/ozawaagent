@@ -43,7 +43,7 @@ export class GaBridgeClient {
   private starting: Promise<GaRuntimeStartResponse> | null = null;
   private wsManager: GaWebSocketManager | null = null;
 
-  constructor(private readonly fetcher: FetchLike = fetch) {}
+  constructor(private readonly fetcher: FetchLike = globalThis.fetch.bind(globalThis)) {}
 
   async ensureRuntime(forceRefresh = false): Promise<GaRuntimeStartResponse> {
     if (forceRefresh) {

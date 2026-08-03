@@ -76,6 +76,22 @@ test("client unwraps v1 envelopes and sends authenticated session CRUD", async (
   assert.equal(calls[5].options.method, "DELETE");
 });
 
+test("default fetcher binds Window.fetch to globalThis", async () => {
+  const previousFetch = globalThis.fetch;
+  let receiver;
+  try {
+    globalThis.fetch = function (url, options) {
+      receiver = this;
+      return Promise.resolve(response(200, { payload: { sessions: [] } }));
+    };
+    const client = new GaBridgeClient();
+    await client.listSessions();
+    assert.equal(receiver, globalThis);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test("client reads project memory metadata without requesting content", async () => {
   const calls = [];
   const fetcher = async (url, options = {}) => {
