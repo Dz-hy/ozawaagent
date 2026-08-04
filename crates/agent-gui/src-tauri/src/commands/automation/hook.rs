@@ -320,11 +320,7 @@ mod tests {
     fn run_hook_script_sync_executes_and_injects_context() {
         let registry = HookScopeRegistry::default();
         let dir = temp_workdir();
-        let script = if cfg!(windows) {
-            "Write-Output \"event=$env:LIVEAGENT_HOOK_EVENT\""
-        } else {
-            "printf \"event=$LIVEAGENT_HOOK_EVENT\""
-        };
+        let script = "echo event=$LIVEAGENT_HOOK_EVENT";
         let result = run_hook_script_sync(
             &registry,
             Some(dir.path().display().to_string()),
@@ -342,11 +338,7 @@ mod tests {
     fn run_hook_script_sync_rejects_failed_script() {
         let registry = HookScopeRegistry::default();
         let dir = temp_workdir();
-        let script = if cfg!(windows) {
-            "Write-Output hook-out; Write-Error hook-err; exit 7"
-        } else {
-            "printf hook-out; printf hook-err >&2; exit 7"
-        };
+        let script = "echo hook-out; echo hook-err 1>&2; exit 7";
         let error = run_hook_script_sync(
             &registry,
             Some(dir.path().display().to_string()),

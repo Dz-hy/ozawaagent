@@ -9,6 +9,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tauri::Emitter;
 
+use crate::runtime::platform::strip_windows_verbatim_prefix;
 use crate::runtime::process::{configure_child_process_group, terminate_child_process_tree};
 
 pub const GA_RUNTIME_STATUS_EVENT: &str = "ga-runtime:status";
@@ -149,24 +150,30 @@ impl GaRuntimeSupervisor {
                     .to_string()
             })?;
         let root = fs::canonicalize(&root)
+            .map(strip_windows_verbatim_prefix)
             .map_err(|e| format!("GenericAgent path is not accessible: {e}"))?;
         let manifest = root.join("runtime_manifest.json");
-        let adapter = root.join("ga_bridge_adapter.py");
-        let (manifest, adapter) = if manifest.is_file() && adapter.is_file() {
-            (manifest, adapter)
+        let manifest = if manifest.is_file() {
+            manifest
         } else {
-            let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../runtime/ga");
-            (
-                repo.join("runtime_manifest.json"),
-                repo.join("ga_bridge_adapter.py"),
-            )
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../runtime/ga/runtime_manifest.json")
         };
+        let adapter = resolve_application_adapter(if is_bundled {
+            Some(root.as_path())
+        } else {
+            bundled_root
+        })?;
         let python = find_python(&root)?;
         validate_manifest(&root, &manifest)?;
         let data_root = if is_bundled {
             let path = bundled_data_root
                 .ok_or_else(|| "Bundled GenericAgent data directory is unavailable".to_string())?;
-            Some(fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()))
+            Some(
+                fs::canonicalize(path)
+                    .map(strip_windows_verbatim_prefix)
+                    .unwrap_or_else(|_| strip_windows_verbatim_prefix(path.to_path_buf())),
+            )
         } else {
             None
         };
@@ -476,7 +483,7 @@ fn spawn_runtime_child(
         .arg(port.to_string())
         .args(&launch.extra_args)
         .env("GA_BRIDGE_TOKEN", token)
-        .env("GA_BRIDGE_ALLOWED_ORIGINS", origin)
+        .env("GA_BRIDGE_ALLOWED_ORIGINS", bridge_allowed_origins(origin))
         .stdin(Stdio::null())
         .stdout(Stdio::from(log.try_clone().map_err(|e| e.to_string())?))
         .stderr(Stdio::from(log));
@@ -484,6 +491,37 @@ fn spawn_runtime_child(
     command
         .spawn()
         .map_err(|e| actionable_spawn_error(&launch.python, e))
+}
+
+fn resolve_application_adapter(resource_root: Option<&Path>) -> Result<PathBuf, String> {
+    #[cfg(debug_assertions)]
+    {
+        let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../runtime/ga/ga_bridge_adapter.py");
+        if source.is_file() {
+            return fs::canonicalize(&source)
+                .map(strip_windows_verbatim_prefix)
+                .or(Ok(source));
+        }
+    }
+
+    if let Some(root) = resource_root {
+        let bundled = root.join("ga_bridge_adapter.py");
+        if bundled.is_file() {
+            return fs::canonicalize(&bundled)
+                .map(strip_windows_verbatim_prefix)
+                .or(Ok(bundled));
+        }
+    }
+
+    Err("LiveAgent GA bridge adapter was not found in the application runtime".into())
+}
+
+fn bridge_allowed_origins(origin: &str) -> String {
+    let mut origins = vec![origin.to_owned()];
+    #[cfg(debug_assertions)]
+    origins.extend(["http://127.0.0.1:1420", "http://localhost:1420"].map(str::to_owned));
+    origins.join(",")
 }
 
 fn reserve_loopback_port() -> Result<u16, String> {
@@ -587,6 +625,32 @@ mod tests {
     fn dynamic_ports_are_loopback_and_nonzero() {
         assert_ne!(reserve_loopback_port().unwrap(), 0);
     }
+    #[test]
+    fn bridge_allowed_origins_preserves_runtime_origin_and_scopes_dev_origins() {
+        let value = bridge_allowed_origins("http://tauri.localhost");
+        let origins = value.split(',').collect::<Vec<_>>();
+        assert_eq!(origins.first(), Some(&"http://tauri.localhost"));
+        #[cfg(debug_assertions)]
+        {
+            assert!(origins.contains(&"http://127.0.0.1:1420"));
+            assert!(origins.contains(&"http://localhost:1420"));
+        }
+        #[cfg(not(debug_assertions))]
+        assert_eq!(origins, ["http://tauri.localhost"]);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn debug_adapter_is_not_taken_from_external_runtime_root() {
+        let external = tempfile::tempdir().unwrap();
+        let stale = external.path().join("ga_bridge_adapter.py");
+        fs::write(&stale, b"# stale external adapter").unwrap();
+
+        let selected = resolve_application_adapter(Some(external.path())).unwrap();
+        assert_ne!(selected, fs::canonicalize(stale).unwrap());
+        assert!(selected.ends_with("runtime/ga/ga_bridge_adapter.py"));
+    }
+
     #[test]
     fn incompatible_manifest_is_actionable() {
         let dir = tempfile::tempdir().unwrap();
