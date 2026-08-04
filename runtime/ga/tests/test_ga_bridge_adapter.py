@@ -129,6 +129,160 @@ def fake_model_manager():
     return Manager(), secret
 
 
+def private_model_manager(tmp_path):
+    class Manager:
+        def __init__(self):
+            self.path = tmp_path / "mykey.py"
+            self.config = {"llmNo": 0}
+            initial = {
+                "name": "Private Primary", "model": "private-model",
+                "apibase": "https://private.example/v1", "apikey": "private-initial-key",
+                "max_retries": 5, "connect_timeout": 15, "read_timeout": 300,
+                "stream": True, "trim_keep_prefix": 3, "context_win": 32768,
+                "proxy": "http://initial-user:initial-pass@proxy.example:8080",
+            }
+            self.path.write_text(f"native_oai_config = {initial!r}\n", encoding="utf-8")
+            self.public_calls = []
+
+        def _configs(self):
+            configs = []
+            for line in self.path.read_text(encoding="utf-8").splitlines():
+                if "=" not in line:
+                    continue
+                var_name, _, raw = line.partition("=")
+                var_name = var_name.strip()
+                if not var_name.isidentifier():
+                    continue
+                try:
+                    config = ast.literal_eval(raw.strip())
+                except (SyntaxError, ValueError):
+                    continue
+                if isinstance(config, dict):
+                    configs.append((var_name, config))
+            return configs
+
+        def list_model_profiles(self):
+            profiles = []
+            for profile_id, (var_name, config) in enumerate(self._configs()):
+                profile = dict(config)
+                profile.update({
+                    "id": profile_id, "varName": var_name, "kind": "native",
+                    "group": "native", "inMixin": False,
+                    "active": profile_id == self.config.get("llmNo", 0),
+                })
+                profiles.append(profile)
+            return profiles
+
+        def get_model_profile(self, profile_id):
+            profiles = self.list_model_profiles()
+            if profile_id < 0 or profile_id >= len(profiles):
+                raise ValueError("profile not found")
+            return dict(profiles[profile_id])
+
+        def _profile_at(self, profile_id):
+            profiles = self._configs()
+            if profile_id < 0 or profile_id >= len(profiles):
+                raise ValueError("profile not found")
+            var_name, config = profiles[profile_id]
+            return var_name, dict(config)
+
+        def _build_cfg(self, data, existing=None, *, require_key=True):
+            config = dict(existing or {})
+            apikey = str(data.get("apikey") or "").strip() or str(config.get("apikey") or "").strip()
+            if require_key and not apikey:
+                raise ValueError("apikey is required")
+            config.update({"apikey": apikey, "model": str(data.get("model") or "").strip(),
+                           "apibase": str(data.get("apibase") or "").strip()})
+            if "name" in data:
+                if data["name"]:
+                    config["name"] = str(data["name"]).strip()
+                else:
+                    config.pop("name", None)
+            for key in ("max_retries", "connect_timeout", "read_timeout"):
+                if key in data:
+                    config[key] = int(data[key])
+            if "stream" in data:
+                if data["stream"]:
+                    config.pop("stream", None)
+                else:
+                    config["stream"] = False
+            return config
+
+        def _mykey_file(self):
+            return self.path
+
+        def _next_native_var(self, text, protocol):
+            names = {name for name, _ in self._configs()}
+            base = f"native_{protocol or 'oai'}_config"
+            if base not in names:
+                return base
+            index = 2
+            while f"{base}{index}" in names:
+                index += 1
+            return f"{base}{index}"
+
+        @staticmethod
+        def _format_py_dict(config):
+            return repr(config)
+
+        def _patch_var_block(self, text, var_name, config=None):
+            lines = []
+            found = False
+            for line in text.splitlines():
+                left, separator, _ = line.partition("=")
+                if separator and left.strip() == var_name:
+                    found = True
+                    if config is not None:
+                        lines.append(f"{var_name} = {self._format_py_dict(config)}")
+                    continue
+                lines.append(line)
+            if not found:
+                raise ValueError(f"config block not found: {var_name}")
+            return "\n".join(lines).rstrip() + "\n"
+
+        def _save_mykey_text(self, text):
+            self.path.write_text(text, encoding="utf-8")
+            return self.list_model_profiles()
+
+        def delete_model_profile(self, profile_id):
+            profiles = self.list_model_profiles()
+            if len(profiles) <= 1:
+                raise ValueError("cannot delete the last profile")
+            var_name, _ = self._profile_at(profile_id)
+            text = self.path.read_text(encoding="utf-8")
+            self._save_mykey_text(self._patch_var_block(text, var_name))
+            return {"profileId": profile_id, "profiles": self.list_model_profiles()}
+
+        def add_model_profile(self, value):
+            self.public_calls.append("add")
+            raise AssertionError("public add fallback used")
+
+        def update_model_profile(self, profile_id, value):
+            self.public_calls.append("update")
+            raise AssertionError("public update fallback used")
+
+    return Manager()
+
+
+@pytest_asyncio.fixture
+async def private_model_client(tmp_path):
+    manager = private_model_manager(tmp_path)
+    official = fake_official_module()
+    official.manager = manager
+    settings_document = {"ui": {"theme": "dark"}}
+    official._settings_doc = lambda: {"ui": dict(settings_document["ui"])}
+
+    def write_settings(value):
+        settings_document.clear()
+        settings_document.update(value)
+
+    official._write_settings_doc = write_settings
+    app = adapter.create_app(official_module=official, token=TOKEN,
+                             allowed_origins=(ORIGIN,), manifest=adapter.load_manifest())
+    async with TestClient(TestServer(app)) as test_client:
+        yield test_client, manager
+
+
 @pytest_asyncio.fixture
 async def model_client():
     manager, secret = fake_model_manager()
@@ -185,8 +339,8 @@ async def test_model_profiles_crud_never_returns_api_keys(model_client):
     listed = await client.get("/api/v1/model-profiles", headers=AUTH)
     assert listed.status == 200
     first_profile = (await listed.json())["payload"]["profiles"][0]
-    assert first_profile["protocol"] == "unknown"
-    assert first_profile["protocol_source"] == "unknown"
+    assert first_profile["protocol"] == "oai"
+    assert first_profile["protocol_source"] == "var_name_heuristic"
 
     detail = await client.get("/api/v1/model-profiles/0", headers=AUTH)
     assert detail.status == 200
@@ -196,10 +350,23 @@ async def test_model_profiles_crud_never_returns_api_keys(model_client):
         "protocol": "claude", "name": "Claude", "model": "claude-test",
         "apibase": "https://claude.example", "api_key": "new-secret-key",
         "max_retries": 3, "connect_timeout": 20, "read_timeout": 600, "stream": False,
+        "api_mode": "responses", "reasoning_effort": "high", "service_tier": "priority",
+        "thinking_type": "adaptive", "thinking_budget_tokens": 32768, "temperature": 0.3,
+        "max_tokens": 16384, "context_win": 128000, "trim_keep_prefix": 4,
+        "proxy": "http://user:proxy-secret@example:8080", "user_agent": "codex_cli/0.139.0",
+        "originator": "codex_cli", "codex_client": True, "codex_client_metadata": False,
+        "fake_cc_system_prompt": True, "verify": False, "omit_thinking": True,
     })
     assert created.status == 201
     assert manager.calls[-1][1]["apikey"] == "new-secret-key"
+    assert manager.calls[-1][1]["trim_keep_prefix"] == 4
+    assert manager.calls[-1][1]["api_mode"] == "responses"
+    assert manager.calls[-1][1]["proxy"] == "http://user:proxy-secret@example:8080"
     assert (await created.json())["payload"]["profile"]["protocol"] == "claude"
+    created_profile = (await created.json())["payload"]["profile"]
+    assert created_profile["trim_keep_prefix"] == 4
+    assert created_profile["api_mode"] == "responses"
+    assert created_profile["proxy_configured"] is True
 
     patched = await client.patch("/api/v1/model-profiles/1", headers=AUTH, json={
         "name": "Claude Renamed", "api_key": "",
@@ -225,6 +392,64 @@ async def test_model_profiles_crud_never_returns_api_keys(model_client):
 
 
 @pytest.mark.asyncio
+async def test_private_model_profile_io_preserves_advanced_fields_and_redacts(private_model_client):
+    client, manager = private_model_client
+    created = await client.post("/api/v1/model-profiles", headers=AUTH, json={
+        "protocol": "claude", "name": "Private Claude", "model": "private-claude",
+        "apibase": "https://private-claude.example/v1", "api_key": "private-created-key",
+        "max_retries": 3, "connect_timeout": 22, "read_timeout": 900, "stream": False,
+        "api_mode": "responses", "reasoning_effort": "high", "service_tier": "priority",
+        "thinking_type": "adaptive", "thinking_budget_tokens": 16384,
+        "temperature": 0.4, "max_tokens": 8192, "context_win": 65536,
+        "trim_keep_prefix": 7, "proxy": "http://created-user:created-pass@proxy.example:8080",
+        "user_agent": "codex_cli/0.139.0", "originator": "codex_cli",
+        "codex_client": True, "codex_client_metadata": False,
+        "fake_cc_system_prompt": True, "verify": False, "omit_thinking": True,
+    })
+    assert created.status == 201
+    created_body = await created.json()
+    created_profile = created_body["payload"]["profile"]
+    assert created_profile["id"] == 1
+    assert created_profile["trim_keep_prefix"] == 7
+    assert created_profile["context_win"] == 65536
+    assert created_profile["api_mode"] == "responses"
+    assert created_profile["proxy_configured"] is True
+    assert "private-created-key" not in json.dumps(created_body)
+    assert "created-user" not in json.dumps(created_body)
+    assert "created-pass" not in json.dumps(created_body)
+    raw_after_create = manager.path.read_text(encoding="utf-8")
+    assert "trim_keep_prefix" in raw_after_create
+    assert "responses" in raw_after_create
+
+    patched = await client.patch("/api/v1/model-profiles/1", headers=AUTH, json={
+        "name": "Private Claude Renamed", "api_key": "", "trim_keep_prefix": 9,
+    })
+    assert patched.status == 200
+    patched_body = await patched.json()
+    patched_profile = patched_body["payload"]["profile"]
+    assert patched_profile["name"] == "Private Claude Renamed"
+    assert patched_profile["trim_keep_prefix"] == 9
+    assert patched_profile["api_key_configured"] is True
+    assert patched_profile["proxy_configured"] is True
+    assert "private-created-key" not in json.dumps(patched_body)
+    assert "created-user" not in json.dumps(patched_body)
+    assert "created-pass" not in json.dumps(patched_body)
+
+    deleted = await client.delete("/api/v1/model-profiles/0", headers=AUTH)
+    assert deleted.status == 200
+    deleted_body = await deleted.json()
+    remaining = deleted_body["payload"]["profiles"][0]
+    assert remaining["trim_keep_prefix"] == 9
+    assert remaining["api_mode"] == "responses"
+    assert remaining["proxy_configured"] is True
+    encoded = json.dumps(deleted_body)
+    assert "private-created-key" not in encoded
+    assert "created-user" not in encoded
+    assert "created-pass" not in encoded
+    assert manager.public_calls == []
+
+
+@pytest.mark.asyncio
 async def test_model_profiles_reject_unknown_fields_and_protect_last_profile(model_client):
     client, _, _, _ = model_client
     invalid = await client.post("/api/v1/model-profiles", headers=AUTH, json={
@@ -247,7 +472,7 @@ async def test_model_profile_delete_remaps_default_index(model_client):
     for name in ("Second", "Third"):
         created = await client.post("/api/v1/model-profiles", headers=AUTH, json={
             "protocol": "oai", "name": name, "model": name.lower(),
-            "apibase": "https://api.example/v1", "api_key": "",
+            "apibase": "https://api.example/v1", "api_key": f"{name.lower()}-key",
         })
         assert created.status == 201
 
@@ -271,7 +496,7 @@ async def test_model_profile_delete_failure_restores_default(model_client):
     client, manager, _, settings_document = model_client
     created = await client.post("/api/v1/model-profiles", headers=AUTH, json={
         "protocol": "oai", "name": "Second", "model": "second",
-        "apibase": "https://api.example/v1", "api_key": "",
+        "apibase": "https://api.example/v1", "api_key": "second-key",
     })
     assert created.status == 201
     assert (await client.post("/api/v1/model-profiles/1/default", headers=AUTH)).status == 200
@@ -442,12 +667,18 @@ async def test_auth_origin_and_legacy_cors_are_enforced(client):
 
 
 @pytest.mark.asyncio
-async def test_preflight_is_origin_restricted_and_contains_no_body(client):
+async def test_preflight_is_origin_restricted_and_skips_bearer_auth(client):
     response = await client.options("/api/v1/health", headers={"Origin": ORIGIN,
-        "Access-Control-Request-Method": "GET", "Authorization": f"Bearer {TOKEN}"})
+        "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "Authorization, Content-Type"})
     assert response.status == 204
     assert response.headers["Access-Control-Allow-Origin"] == ORIGIN
+    assert "Authorization" in response.headers["Access-Control-Allow-Headers"]
     assert await response.read() == b""
+
+    originless = await client.options("/api/v1/health")
+    assert originless.status == 401
+    assert (await originless.json())["payload"]["code"] == "unauthorized"
 
 
 @pytest.mark.asyncio
@@ -509,23 +740,35 @@ def test_pinned_official_bridge_contract_without_importing_user_runtime():
     assert required <= routes
 
 
-def test_load_module_from_path_registers_before_dataclass_execution(tmp_path):
-    module_name = "ga_test_dataclass_module"
-    module_path = tmp_path / "dataclass_module.py"
-    module_path.write_text(
-        "from dataclasses import dataclass\n"
-        "@dataclass\n"
-        "class Payload:\n"
-        "    value: int\n",
+def test_load_official_module_registers_bridge_directory_for_absolute_imports(tmp_path):
+    root = tmp_path / "runtime"
+    bridge_dir = root / "frontends"
+    bridge_dir.mkdir(parents=True)
+    (bridge_dir / "plan_state.py").write_text("SENTINEL = 'staged-frontends'\n", encoding="utf-8")
+    (bridge_dir / "desktop_bridge.py").write_text(
+        "import plan_state\n"
+        "def create_app():\n"
+        "    return None\n",
         encoding="utf-8",
     )
+    manifest = {"official_bridge": {"path": "frontends/desktop_bridge.py"}}
+    module_name = "liveagent_official_ga_bridge"
+    original_path = list(adapter.sys.path)
+    previous_plan_state = adapter.sys.modules.pop("plan_state", None)
     adapter.sys.modules.pop(module_name, None)
     try:
-        module = adapter.load_module_from_path(module_name, module_path)
-        assert adapter.sys.modules[module_name] is module
-        assert module.Payload(7).value == 7
+        adapter.sys.path[:] = [
+            item for item in original_path if item not in {str(root), str(bridge_dir)}
+        ]
+        module = adapter.load_official_module(root, manifest)
+        assert module.plan_state.SENTINEL == "staged-frontends"
+        assert str(bridge_dir) in adapter.sys.path
     finally:
+        adapter.sys.path[:] = original_path
         adapter.sys.modules.pop(module_name, None)
+        adapter.sys.modules.pop("plan_state", None)
+        if previous_plan_state is not None:
+            adapter.sys.modules["plan_state"] = previous_plan_state
 
 
 @pytest.mark.asyncio
@@ -760,6 +1003,10 @@ class ProjectSession:
         self.id = sid
         self.cwd = cwd
         self.project_id = None
+        self.reasoning_effort = None
+        self.service_tier = None
+        self.thinking_type = None
+        self.agent = None
 
 
 class ProjectManager:
@@ -782,17 +1029,93 @@ class ProjectManager:
         return result
 
     def _session_dict(self, session):
-        return {"id": session.id, "cwd": session.cwd}
+        return {"id": session.id, "cwd": session.cwd,
+                "reasoning_effort": session.reasoning_effort,
+                "service_tier": session.service_tier,
+                "thinking_type": session.thinking_type}
 
     def _session_from_item(self, item):
-        return ProjectSession(sid=item["id"], cwd=item.get("cwd", "C:\\ga"))
+        session = ProjectSession(sid=item["id"], cwd=item.get("cwd", "C:\\ga"))
+        session.reasoning_effort = item.get("reasoning_effort")
+        session.service_tier = item.get("service_tier")
+        session.thinking_type = item.get("thinking_type")
+        return session
 
     def make_agent(self, session):
         calls = []
-        return SimpleNamespace(handler=SimpleNamespace(enter_project_mode=calls.append), project_calls=calls)
+        backend = SimpleNamespace(reasoning_effort=None, service_tier=None, thinking_type=None)
+        agent = SimpleNamespace(
+            handler=SimpleNamespace(enter_project_mode=calls.append),
+            llmclient=SimpleNamespace(backend=backend),
+            project_calls=calls,
+        )
+        session.agent = agent
+        return agent
 
 
-def test_project_id_normalization_rejects_unsafe_values():
+@pytest.mark.asyncio
+async def test_session_runtime_get_patch_persists_and_updates_live_backend():
+    manager = ProjectManager()
+    session = manager.create_session()
+    official = fake_official_module()
+    official.manager = manager
+    app = adapter.create_app(
+        official_module=official, token=TOKEN, allowed_origins=(ORIGIN,),
+        manifest=adapter.load_manifest(),
+    )
+    manager.make_agent(session)
+    async with TestClient(TestServer(app)) as client:
+        missing = await client.get("/api/v1/sessions/missing/runtime", headers=AUTH)
+        assert missing.status == 404
+
+        current = await client.get(f"/api/v1/sessions/{session.id}/runtime", headers=AUTH)
+        assert current.status == 200
+        assert (await current.json())["payload"]["reasoning_effort"] is None
+
+        updated = await client.patch(
+            f"/api/v1/sessions/{session.id}/runtime",
+            headers=AUTH,
+            json={"reasoning_effort": "high", "service_tier": "priority", "thinking_type": "adaptive"},
+        )
+        assert updated.status == 200
+        payload = (await updated.json())["payload"]
+        assert payload["reasoning_effort"] == "high"
+        assert payload["service_tier"] == "priority"
+        assert payload["thinking_type"] == "adaptive"
+
+    assert manager.persisted[-1] is session
+    assert session.reasoning_effort == "high"
+    assert session.service_tier == "priority"
+    assert session.thinking_type == "adaptive"
+    assert session.agent.llmclient.backend.reasoning_effort == "high"
+    assert session.agent.llmclient.backend.service_tier == "priority"
+    assert session.agent.llmclient.backend.thinking_type == "adaptive"
+    persisted = manager._session_dict(session)
+    restored = manager._session_from_item(persisted)
+    assert restored.reasoning_effort == "high"
+    assert restored.service_tier == "priority"
+    assert restored.thinking_type == "adaptive"
+
+
+@pytest.mark.asyncio
+async def test_session_runtime_rejects_invalid_values():
+    manager = ProjectManager()
+    session = manager.create_session()
+    official = fake_official_module()
+    official.manager = manager
+    app = adapter.create_app(
+        official_module=official, token=TOKEN, allowed_origins=(ORIGIN,),
+        manifest=adapter.load_manifest(),
+    )
+    async with TestClient(TestServer(app)) as client:
+        response = await client.patch(
+            f"/api/v1/sessions/{session.id}/runtime", headers=AUTH,
+            json={"reasoning_effort": "turbo"},
+        )
+    assert response.status == 400
+    assert session.reasoning_effort is None
+
+
     assert adapter._normalize_project_id(None) is None
     assert adapter._normalize_project_id("project_alpha-1") == "project_alpha-1"
     with pytest.raises(ValueError):

@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
@@ -45,8 +46,35 @@ AUTOMATION_REPEAT = re.compile(r"^(?:daily|weekday|weekly|monthly|once|every_[1-
 MODEL_PROFILE_FIELDS = {
     "protocol", "name", "model", "apibase", "api_key",
     "max_retries", "connect_timeout", "read_timeout", "stream",
+    # Advanced options intentionally mirror the supported GenericAgent session
+    # config keys; arbitrary mykey.py keys must never cross this API boundary.
+    "api_mode", "fake_cc_system_prompt", "user_agent", "codex_client",
+    "originator", "codex_client_metadata", "reasoning_effort", "service_tier",
+    "thinking_type", "thinking_budget_tokens", "temperature", "max_tokens",
+    "context_win", "trim_keep_prefix", "proxy", "verify", "omit_thinking",
 }
-MODEL_PROFILE_LIMITS = {"name": 256, "model": 512, "apibase": 2048, "api_key": 16_384}
+MODEL_PROFILE_ADVANCED_FIELDS = {
+    "api_mode", "fake_cc_system_prompt", "user_agent", "codex_client",
+    "originator", "codex_client_metadata", "reasoning_effort", "service_tier",
+    "thinking_type", "thinking_budget_tokens", "temperature", "max_tokens",
+    "context_win", "trim_keep_prefix", "proxy", "verify", "omit_thinking",
+}
+MODEL_PROFILE_LIMITS = {
+    "name": 256, "model": 512, "apibase": 2048, "api_key": 16_384,
+    "user_agent": 512, "originator": 256, "proxy": 2048,
+}
+MODEL_PROFILE_ENUMS = {
+    "api_mode": {"chat_completions", "responses"},
+    "reasoning_effort": {"none", "minimal", "low", "medium", "high", "xhigh", "max"},
+    "service_tier": {"auto", "default", "priority", "flex"},
+    "thinking_type": {"adaptive", "enabled", "disabled"},
+}
+MODEL_PROFILE_DEFAULTS = {
+    "max_retries": 5, "connect_timeout": 15, "read_timeout": 300,
+    "stream": True, "api_mode": "chat_completions", "temperature": 1,
+    "trim_keep_prefix": 0, "verify": True, "codex_client_metadata": True, "omit_thinking": False,
+}
+SESSION_RUNTIME_EFFORTS = frozenset({"minimal", "low", "medium", "high", "xhigh", "max"})
 HOOK_EVENTS = ["agent_before", "turn_before", "llm_before", "llm_after",
                "tool_before", "tool_after", "turn_after", "agent_after"]
 MANIFEST_PATH = Path(__file__).with_name("runtime_manifest.json")
@@ -136,6 +164,11 @@ def security_middleware(token: str, allowed_origins: Iterable[str]):
                 return _json("error", {"code": "loopback_required", "message": "Loopback access required"}, 403, request_id, headers)
             if origin and origin not in allowed:
                 return _json("error", {"code": "origin_denied", "message": "Origin is not allowed"}, 403, request_id, headers)
+            # Browser CORS preflights intentionally do not carry Authorization.
+            # Complete them only after loopback and Origin allowlist checks; all
+            # actual requests (and origin-less OPTIONS) still require the token.
+            if request.method == "OPTIONS" and origin and origin in allowed:
+                return web.Response(status=204, headers=headers)
             if not secrets.compare_digest(_credential(request), token):
                 return _json("error", {"code": "unauthorized", "message": "Bearer token required"}, 401, request_id, headers)
             if request.method == "OPTIONS":
@@ -263,6 +296,13 @@ def load_module_from_path(module_name: str, path: Path):
 
 def load_official_module(root: Path, manifest: dict[str, Any]):
     path = root / manifest["official_bridge"]["path"]
+    # The official bridge is normally executed as a script, where Python puts
+    # its `frontends` directory on sys.path automatically.  The desktop
+    # adapter loads it by filename instead, so absolute imports used by the
+    # bridge (for example `import plan_state`) would otherwise fail.
+    bridge_dir = path.parent
+    if str(bridge_dir) not in sys.path:
+        sys.path.insert(0, str(bridge_dir))
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
     module = load_module_from_path("liveagent_official_ga_bridge", path)
@@ -335,11 +375,76 @@ def hook_snapshot() -> dict[str, Any]:
             "registrations": registrations, "observations": hook_observations_snapshot()}
 
 
-def model_protocol(var_name: Any) -> tuple[str, str]:
-    value = str(var_name or "").lower()
-    if "claude" in value:
+def model_protocol(var_name: Any, value: Any = None) -> tuple[str, str]:
+    if isinstance(value, dict):
+        explicit = value.get("protocol")
+        if explicit in ("oai", "claude"):
+            return explicit, "official"
+    name = str(var_name or "").lower()
+    if any(token in name for token in ("claude", "anthropic")):
         return "claude", "var_name_heuristic"
+    if any(token in name for token in ("oai", "openai", "codex", "gpt", "responses")):
+        return "oai", "var_name_heuristic"
     return "unknown", "unknown"
+
+
+def _safe_profile_string(value: Any, key: str) -> str:
+    if not isinstance(value, str):
+        return ""
+    return value[:MODEL_PROFILE_LIMITS.get(key, 2048)]
+
+
+def _safe_profile_proxy(value: Any) -> tuple[str, bool]:
+    if not isinstance(value, str):
+        return "", False
+    proxy = value[:MODEL_PROFILE_LIMITS["proxy"]]
+    if not proxy:
+        return "", False
+    # A proxy may contain embedded credentials. Expose only its endpoint shape;
+    # an update with an empty field preserves the existing credentialed value.
+    try:
+        from urllib.parse import urlsplit, urlunsplit
+        parsed = urlsplit(proxy)
+        if parsed.username is not None or parsed.password is not None:
+            host = parsed.hostname or ""
+            if parsed.port is not None:
+                host = f"{host}:{parsed.port}"
+            proxy = urlunsplit((parsed.scheme, f"[REDACTED]@{host}", parsed.path,
+                                parsed.query, parsed.fragment))
+            return proxy, True
+    except (ValueError, TypeError):
+        pass
+    return proxy, True
+
+
+def _safe_profile_advanced(value: dict[str, Any], result: dict[str, Any], *, defaults: bool = False) -> None:
+    for key in ("api_mode", "reasoning_effort", "service_tier", "thinking_type"):
+        if key in value and isinstance(value[key], str) and value[key] in MODEL_PROFILE_ENUMS[key]:
+            result[key] = value[key]
+    for key in ("user_agent", "originator"):
+        if key in value and isinstance(value[key], str):
+            result[key] = _safe_profile_string(value[key], key)
+    for key in ("fake_cc_system_prompt", "codex_client", "codex_client_metadata",
+                "verify", "omit_thinking"):
+        if key in value and isinstance(value[key], bool):
+            result[key] = value[key]
+    for key, low, high in (("thinking_budget_tokens", 1, 100_000_000),
+                           ("max_tokens", 1, 100_000_000),
+                           ("context_win", 1, 100_000_000),
+                           ("trim_keep_prefix", 0, 100_000_000)):
+        item = value.get(key)
+        if isinstance(item, int) and not isinstance(item, bool) and low <= item <= high:
+            result[key] = item
+    temperature = value.get("temperature")
+    if isinstance(temperature, (int, float)) and not isinstance(temperature, bool) and 0 <= temperature <= 2:
+        result["temperature"] = temperature
+    if "proxy" in value:
+        proxy, configured = _safe_profile_proxy(value.get("proxy"))
+        result["proxy"] = proxy
+        result["proxy_configured"] = configured
+    if defaults:
+        for key, default in MODEL_PROFILE_DEFAULTS.items():
+            result.setdefault(key, default)
 
 
 def safe_model_profile(value: Any) -> dict[str, Any]:
@@ -360,11 +465,70 @@ def safe_model_profile(value: Any) -> dict[str, Any]:
         members = value.get("members")
         result["members"] = [str(item)[:256] for item in members[:100]] if isinstance(members, list) else []
     else:
-        protocol, protocol_source = model_protocol(var_name)
+        protocol, protocol_source = model_protocol(var_name, value)
         result.update({"protocol": protocol, "protocol_source": protocol_source,
                        "group": "native" if value.get("group") == "native" else "std",
-                       "in_mixin": value.get("inMixin") is True})
+                       "in_mixin": value.get("inMixin") is True,
+                       "apibase": _safe_profile_string(value.get("apibase"), "apibase"),
+                       "api_key_configured": bool(value.get("apikey")),
+                       "max_retries": int(value.get("max_retries", 5)),
+                       "connect_timeout": int(value.get("connect_timeout", value.get("timeout", 15))),
+                       "read_timeout": int(value.get("read_timeout", 300)),
+                       "stream": value.get("stream") is not False})
+        _safe_profile_advanced(value, result)
     return result
+
+
+def safe_editable_model_profile(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("invalid model profile")
+    result = safe_model_profile({**value, "kind": "native"})
+    result.update({
+        "apibase": str(value.get("apibase") or "")[:2048],
+        "api_key_configured": bool(value.get("apikey")),
+        "max_retries": int(value.get("max_retries", 5)),
+        "connect_timeout": int(value.get("connect_timeout", value.get("timeout", 15))),
+        "read_timeout": int(value.get("read_timeout", 300)),
+        "stream": value.get("stream") is not False,
+    })
+    _safe_profile_advanced(value, result, defaults=True)
+    return result
+
+
+def _normalize_optional_advanced(value: Any, key: str, *, creating: bool) -> Any:
+    if value is None:
+        return None if not creating else ...
+    if key in MODEL_PROFILE_ENUMS:
+        if not isinstance(value, str):
+            raise ValueError("invalid advanced model profile field")
+        normalized = value.strip().lower().replace("-", "_")
+        if not normalized:
+            return None if not creating else ...
+        if normalized not in MODEL_PROFILE_ENUMS[key]:
+            raise ValueError("invalid advanced model profile field")
+        return normalized
+    if key in ("user_agent", "originator", "proxy"):
+        if not isinstance(value, str) or len(value) > MODEL_PROFILE_LIMITS[key]:
+            raise ValueError("invalid advanced model profile field")
+        normalized = value.strip()
+        return (None if not normalized else normalized) if not creating else (normalized if normalized else ...)
+    if key in ("fake_cc_system_prompt", "codex_client", "codex_client_metadata", "verify", "omit_thinking"):
+        if not isinstance(value, bool):
+            raise ValueError("invalid advanced model profile field")
+        return value
+    if key == "trim_keep_prefix":
+        if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 100_000_000:
+            raise ValueError("invalid advanced model profile field")
+        return value
+    if key in ("thinking_budget_tokens", "max_tokens", "context_win"):
+        if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 100_000_000:
+            raise ValueError("invalid advanced model profile field")
+        return value
+    if key == "temperature":
+        if not isinstance(value, (int, float)) or isinstance(value, bool) or not 0 <= value <= 2:
+            raise ValueError("invalid temperature")
+        return value
+    raise ValueError("invalid advanced model profile field")
 
 
 def normalize_model_profile_input(value: Any, *, creating: bool) -> dict[str, Any]:
@@ -392,8 +556,12 @@ def normalize_model_profile_input(value: Any, *, creating: bool) -> dict[str, An
         if not isinstance(api_key, str) or len(api_key) > MODEL_PROFILE_LIMITS["api_key"]:
             raise ValueError("invalid API key")
         api_key = api_key.strip()
+        if creating and not api_key:
+            raise ValueError("API key is required when creating a model profile")
         if api_key:
             result["apikey"] = api_key
+    elif creating:
+        raise ValueError("API key is required when creating a model profile")
     for key, low, high in (("max_retries", 0, 100), ("connect_timeout", 1, 3600),
                            ("read_timeout", 1, 86400)):
         if key in value:
@@ -405,22 +573,126 @@ def normalize_model_profile_input(value: Any, *, creating: bool) -> dict[str, An
         if not isinstance(value["stream"], bool):
             raise ValueError("invalid stream setting")
         result["stream"] = value["stream"]
+    if "api_mode" in value:
+        mode = value["api_mode"]
+        if not isinstance(mode, str) or mode.strip().lower().replace("-", "_") not in MODEL_PROFILE_ENUMS["api_mode"]:
+            raise ValueError("invalid advanced model profile field")
+        result["api_mode"] = mode.strip().lower().replace("-", "_")
+    for key in MODEL_PROFILE_ADVANCED_FIELDS - {"api_mode"}:
+        if key not in value:
+            continue
+        normalized = _normalize_optional_advanced(value[key], key, creating=creating)
+        if normalized is not ...:
+            result[key] = normalized
     return result
 
 
-def safe_editable_model_profile(value: Any) -> dict[str, Any]:
-    if not isinstance(value, dict):
+def _raw_manager_profile(manager: Any, profile_id: int) -> dict[str, Any] | None:
+    """Read the pinned GA manager's raw profile without returning it to callers."""
+    getter = getattr(manager, "_profile_at", None)
+    if not callable(getter):
+        return None
+    raw = getter(profile_id)
+    if not isinstance(raw, (tuple, list)) or len(raw) != 2 or not isinstance(raw[1], dict):
+        return None
+    var_name, config = raw
+    allowed = {
+        "varName", "kind", "name", "model", "apibase", "apikey", "timeout",
+        "connect_timeout", "max_retries", "read_timeout", "stream",
+        *MODEL_PROFILE_ADVANCED_FIELDS,
+    }
+    result: dict[str, Any] = {"id": profile_id, "varName": var_name, "kind": "native"}
+    result.update({key: value for key, value in config.items() if key in allowed})
+    return result
+
+
+def _merge_manager_profile(manager: Any, profile: Any) -> dict[str, Any]:
+    if not isinstance(profile, dict):
         raise ValueError("invalid model profile")
-    result = safe_model_profile({**value, "kind": "native"})
-    result.update({
-        "apibase": str(value.get("apibase") or "")[:2048],
-        "api_key_configured": bool(value.get("apikey")),
-        "max_retries": int(value.get("max_retries", 5)),
-        "connect_timeout": int(value.get("connect_timeout", 15)),
-        "read_timeout": int(value.get("read_timeout", 300)),
-        "stream": value.get("stream") is not False,
-    })
-    return result
+    if profile.get("kind") == "mixin":
+        return dict(profile)
+    profile_id = profile.get("id")
+    if not isinstance(profile_id, int) or isinstance(profile_id, bool):
+        return dict(profile)
+    raw = _raw_manager_profile(manager, profile_id)
+    if raw is None:
+        return dict(profile)
+    merged = dict(profile)
+    for key in set(raw) & ({"id", "varName", "kind", "name", "model", "apibase", "apikey",
+                             "timeout", "connect_timeout", "max_retries", "read_timeout", "stream"}
+                            | MODEL_PROFILE_ADVANCED_FIELDS):
+        merged[key] = raw[key]
+    return merged
+
+
+def _safe_manager_profiles(manager: Any) -> list[dict[str, Any]]:
+    return [safe_model_profile(_merge_manager_profile(manager, item))
+            for item in manager.list_model_profiles()]
+
+
+def _private_profile_io_available(manager: Any, *, creating: bool) -> bool:
+    required = ["_build_cfg", "_mykey_file", "_patch_var_block", "_save_mykey_text"]
+    required += ["_next_native_var", "_format_py_dict"] if creating else ["_profile_at"]
+    return all(callable(getattr(manager, name, None)) for name in required)
+
+
+def _private_profile_cfg(manager: Any, data: dict[str, Any], existing: dict[str, Any] | None,
+                         *, require_key: bool = False) -> dict[str, Any]:
+    builder = getattr(manager, "_build_cfg")
+    cfg = builder(data, existing, require_key=require_key)
+    if not isinstance(cfg, dict):
+        raise RuntimeError("invalid GenericAgent profile configuration")
+    cfg = dict(cfg)
+    # BaseSession consumes `timeout`; the official bridge's legacy helper writes
+    # `connect_timeout`, so keep the latter for compatibility and also write the
+    # effective runtime key when the UI explicitly supplies this value.
+    if "connect_timeout" in data:
+        cfg["timeout"] = data["connect_timeout"]
+    for key in MODEL_PROFILE_ADVANCED_FIELDS:
+        if key not in data:
+            continue
+        value = data[key]
+        # A redacted read-back proxy is a display token, never a replacement.
+        if key == "proxy" and isinstance(value, str) and "[REDACTED]" in value:
+            continue
+        if value is None:
+            cfg.pop(key, None)
+        else:
+            cfg[key] = value
+    return cfg
+
+
+def _private_add_model_profile(manager: Any, data: dict[str, Any]) -> dict[str, Any]:
+    cfg = _private_profile_cfg(manager, data, None, require_key=True)
+    model_file = manager._mykey_file()
+    text = model_file.read_text(encoding="utf-8")
+    var_name = manager._next_native_var(text, data.get("protocol", ""))
+    formatted = manager._format_py_dict(cfg)
+    profiles = manager._save_mykey_text(text.rstrip() + f"\n{var_name} = {formatted}\n")
+    if not isinstance(profiles, list):
+        profiles = manager.list_model_profiles()
+    profile_id = next((item.get("id") for item in profiles
+                       if isinstance(item, dict) and item.get("varName") == var_name),
+                      len(profiles) - 1)
+    return {"varName": var_name, "profileId": profile_id, "profiles": profiles}
+
+
+def _private_update_model_profile(manager: Any, profile_id: int, data: dict[str, Any]) -> dict[str, Any]:
+    var_name, existing = manager._profile_at(profile_id)
+    if not isinstance(existing, dict):
+        raise ValueError("invalid model profile")
+    model_file = manager._mykey_file()
+    text = model_file.read_text(encoding="utf-8")
+    cfg = _private_profile_cfg(manager, data, existing)
+    patched = manager._patch_var_block(text, var_name, cfg)
+    profiles = manager._save_mykey_text(patched)
+    if not isinstance(profiles, list):
+        profiles = manager.list_model_profiles()
+    return {"varName": var_name, "profileId": profile_id, "profiles": profiles}
+
+
+def _manager_profile(manager: Any, profile_id: int) -> dict[str, Any]:
+    return _merge_manager_profile(manager, manager.get_model_profile(profile_id))
 
 
 def normalize_automation(value: Any, *, automation_id: str | None = None) -> dict[str, Any]:
@@ -774,6 +1046,53 @@ def _normalize_project_id(value: Any) -> str | None:
     return value
 
 
+SESSION_RUNTIME_ENUMS = {
+    "reasoning_effort": SESSION_RUNTIME_EFFORTS | {"none"},
+    "service_tier": frozenset({"auto", "default", "priority", "flex"}),
+    "thinking_type": frozenset({"adaptive", "enabled", "disabled"}),
+}
+SESSION_RUNTIME_FIELDS = tuple(SESSION_RUNTIME_ENUMS)
+
+
+def _runtime_value(value: Any, field: str) -> str | None:
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str) or value not in SESSION_RUNTIME_ENUMS[field]:
+        raise ValueError(f"invalid {field}")
+    return value
+
+
+def _session_runtime(session: Any) -> dict[str, str | None]:
+    return {field: getattr(session, field, None) for field in SESSION_RUNTIME_FIELDS}
+
+
+def _apply_session_runtime(session: Any, agent: Any = None) -> None:
+    agent = agent if agent is not None else getattr(session, "agent", None)
+    if agent is None:
+        return
+    llmclient = getattr(agent, "llmclient", None)
+    backend = getattr(llmclient, "backend", None)
+    if backend is None:
+        return
+    for field, value in _session_runtime(session).items():
+        setattr(backend, field, value)
+
+
+def _session_for_runtime(manager: Any, sid: str) -> Any:
+    getter = getattr(manager, "get_session", None)
+    if callable(getter):
+        try:
+            return getter(sid)
+        except Exception as exc:
+            if type(exc).__name__ not in {"HTTPNotFound", "KeyError"}:
+                raise
+    sessions = getattr(manager, "sessions", None)
+    session = sessions.get(sid) if isinstance(sessions, dict) else None
+    if session is None:
+        raise KeyError(sid)
+    return session
+
+
 def _install_project_session_support(official_module: Any) -> None:
     manager = getattr(official_module, "manager", None)
     if manager is None or getattr(manager, "_ga_project_session_support", False):
@@ -791,6 +1110,9 @@ def _install_project_session_support(official_module: Any) -> None:
     def create_session(cwd: str | None = None):
         session = original_create_session(cwd)
         session.project_id = _CURRENT_PROJECT_ID.get()
+        for field in SESSION_RUNTIME_FIELDS:
+            if not hasattr(session, field):
+                setattr(session, field, None)
         manager._persist_session(session)
         return session
 
@@ -799,6 +1121,7 @@ def _install_project_session_support(official_module: Any) -> None:
         project_id = getattr(session, "project_id", None)
         if project_id:
             result["projectId"] = project_id
+        result["runtime"] = _session_runtime(session)
         return result
 
     def session_dict(session: Any) -> dict[str, Any]:
@@ -806,6 +1129,7 @@ def _install_project_session_support(official_module: Any) -> None:
         project_id = getattr(session, "project_id", None)
         if project_id:
             result["project_id"] = project_id
+        result.update(_session_runtime(session))
         return result
 
     def session_from_item(item: dict[str, Any]):
@@ -814,10 +1138,17 @@ def _install_project_session_support(official_module: Any) -> None:
             session.project_id = _normalize_project_id(item.get("project_id"))
         except ValueError:
             session.project_id = None
+        for field in SESSION_RUNTIME_FIELDS:
+            try:
+                setattr(session, field, _runtime_value(item.get(field), field))
+            except ValueError:
+                setattr(session, field, None)
         return session
 
     def make_agent(session: Any):
         agent = original_make_agent(session)
+        session.agent = agent
+        _apply_session_runtime(session, agent)
         project_id = getattr(session, "project_id", None)
         enter_project_mode = getattr(getattr(agent, "handler", None), "enter_project_mode", None)
         if project_id and callable(enter_project_mode):
@@ -871,6 +1202,41 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
 
     async def health_handler(request: web.Request) -> web.Response:
         return _json("bridge.health", {"status": "ready", "official_bridge": "compatible"}, 200, request.headers.get("X-Request-Id", ""))
+
+    def runtime_error(request: web.Request, code: str, message: str, status: int) -> web.Response:
+        return _json("error", {"code": code, "message": message}, status,
+                     request.headers.get("X-Request-Id", ""))
+
+    async def session_runtime_handler(request: web.Request) -> web.Response:
+        manager = getattr(official_module, "manager", None)
+        if manager is None:
+            return runtime_error(request, "session_runtime_unavailable", "Session runtime is unavailable", 503)
+        try:
+            session = _session_for_runtime(manager, request.match_info["sid"])
+        except (KeyError, LookupError):
+            return runtime_error(request, "session_not_found", "Session not found", 404)
+        if request.method == "GET":
+            return _json("session.runtime", _session_runtime(session), 200,
+                         request.headers.get("X-Request-Id", ""),)
+        try:
+            payload = await request.json()
+        except (json.JSONDecodeError, ValueError):
+            return runtime_error(request, "invalid_runtime", "Runtime payload must be an object", 400)
+        if not isinstance(payload, dict) or set(payload) - set(SESSION_RUNTIME_FIELDS):
+            return runtime_error(request, "invalid_runtime", "Unknown session runtime field", 400)
+        try:
+            values = {field: _runtime_value(payload.get(field), field)
+                      for field in SESSION_RUNTIME_FIELDS if field in payload}
+        except ValueError as exc:
+            return runtime_error(request, "invalid_runtime", str(exc), 400)
+        for field, value in values.items():
+            setattr(session, field, value)
+        _apply_session_runtime(session)
+        persist = getattr(manager, "_persist_session", None)
+        if callable(persist):
+            persist(session)
+        return _json("session.runtime.updated", _session_runtime(session), 200,
+                     request.headers.get("X-Request-Id", ""))
 
     async def knowledge_handler(request: web.Request) -> web.Response:
         return _json("knowledge.catalog", knowledge_catalog(ga_root), 200,
@@ -961,7 +1327,7 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
     async def model_profiles_handler(request: web.Request) -> web.Response:
         try:
             manager = model_manager()
-            profiles = [safe_model_profile(item) for item in manager.list_model_profiles()]
+            profiles = _safe_manager_profiles(manager)
         except Exception:
             return model_profiles_error(request, "model_profiles_unavailable", 503)
         return _json("model_profiles.list", {"profiles": profiles}, 200,
@@ -996,16 +1362,19 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
                 raise ValueError("invalid id")
             manager = model_manager()
             if request.method == "GET":
-                profile = safe_editable_model_profile(manager.get_model_profile(profile_id))
+                profile = safe_editable_model_profile(_manager_profile(manager, profile_id))
                 return _json("model_profile.get", {"profile": profile}, 200,
                              request.headers.get("X-Request-Id", ""))
             if request.method == "PATCH":
                 body = normalize_model_profile_input(await request.json(), creating=False)
-                existing = safe_editable_model_profile(manager.get_model_profile(profile_id))
+                existing = safe_editable_model_profile(_manager_profile(manager, profile_id))
                 body.setdefault("model", existing["model"])
                 body.setdefault("apibase", existing["apibase"])
-                manager.update_model_profile(profile_id, body)
-                profile = safe_editable_model_profile(manager.get_model_profile(profile_id))
+                if _private_profile_io_available(manager, creating=False):
+                    _private_update_model_profile(manager, profile_id, body)
+                else:
+                    manager.update_model_profile(profile_id, body)
+                profile = safe_editable_model_profile(_manager_profile(manager, profile_id))
                 return _json("model_profile.updated", {"profile": profile}, 200,
                              request.headers.get("X-Request-Id", ""))
             profiles_before = manager.list_model_profiles()
@@ -1031,7 +1400,7 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
                 if default_changed:
                     persist_default_model(manager, old_default)
                 raise
-            profiles = [safe_model_profile(item) for item in manager.list_model_profiles()]
+            profiles = _safe_manager_profiles(manager)
             return _json("model_profile.deleted", {"id": profile_id, "profiles": profiles}, 200,
                          request.headers.get("X-Request-Id", ""))
         except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
@@ -1054,7 +1423,7 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
             if profile_id < 0 or not any(item.get("id") == profile_id for item in profiles):
                 raise ValueError("profile not found")
             persist_default_model(manager, profile_id)
-            safe_profiles = [safe_model_profile(item) for item in manager.list_model_profiles()]
+            safe_profiles = _safe_manager_profiles(manager)
         except (TypeError, ValueError) as error:
             if "profile not found" in str(error).lower():
                 return model_profiles_error(request, "model_profile_not_found", 404)
@@ -1068,9 +1437,12 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
         try:
             manager = model_manager()
             body = normalize_model_profile_input(await request.json(), creating=True)
-            result = manager.add_model_profile(body)
+            if _private_profile_io_available(manager, creating=True):
+                result = _private_add_model_profile(manager, body)
+            else:
+                result = manager.add_model_profile(body)
             profile_id = result.get("profileId")
-            profile = safe_editable_model_profile(manager.get_model_profile(profile_id))
+            profile = safe_editable_model_profile(_manager_profile(manager, profile_id))
         except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TypeError):
             return model_profiles_error(request, "invalid_model_profile", 400)
         except Exception:
@@ -1238,6 +1610,8 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
     app.router.add_get("/api/v1/version", version_handler)
     app.router.add_get("/api/v1/capabilities", capabilities_handler)
     app.router.add_get("/api/v1/health", health_handler)
+    app.router.add_get("/api/v1/sessions/{sid}/runtime", session_runtime_handler)
+    app.router.add_patch("/api/v1/sessions/{sid}/runtime", session_runtime_handler)
     app.router.add_get("/api/v1/knowledge", knowledge_handler)
     app.router.add_get("/api/v1/projects/{project_id}/memory-status", project_memory_handler)
     app.router.add_get("/api/v1/token-stats", token_stats_handler)

@@ -23,7 +23,10 @@ import type {
   GaServicePanel,
   GaServiceState,
   GaSessionDto,
+  GaSessionRuntimePatch,
+  GaSessionRuntimeResult,
   GaSessionSnapshot,
+  GaSetSessionModelResult,
   GaTokenHistorySnapshot,
   GaTokenStatsSnapshot,
 } from "./types";
@@ -130,6 +133,29 @@ export class GaBridgeClient {
       method: "POST",
       body: JSON.stringify(prompt),
     });
+  }
+  async setSessionModel(id: string, llmNo: number): Promise<GaSetSessionModelResult> {
+    return this.request<GaSetSessionModelResult>(
+      `/session/${encodeURIComponent(id)}/model`,
+      {
+        method: "POST",
+        body: JSON.stringify({ llmNo }),
+      },
+    );
+  }
+  getSessionRuntime(id: string): Promise<GaSessionRuntimeResult> {
+    return this.request<GaSessionRuntimeResult>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/runtime`,
+    );
+  }
+  updateSessionRuntime(
+    id: string,
+    patch: GaSessionRuntimePatch,
+  ): Promise<GaSessionRuntimeResult> {
+    return this.request<GaSessionRuntimeResult>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/runtime`,
+      { method: "PATCH", body: JSON.stringify(patch) },
+    );
   }
   async cancelSession(id: string): Promise<{ ok: boolean; sessionId: string }> {
     return this.request(`/session/${encodeURIComponent(id)}/cancel`, { method: "POST" });

@@ -15,6 +15,27 @@ export type GaRuntimeStatus = {
 };
 export type GaRuntimeStartResponse = { status: GaRuntimeStatus; baseUrl: string; token: string };
 
+export type GaSessionModel = {
+  current?: string | null;
+  isMixin?: boolean;
+  llmNo?: number | null;
+};
+export type GaSetSessionModelResult = {
+  ok: boolean;
+  sessionId: string;
+  llmNo: number;
+  model?: GaSessionModel | null;
+};
+export type GaModelReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+export type GaModelServiceTier = "auto" | "default" | "priority" | "flex";
+export type GaModelThinkingType = "adaptive" | "enabled" | "disabled";
+export type GaSessionRuntime = {
+  reasoning_effort: GaModelReasoningEffort | null;
+  service_tier: GaModelServiceTier | null;
+  thinking_type: GaModelThinkingType | null;
+};
+export type GaSessionRuntimePatch = Partial<GaSessionRuntime>;
+export type GaSessionRuntimeResult = GaSessionRuntime & { sessionId?: string };
 export type GaSessionDto = {
   id: string;
   title?: string;
@@ -30,6 +51,7 @@ export type GaSessionDto = {
   pinned?: boolean;
   messageCount?: number;
   message_count?: number;
+  model?: GaSessionModel | null;
   [key: string]: unknown;
 };
 export type GaMessageDto = Record<string, unknown> & {
@@ -107,11 +129,13 @@ export type GaTokenHistorySnapshot = {
 };
 export type GaModelProtocol = "oai" | "claude" | "unknown";
 export type GaModelProtocolSource = "official" | "var_name_heuristic" | "unknown";
+export type GaModelApiMode = "chat_completions" | "responses";
 export type GaModelProfile = {
   id: number;
+  varName?: string;
   kind: "native" | "mixin";
   name: string;
-  model: string;
+  model?: string;
   active: boolean;
   protocol?: GaModelProtocol;
   protocol_source?: GaModelProtocolSource;
@@ -124,6 +148,24 @@ export type GaModelProfile = {
   connect_timeout?: number;
   read_timeout?: number;
   stream?: boolean;
+  api_mode?: GaModelApiMode;
+  reasoning_effort?: GaModelReasoningEffort;
+  service_tier?: GaModelServiceTier;
+  thinking_type?: GaModelThinkingType;
+  thinking_budget_tokens?: number;
+  temperature?: number;
+  max_tokens?: number;
+  context_win?: number;
+  trim_keep_prefix?: number;
+  proxy?: string;
+  proxy_configured?: boolean;
+  user_agent?: string;
+  originator?: string;
+  codex_client?: boolean;
+  codex_client_metadata?: boolean;
+  fake_cc_system_prompt?: boolean;
+  verify?: boolean;
+  omit_thinking?: boolean;
 };
 export type GaModelProfileInput = {
   protocol?: Exclude<GaModelProtocol, "unknown">;
@@ -135,6 +177,23 @@ export type GaModelProfileInput = {
   connect_timeout?: number;
   read_timeout?: number;
   stream?: boolean;
+  api_mode?: GaModelApiMode;
+  reasoning_effort?: GaModelReasoningEffort | "";
+  service_tier?: GaModelServiceTier | "";
+  thinking_type?: GaModelThinkingType | "";
+  thinking_budget_tokens?: number | null;
+  temperature?: number | null;
+  max_tokens?: number | null;
+  context_win?: number | null;
+  trim_keep_prefix?: number | null;
+  proxy?: string;
+  user_agent?: string;
+  originator?: string;
+  codex_client?: boolean;
+  codex_client_metadata?: boolean;
+  fake_cc_system_prompt?: boolean;
+  verify?: boolean;
+  omit_thinking?: boolean;
 };
 export type GaModelProfilesSnapshot = { profiles: GaModelProfile[] };
 export type GaKnowledgeSkill = {
