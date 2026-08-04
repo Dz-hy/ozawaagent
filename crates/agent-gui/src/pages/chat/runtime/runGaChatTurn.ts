@@ -29,6 +29,7 @@ function delay(ms: number, signal: AbortSignal) {
 
 export type RunGaChatTurnParams = {
   conversationId: string;
+  sessionId?: string;
   prompt: GaPromptRequest;
   baseState: ConversationViewState;
   signal: AbortSignal;
@@ -44,11 +45,12 @@ export type ObserveGaChatTurnParams = Omit<RunGaChatTurnParams, "prompt"> & {
 };
 
 export async function observeGaChatTurn(params: ObserveGaChatTurnParams) {
-  const { conversationId, baseState, signal, applyState, cancelOnAbort = false } = params;
+  const { conversationId, sessionId: requestedSessionId, baseState, signal, applyState, cancelOnAbort = false } = params;
+  const sessionId = requestedSessionId?.trim() || conversationId;
   let wake: (() => void) | null = null;
   const unsubscribe = gaBridgeClient.events().subscribe((event: GaBridgeEvent) => {
     const sid = String(event.sessionId ?? event.session_id ?? "");
-    if (sid === conversationId) wake?.();
+    if (sid === sessionId) wake?.();
   });
 
   const waitForHintOrPoll = () =>
@@ -68,10 +70,10 @@ export async function observeGaChatTurn(params: ObserveGaChatTurnParams) {
     while (true) {
       if (signal.aborted) {
         if (cancelOnAbort)
-          await gaBridgeClient.cancelSession(conversationId).catch(() => undefined);
+          await gaBridgeClient.cancelSession(sessionId).catch(() => undefined);
         return "cancelled";
       }
-      const snapshot = await gaBridgeClient.getSessionMessages(conversationId, 0, 10_000);
+      const snapshot = await gaBridgeClient.getSessionMessages(sessionId, 0, 10_000);
       applyState(gaSnapshotToConversationState(baseState, snapshot, GA_RENDER_MODEL));
       if (TERMINAL_STATUSES.has(snapshot.status)) {
         if (snapshot.status === "error") {
@@ -88,6 +90,7 @@ export async function observeGaChatTurn(params: ObserveGaChatTurnParams) {
 
 export async function runGaChatTurn(params: RunGaChatTurnParams) {
   const { prompt, ...observeParams } = params;
-  await gaBridgeClient.promptSession(params.conversationId, prompt);
-  return observeGaChatTurn({ ...observeParams, cancelOnAbort: true });
+  const sessionId = params.sessionId?.trim() || params.conversationId;
+  await gaBridgeClient.promptSession(sessionId, prompt);
+  return observeGaChatTurn({ ...observeParams, sessionId, cancelOnAbort: true });
 }

@@ -40,6 +40,7 @@ export const ChatTranscript = memo(function ChatTranscript(props: ChatTranscript
     gitClient,
     followRef,
     hasModels,
+    modelsLoading = false,
     historyItems,
     isHistorySwitching,
     isSending,
@@ -57,9 +58,12 @@ export const ChatTranscript = memo(function ChatTranscript(props: ChatTranscript
     suggestionsDisabled = false,
   } = props;
   const { locale } = useLocale();
-  const showNoModelsState = !hasModels;
-  const showStartChatState = hasModels && historyItems.length === 0 && !isSending;
-  const shouldReserveTranscriptBottomSpace = !(showNoModelsState || showStartChatState);
+  const showModelsLoadingState = modelsLoading && historyItems.length === 0 && !isSending;
+  const showNoModelsState = !modelsLoading && !hasModels;
+  const showStartChatState =
+    !modelsLoading && hasModels && historyItems.length === 0 && !isSending;
+  const shouldReserveTranscriptBottomSpace =
+    !(showModelsLoadingState || showNoModelsState || showStartChatState);
   // The reserve minimum doubles as the scroll-follow reattach zone: stopping
   // anywhere inside the reserve looks like "the bottom" to the user, so the
   // zone must stay >= this minimum for scroll-back-to-bottom to re-stick.
@@ -223,7 +227,17 @@ export const ChatTranscript = memo(function ChatTranscript(props: ChatTranscript
     >
       <ScrollArea ref={setScrollAreaRoot} viewportRef={setScrollViewport} className="h-full">
         <div className="mx-auto w-full max-w-[768px] px-5 py-4">
-          {showNoModelsState || showStartChatState ? (
+          {showModelsLoadingState ? (
+            <div className="flex min-h-[calc(100vh-220px)] flex-col items-center justify-center">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted-foreground/25 border-t-muted-foreground"
+                />
+                {locale === "en-US" ? "Loading models…" : "正在加载模型…"}
+              </div>
+            </div>
+          ) : showNoModelsState || showStartChatState ? (
             <div className="flex min-h-[calc(100vh-220px)] flex-col items-center justify-center">
               {/* Keyed per conversation so the hero entrance replays when
                   switching between empty conversations, not just on mount. */}

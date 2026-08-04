@@ -62,6 +62,7 @@ type UseConversationHistoryActionsParams = {
   currentConversationIdRef: MutableRefObject<string>;
   conversationRuntimeCacheRef: MutableRefObject<Map<string, ConversationRuntimeEntry>>;
   persistedConversationStateRef: MutableRefObject<Map<string, ConversationViewState>>;
+  conversationReadinessRef: MutableRefObject<Map<string, Promise<string | null>>>;
   markLocalHistorySnapshotSynced: (conversationId: string, updatedAt: number) => void;
   isConversationRunning: (conversationId: string) => boolean;
   conversationLoadSequenceRef: MutableRefObject<number>;
@@ -132,6 +133,7 @@ export function useConversationHistoryActions(params: UseConversationHistoryActi
     currentConversationIdRef,
     conversationRuntimeCacheRef,
     persistedConversationStateRef,
+    conversationReadinessRef,
     markLocalHistorySnapshotSynced,
     isConversationRunning,
     conversationLoadSequenceRef,
@@ -191,32 +193,52 @@ export function useConversationHistoryActions(params: UseConversationHistoryActi
     pruneIdleConversationCaches([conversationId]);
   }
 
-  async function startNewConversation(options?: { workdir?: string; projectId?: string }) {
+  function startNewConversation(options?: {
+    workdir?: string;
+    projectId?: string;
+    preserveComposer?: boolean;
+  }): Promise<string | null> {
     cancelConversationHydration();
-    const visibleConversationId = currentConversationIdRef.current;
+    const visibleConversationId = currentConversationIdRef.current.trim();
+    const pending = conversationReadinessRef.current.get(visibleConversationId);
+    if (pending) return pending;
+
     setConversationRuntimeCacheEntry(
       conversationRuntimeCacheRef.current,
       visibleConversationId,
       buildRuntimeEntryFromVisibleState(),
     );
-    resetVisibleTransientState();
+    if (!options?.preserveComposer) {
+      resetVisibleTransientState();
+    }
 
     const workdir = options?.workdir ?? getDefaultNewConversationWorkdir?.();
-    try {
-      const created = await gaBridgeClient.createSession({ cwd: workdir, projectId: options?.projectId });
-      const item = gaSessionToSidebar(created);
-      if (!item.id) throw new Error("GenericAgent returned a session without an id");
-      const nextEntry = createBlankConversationEntry({
-        conversationState,
-        sessionId: item.id,
-        createdAt: item.createdAt,
-        workdir: item.cwd,
-      });
-      sidebarStore.upsertLocal(item);
-      activateConversation({ conversationId: item.id, entry: nextEntry, clearError: true });
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : String(error));
-    }
+    let readiness!: Promise<string | null>;
+    readiness = (async () => {
+      try {
+        const created = await gaBridgeClient.createSession({ cwd: workdir, projectId: options?.projectId });
+        const item = gaSessionToSidebar(created);
+        if (!item.id) throw new Error("GenericAgent returned a session without an id");
+        const nextEntry = createBlankConversationEntry({
+          conversationState,
+          sessionId: item.id,
+          createdAt: item.createdAt,
+          workdir: item.cwd,
+        });
+        sidebarStore.upsertLocal(item);
+        activateConversation({ conversationId: item.id, entry: nextEntry, clearError: true });
+        return item.id;
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : String(error));
+        return null;
+      } finally {
+        if (conversationReadinessRef.current.get(visibleConversationId) === readiness) {
+          conversationReadinessRef.current.delete(visibleConversationId);
+        }
+      }
+    })();
+    conversationReadinessRef.current.set(visibleConversationId, readiness);
+    return readiness;
   }
 
   async function activateFullRecord(id: string, loadSequence: number) {

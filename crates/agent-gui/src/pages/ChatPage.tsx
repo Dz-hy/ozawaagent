@@ -1,5 +1,6 @@
 import type { Context } from "@earendil-works/pi-ai";
 import { listen } from "@tauri-apps/api/event";
+import type { GaModelProfile } from "../lib/ga/types";
 import {
   type CSSProperties,
   type SetStateAction,
@@ -230,8 +231,14 @@ export function ChatPage(props: ChatPageProps) {
     };
   }, [sidebarStore]);
   const startNewConversationActionRef = useRef<
-    (options?: { workdir?: string; projectId?: string }) => void
-  >(() => undefined);
+    (options?: {
+      workdir?: string;
+      projectId?: string;
+      preserveComposer?: boolean;
+    }) => Promise<string | null>
+  >(async () => null);
+  const conversationReadinessRef = useRef(new Map<string, Promise<string | null>>());
+  const initialConversationBootstrapRef = useRef(false);
   const prepareComposerForConversationChangeActionRef = useRef<() => void>(() => undefined);
   const [activeView, setActiveView] = useState<"chat" | "knowledge-hub">("chat");
   const [rightDockOpen, setRightDockOpen] = useState(false);
@@ -348,6 +355,77 @@ export function ChatPage(props: ChatPageProps) {
   const [availableComposerCommands, setAvailableComposerCommands] = useState<
     MentionComposerCommand[]
   >([]);
+  const [gaModelProfiles, setGaModelProfiles] = useState<readonly GaModelProfile[]>([]);
+  const [gaModelProfilesLoading, setGaModelProfilesLoading] = useState(true);
+  const [gaCurrentModelNo, setGaCurrentModelNo] = useState<number | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    let retryTimer: number | null = null;
+    const retryDelays = [250, 500, 1_000] as const;
+
+    const loadProfiles = async (attempt: number) => {
+      try {
+        const snapshot = await gaBridgeClient.listModelProfiles();
+        if (cancelled) return;
+        setGaModelProfiles(snapshot.profiles);
+        setGaModelProfilesLoading(false);
+      } catch {
+        if (cancelled) return;
+        if (attempt < retryDelays.length) {
+          retryTimer = window.setTimeout(() => {
+            retryTimer = null;
+            void loadProfiles(attempt + 1);
+          }, retryDelays[attempt]);
+          return;
+        }
+        // A bridge can still be warming up while the page is mounted. Do not
+        // erase a previously valid list when a refresh attempt fails; the
+        // empty state is only authoritative after all retries are exhausted.
+        setGaModelProfilesLoading(false);
+      }
+    };
+
+    void loadProfiles(0);
+    return () => {
+      cancelled = true;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+    };
+  }, []);
+  useEffect(() => {
+    const sessionId = currentConversationSessionId.trim();
+    if (!sessionId) {
+      setGaCurrentModelNo(null);
+      return;
+    }
+    let cancelled = false;
+    let retryTimer: number | null = null;
+    const retryDelays = [200, 400, 800] as const;
+
+    const loadSessionModel = async (attempt: number) => {
+      try {
+        const snapshot = await gaBridgeClient.getSession(sessionId);
+        if (cancelled) return;
+        const llmNo = snapshot.session.model?.llmNo;
+        setGaCurrentModelNo(typeof llmNo === "number" ? llmNo : null);
+      } catch {
+        if (cancelled) return;
+        if (attempt < retryDelays.length) {
+          retryTimer = window.setTimeout(() => {
+            retryTimer = null;
+            void loadSessionModel(attempt + 1);
+          }, retryDelays[attempt]);
+        } else {
+          setGaCurrentModelNo(null);
+        }
+      }
+    };
+
+    void loadSessionModel(0);
+    return () => {
+      cancelled = true;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+    };
+  }, [currentConversationSessionId]);
   useEffect(() => {
     let cancelled = false;
     void gaBridgeClient
@@ -515,6 +593,7 @@ export function ChatPage(props: ChatPageProps) {
     currentModelLabel,
     currentModelContextWindow,
     handleSelectModel,
+    handleSelectGaProfile,
     chatRuntimeReasoningOptions,
     chatRuntimeThinkingAlwaysOn,
     chatRuntimeControlsForCurrentProvider,
@@ -526,7 +605,22 @@ export function ChatPage(props: ChatPageProps) {
     sidebarStore,
     sidebarConversationsById,
     currentConversationId,
+    currentConversationSessionId,
     currentConversationSelectedModel,
+    gaModelProfiles,
+    gaCurrentModelNo,
+    onSelectGaProfile: (profileId) => {
+      const sessionId = currentConversationSessionId.trim();
+      if (!sessionId) return;
+      void gaBridgeClient
+        .setSessionModel(sessionId, profileId)
+        .then((result) => {
+          setGaCurrentModelNo(result.llmNo);
+        })
+        .catch((error) => {
+          setErrorMessage(error instanceof Error ? error.message : String(error));
+        });
+    },
     currentConversationIdRef,
     conversationRuntimeCacheRef,
     updateConversationRuntimeEntry,
@@ -773,9 +867,11 @@ export function ChatPage(props: ChatPageProps) {
       recovered.set(conversationId, controller);
       setConversationAbortController(conversationId, controller);
       setConversationSendingState(conversationId, true);
-      const baseState = ensureConversationRuntimeEntry(conversationId).state;
+      const runtimeEntry = ensureConversationRuntimeEntry(conversationId);
+      const baseState = runtimeEntry.state;
       void observeGaChatTurn({
         conversationId,
+        sessionId: runtimeEntry.sessionId,
         baseState,
         signal: controller.signal,
         applyState: (state) =>
@@ -1007,6 +1103,7 @@ export function ChatPage(props: ChatPageProps) {
     currentConversationIdRef,
     conversationRuntimeCacheRef,
     persistedConversationStateRef,
+    conversationReadinessRef,
     markLocalHistorySnapshotSynced,
     isConversationRunning,
     conversationLoadSequenceRef,
@@ -1036,6 +1133,24 @@ export function ChatPage(props: ChatPageProps) {
   openInitialActionRef.current = openConversationInitial;
   hydrateFullActionRef.current = hydrateConversationFull;
   cleanupDeletedConversationActionRef.current = cleanupDeletedConversation;
+
+  useEffect(() => {
+    if (initialConversationBootstrapRef.current) return;
+    if (currentConversationId !== initialConversationRef.current.conversationId) return;
+    if (sidebarStore.peek(currentConversationId)) return;
+
+    initialConversationBootstrapRef.current = true;
+    void startNewConversationActionRef.current({
+      workdir: isAgentMode ? activeWorkspaceProjectPath || undefined : undefined,
+      projectId: isAgentMode ? activeWorkspaceProjectId : undefined,
+    });
+  }, [
+    activeWorkspaceProjectId,
+    activeWorkspaceProjectPath,
+    currentConversationId,
+    isAgentMode,
+    sidebarStore,
+  ]);
 
   const {
     handleRemoveWorkspaceProject,
@@ -1707,6 +1822,7 @@ export function ChatPage(props: ChatPageProps) {
                   selectedValue={selectedValue}
                   sidebarOpen={sidebarOpen}
                   onSelectModel={handleSelectModel}
+                  onSelectGaProfile={handleSelectGaProfile}
                   onOpenSettings={onOpenSettings}
                   onToggleTheme={onToggleTheme}
                   onOpenSidebar={handleOpenSidebar}
@@ -1749,6 +1865,7 @@ export function ChatPage(props: ChatPageProps) {
                   gitClient={tauriGitClient}
                   followRef={scrollFollowRef}
                   hasModels={hasModels}
+                  modelsLoading={gaModelProfilesLoading}
                   historyItems={historyRenderItems}
                   isHistorySwitching={conversationOpenState.showOverlay}
                   isSending={isSending}

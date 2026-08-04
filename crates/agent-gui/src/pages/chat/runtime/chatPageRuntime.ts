@@ -8,6 +8,8 @@ import type { AppSettings, SelectedModel } from "../../../lib/settings";
 
 export const MAX_IDLE_CONVERSATION_RUNTIME_CACHE_ENTRIES = 12;
 
+export type ConversationModelMode = "ga" | "legacy";
+
 export type ConversationRuntimeEntry = {
   state: ConversationViewState;
   compactionStatus: CompactionStatus;
@@ -18,6 +20,7 @@ export type ConversationRuntimeEntry = {
   createdAt: number;
   workdir?: string;
   selectedModel?: SelectedModel;
+  modelMode?: ConversationModelMode;
 };
 
 export function createConversationRuntimeEntry(params: {
@@ -30,6 +33,7 @@ export function createConversationRuntimeEntry(params: {
   hookWarning?: string | null;
   workdir?: string;
   selectedModel?: SelectedModel;
+  modelMode?: ConversationModelMode;
 }): ConversationRuntimeEntry {
   const {
     state,
@@ -41,6 +45,7 @@ export function createConversationRuntimeEntry(params: {
     hookWarning = null,
     workdir,
     selectedModel,
+    modelMode,
   } = params;
   return {
     state,
@@ -52,6 +57,7 @@ export function createConversationRuntimeEntry(params: {
     createdAt,
     workdir: workdir?.trim() || undefined,
     selectedModel,
+    modelMode,
   };
 }
 

@@ -9,12 +9,14 @@ import type {
 import type { StreamRetryConfig } from "./streamRetry";
 
 export type ModelOption = {
-  value: string; // encodes customProviderId::model
+  value: string; // encodes customProviderId::model, or ga:<llmNo> for GenericAgent
   label: string; // model id
   providerId: string; // stable custom provider identity (for grouping)
   providerName: string; // provider display name
-  providerType: ProviderId; // routes Claude Code, Codex, Gemini, etc.
+  providerType: ProviderId | "genericagent"; // routes legacy providers or GenericAgent profiles
   model: string;
+  /** GenericAgent model profile id; GA options never enter the old provider runtime. */
+  gaProfileId?: number;
 };
 
 export type ProviderRuntimeConfig = {

@@ -45,7 +45,11 @@ type UseWorkspaceProjectsParams = {
   setActiveView: Dispatch<SetStateAction<"chat" | "knowledge-hub">>;
   setRightDockOpen: Dispatch<SetStateAction<boolean>>;
   startNewConversationActionRef: MutableRefObject<
-    (options?: { workdir?: string; projectId?: string }) => void
+    (options?: {
+      workdir?: string;
+      projectId?: string;
+      preserveComposer?: boolean;
+    }) => Promise<string | null>
   >;
   prepareComposerForConversationChangeActionRef: MutableRefObject<() => void>;
 };

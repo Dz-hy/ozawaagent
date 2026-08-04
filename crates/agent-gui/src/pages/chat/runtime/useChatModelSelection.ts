@@ -1,15 +1,23 @@
-import { type MutableRefObject, useCallback, useEffect, useMemo } from "react";
+import { type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { setChatHistoryModel } from "../../../lib/chat/history/chatHistory";
 import { buildModelOptions } from "../../../lib/chat/page/chatPageHelpers";
+import { gaBridgeClient } from "../../../lib/ga/GaBridgeClient";
+import type {
+  GaModelProfile,
+  GaSessionRuntime,
+  GaSessionRuntimePatch,
+} from "../../../lib/ga/types";
 import { isThinkingAlwaysOnForModel, toModelValue } from "../../../lib/providers/llm";
 import {
   type AppSettings,
   type ChatRuntimeControls,
   findProviderModelConfig,
   getChatRuntimeReasoningLevelsForProvider,
+  normalizeChatRuntimeControls,
   normalizeChatRuntimeControlsForProvider,
   normalizeSelectedModelForProviders,
   parseSelectedModelJson,
+  type ReasoningLevel,
   type SelectedModel,
   serializeSelectedModelJson,
   setSelectedModel,
@@ -29,7 +37,11 @@ type UseChatModelSelectionParams = {
   sidebarStore: SidebarStore;
   sidebarConversationsById: ReadonlyMap<string, SidebarConversation>;
   currentConversationId: string;
+  currentConversationSessionId: string;
   currentConversationSelectedModel: SelectedModel | undefined;
+  gaModelProfiles: readonly GaModelProfile[];
+  gaCurrentModelNo?: number | null;
+  onSelectGaProfile: (profileId: number) => void;
   currentConversationIdRef: MutableRefObject<string>;
   conversationRuntimeCacheRef: MutableRefObject<Map<string, ConversationRuntimeEntry>>;
   updateConversationRuntimeEntry: (
@@ -37,6 +49,28 @@ type UseChatModelSelectionParams = {
     updater: (prev: ConversationRuntimeEntry) => ConversationRuntimeEntry,
   ) => ConversationRuntimeEntry;
 };
+
+const GA_RUNTIME_REASONING_OPTIONS: ReasoningLevel[] = [
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+];
+
+function gaReasoningToUi(
+  value: GaSessionRuntime["reasoning_effort"] | GaModelProfile["reasoning_effort"],
+  fallback: ReasoningLevel,
+): ReasoningLevel {
+  if (!value) return fallback;
+  return value === "none" ? "off" : value;
+}
+
+function uiReasoningToGa(value: ReasoningLevel): NonNullable<GaSessionRuntime["reasoning_effort"]> {
+  return value === "off" ? "none" : value;
+}
 
 /**
  * Per-conversation model selection UI state: the model dropdown options and
@@ -52,30 +86,100 @@ export function useChatModelSelection(params: UseChatModelSelectionParams) {
     sidebarStore,
     sidebarConversationsById,
     currentConversationId,
+    currentConversationSessionId,
     currentConversationSelectedModel,
+    gaModelProfiles,
+    gaCurrentModelNo,
+    onSelectGaProfile,
     currentConversationIdRef,
     conversationRuntimeCacheRef,
     updateConversationRuntimeEntry,
   } = params;
 
-  const modelOptions = useMemo(
+  const [gaSessionRuntime, setGaSessionRuntime] = useState<GaSessionRuntime | null>(null);
+  const gaSessionRuntimeRef = useRef<GaSessionRuntime | null>(null);
+  useEffect(() => {
+    const sessionId = currentConversationSessionId.trim();
+    gaSessionRuntimeRef.current = null;
+    setGaSessionRuntime(null);
+    if (!sessionId) return undefined;
+    let cancelled = false;
+    void gaBridgeClient
+      .getSessionRuntime(sessionId)
+      .then((runtime) => {
+        if (cancelled) return;
+        gaSessionRuntimeRef.current = runtime;
+        setGaSessionRuntime(runtime);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          gaSessionRuntimeRef.current = null;
+          setGaSessionRuntime(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentConversationSessionId]);
+
+  const legacyModelOptions = useMemo(
     () => buildModelOptions(settings, { floatSelectedFirst: false }),
     [settings],
+  );
+  const gaModelOptions = useMemo(
+    () =>
+      gaModelProfiles.map((profile) => {
+        const model = profile.model?.trim();
+        const label =
+          profile.kind === "mixin"
+            ? profile.name?.trim() || profile.varName?.trim() || `channel-${profile.id}`
+            : model || profile.name?.trim() || profile.varName?.trim() || `llm-${profile.id}`;
+        return {
+          value: `ga:${profile.id}`,
+          label,
+          providerId: "genericagent",
+          providerName: "GenericAgent",
+          providerType: "genericagent" as const,
+          model: label,
+          gaProfileId: profile.id,
+        };
+      }),
+    [gaModelProfiles],
+  );
+  const modelOptions = useMemo(
+    () => [...legacyModelOptions, ...gaModelOptions],
+    [gaModelOptions, legacyModelOptions],
   );
   const activeSelectedModel = resolveActiveModelSelection(
     settings,
     currentConversationSelectedModel,
   );
-  const selectedValue = activeSelectedModel
+  const defaultGaProfileId = gaModelProfiles.find((profile) => profile.active)?.id;
+  const gaSelectedProfile = useMemo(
+    () =>
+      gaModelProfiles.find((profile) => profile.id === (gaCurrentModelNo ?? defaultGaProfileId)),
+    [defaultGaProfileId, gaCurrentModelNo, gaModelProfiles],
+  );
+  const gaSelectedValue =
+    gaCurrentModelNo != null &&
+    gaModelOptions.some((option) => option.value === `ga:${gaCurrentModelNo}`)
+      ? `ga:${gaCurrentModelNo}`
+      : undefined;
+  const legacySelectedValue = activeSelectedModel
     ? toModelValue(activeSelectedModel.customProviderId, activeSelectedModel.model)
     : undefined;
+  const conversationModelMode =
+    conversationRuntimeCacheRef.current.get(currentConversationId)?.modelMode;
+  const inferredModelMode =
+    conversationModelMode ??
+    (currentConversationSelectedModel ? "legacy" : gaSelectedValue ? "ga" : "legacy");
+  const gaModeActive = inferredModelMode === "ga";
+  const selectedValue = gaModeActive ? gaSelectedValue : legacySelectedValue;
   const hasModels = modelOptions.length > 0;
 
   const currentModelLabel = (() => {
-    if (!activeSelectedModel) return t("chat.selectModel");
-    const opt = modelOptions.find((o) => o.value === selectedValue);
-    if (opt) return `${opt.providerName} / ${opt.model}`;
-    return activeSelectedModel.model;
+    const opt = modelOptions.find((option) => option.value === selectedValue);
+    return opt ? `${opt.providerName} / ${opt.label}` : t("chat.selectModel");
   })();
 
   const currentModelContextWindow = (() => {
@@ -95,9 +199,9 @@ export function useChatModelSelection(params: UseChatModelSelectionParams) {
     (selection: SelectedModel) => {
       const conversationId = currentConversationIdRef.current;
       updateConversationRuntimeEntry(conversationId, (prev) =>
-        selectedModelsMatch(prev.selectedModel, selection)
+        selectedModelsMatch(prev.selectedModel, selection) && prev.modelMode === "legacy"
           ? prev
-          : { ...prev, selectedModel: selection },
+          : { ...prev, selectedModel: selection, modelMode: "legacy" },
       );
       const persistedRow = sidebarStore.peek(conversationId);
       const selectedModelJson = serializeSelectedModelJson(selection);
@@ -128,10 +232,11 @@ export function useChatModelSelection(params: UseChatModelSelectionParams) {
     if (!parsed) return;
     const entry = conversationRuntimeCacheRef.current.get(currentConversationId);
     if (!entry || entry.isSending) return;
-    if (selectedModelsMatch(entry.selectedModel, parsed)) return;
+    if (selectedModelsMatch(entry.selectedModel, parsed) && entry.modelMode === "legacy") return;
     updateConversationRuntimeEntry(currentConversationId, (prev) => ({
       ...prev,
       selectedModel: parsed,
+      modelMode: "legacy",
     }));
   }, [
     conversationRuntimeCacheRef,
@@ -165,36 +270,89 @@ export function useChatModelSelection(params: UseChatModelSelectionParams) {
     ],
   );
   const chatRuntimeReasoningOptions = useMemo(
-    () => getChatRuntimeReasoningLevelsForProvider(chatRuntimeReasoningParams),
-    [chatRuntimeReasoningParams],
+    () =>
+      gaModeActive
+        ? GA_RUNTIME_REASONING_OPTIONS
+        : getChatRuntimeReasoningLevelsForProvider(chatRuntimeReasoningParams),
+    [chatRuntimeReasoningParams, gaModeActive],
   );
+  const gaDefaultReasoning = gaReasoningToUi(
+    gaSessionRuntime?.reasoning_effort ?? gaSelectedProfile?.reasoning_effort,
+    "off",
+  );
+  const gaDefaultThinkingEnabled =
+    (gaSessionRuntime?.thinking_type ?? gaSelectedProfile?.thinking_type) !== "disabled";
   const chatRuntimeThinkingAlwaysOn = useMemo(
     () =>
-      isThinkingAlwaysOnForModel(
-        currentChatProvider?.type ?? "claude_code",
-        currentChatModelId ?? "",
-        currentChatProvider?.baseUrl ?? "",
-        currentChatProvider?.requestFormat,
-        currentChatModelConfig,
-      ),
+      gaModeActive
+        ? false
+        : isThinkingAlwaysOnForModel(
+            currentChatProvider?.type ?? "claude_code",
+            currentChatModelId ?? "",
+            currentChatProvider?.baseUrl ?? "",
+            currentChatProvider?.requestFormat,
+            currentChatModelConfig,
+          ),
     [
       currentChatModelConfig,
       currentChatModelId,
       currentChatProvider?.baseUrl,
       currentChatProvider?.requestFormat,
       currentChatProvider?.type,
+      gaModeActive,
     ],
   );
-  const chatRuntimeControlsForCurrentProvider = useMemo(
-    () =>
-      normalizeChatRuntimeControlsForProvider(
-        settings.chatRuntimeControls,
-        chatRuntimeReasoningParams,
-      ),
-    [chatRuntimeReasoningParams, settings.chatRuntimeControls],
-  );
+  const chatRuntimeControlsForCurrentProvider = useMemo(() => {
+    if (gaModeActive) {
+      const oldControls = normalizeChatRuntimeControls(settings.chatRuntimeControls);
+      return {
+        ...oldControls,
+        reasoning: gaSessionRuntime
+          ? gaReasoningToUi(gaSessionRuntime.reasoning_effort, gaDefaultReasoning)
+          : gaDefaultReasoning,
+        thinkingEnabled: gaSessionRuntime ? gaDefaultThinkingEnabled : gaDefaultThinkingEnabled,
+      };
+    }
+    return normalizeChatRuntimeControlsForProvider(
+      settings.chatRuntimeControls,
+      chatRuntimeReasoningParams,
+    );
+  }, [
+    chatRuntimeReasoningParams,
+    gaDefaultReasoning,
+    gaDefaultThinkingEnabled,
+    gaModeActive,
+    gaSessionRuntime,
+    settings.chatRuntimeControls,
+  ]);
   const handleChatRuntimeControlsChange = useCallback(
     (patch: Partial<ChatRuntimeControls>) => {
+      if (gaModeActive) {
+        const sessionId = currentConversationSessionId.trim();
+        if (!sessionId) return;
+        const runtimePatch: GaSessionRuntimePatch = {};
+        if (patch.reasoning !== undefined) {
+          runtimePatch.reasoning_effort = uiReasoningToGa(patch.reasoning);
+        }
+        if (patch.thinkingEnabled !== undefined) {
+          runtimePatch.thinking_type = patch.thinkingEnabled ? "enabled" : "disabled";
+        }
+        if (Object.keys(runtimePatch).length === 0) return;
+        const previous = gaSessionRuntimeRef.current;
+        const next: GaSessionRuntime = {
+          reasoning_effort: runtimePatch.reasoning_effort ?? previous?.reasoning_effort ?? null,
+          service_tier: previous?.service_tier ?? null,
+          thinking_type: runtimePatch.thinking_type ?? previous?.thinking_type ?? null,
+        };
+        gaSessionRuntimeRef.current = next;
+        setGaSessionRuntime(next);
+        void gaBridgeClient.updateSessionRuntime(sessionId, runtimePatch).catch(() => {
+          if (gaSessionRuntimeRef.current !== next) return;
+          gaSessionRuntimeRef.current = previous;
+          setGaSessionRuntime(previous);
+        });
+        return;
+      }
       setSettings((prev) => ({
         ...prev,
         chatRuntimeControls: updateChatRuntimeControlsForProvider(
@@ -204,7 +362,18 @@ export function useChatModelSelection(params: UseChatModelSelectionParams) {
         ),
       }));
     },
-    [chatRuntimeReasoningParams, setSettings],
+    [currentConversationSessionId, gaModeActive, chatRuntimeReasoningParams, setSettings],
+  );
+
+  const handleSelectGaProfile = useCallback(
+    (profileId: number) => {
+      const conversationId = currentConversationIdRef.current;
+      updateConversationRuntimeEntry(conversationId, (prev) =>
+        prev.modelMode === "ga" ? prev : { ...prev, modelMode: "ga" },
+      );
+      onSelectGaProfile(profileId);
+    },
+    [currentConversationIdRef, onSelectGaProfile, updateConversationRuntimeEntry],
   );
 
   return {
@@ -215,6 +384,7 @@ export function useChatModelSelection(params: UseChatModelSelectionParams) {
     currentModelLabel,
     currentModelContextWindow,
     handleSelectModel,
+    handleSelectGaProfile,
     chatRuntimeReasoningOptions,
     chatRuntimeThinkingAlwaysOn,
     chatRuntimeControlsForCurrentProvider,

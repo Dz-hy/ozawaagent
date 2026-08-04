@@ -46,3 +46,11 @@ test("GenericAgent hooks are read-only and automation is Agent Prompt only", () 
   assert.match(automation, /gaBridgeClient\.deleteAutomation/);
   assert.doesNotMatch(automation, /bash|http|runCronNow|runNow/);
 });
+
+test("model profile editor portal opens its panel instead of leaving only the backdrop", () => {
+  const modelProfiles = source("pages/settings/GaModelProfilesSection.tsx");
+  assert.match(modelProfiles, /className="settings-modal-overlay fixed inset-0 z-\[100\][^\n]+"/);
+  assert.match(modelProfiles, /data-state="open"/);
+  assert.match(modelProfiles, /className="settings-modal-panel relative flex/);
+  assert.match(modelProfiles, /createPortal\([\s\S]*document\.body/);
+});

@@ -40,7 +40,14 @@ test("popover interactions preserve mode changes and close after model selection
   for (const source of headerSources) {
     assert.match(source, /onClick=\{\(\) => toggleGroup\(group\.id\)\}/);
     assert.match(source, /aria-pressed=\{isSelected\}/);
-    assert.match(source, /onSelectModel\(parsed\);\s+setIsModelPickerOpen\(false\);/);
+    assert.match(
+      source,
+      /onSelectModel\(parsed\);[\s\S]{0,200}setIsModelPickerOpen\(false\);/,
+    );
+    if (source.includes("onSelectGaProfile")) {
+      assert.match(source, /onSelectGaProfile\?\.\(option\.gaProfileId\);/);
+    }
+    assert.match(source, /setIsModelPickerOpen\(false\);/);
   }
 });
 

@@ -96,6 +96,7 @@ export function useChatPageRuntimeStore(params: UseChatPageRuntimeStoreParams) {
         createdAt: currentConversationCreatedAt,
         workdir: conversationRuntimeCacheRef.current.get(currentConversationIdRef.current)?.workdir,
         selectedModel: currentConversationSelectedModel,
+        modelMode: conversationRuntimeCacheRef.current.get(currentConversationIdRef.current)?.modelMode,
       }),
     [
       compactionStatus,
@@ -238,6 +239,7 @@ export function useChatPageRuntimeStore(params: UseChatPageRuntimeStoreParams) {
         createdAt: currentConversationCreatedAt,
         workdir: conversationRuntimeCacheRef.current.get(currentConversationId)?.workdir,
         selectedModel: currentConversationSelectedModel,
+        modelMode: conversationRuntimeCacheRef.current.get(currentConversationId)?.modelMode,
       }),
     );
   }, [

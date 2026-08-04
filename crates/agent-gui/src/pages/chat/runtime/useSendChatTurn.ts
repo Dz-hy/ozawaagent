@@ -36,7 +36,10 @@ import type { useGatewayRuntimeSnapshots } from "../gateway/useGatewayRuntimeSna
 import type { PersistConversationParams } from "../history/useConversationHistoryActions";
 import type { useChatPageRuntimeStore } from "../hooks/useChatPageRuntimeStore";
 import type { useLiveTranscriptController } from "../hooks/useLiveTranscriptController";
+import { runLegacyTextTurn } from "../turns/runTextConversationTurn";
 import { expandGaCommandPrompt } from "./gaCommands";
+import { resolveEffectiveChatModelSelection } from "./modelSelection";
+import { buildProviderRuntimeConfig } from "./providerRuntimeConfig";
 import { runGaChatTurn } from "./runGaChatTurn";
 
 type LiveTranscriptController = ReturnType<typeof useLiveTranscriptController>;
@@ -136,6 +139,8 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
     pendingUploadedFiles,
     getPendingUploadsForConversation,
     setPendingUploadsForConversation,
+    getConversationLiveTranscriptStore,
+    appendDraftAssistantText,
     queueGatewayBridgeEventForRequest,
     flushGatewayBridgeEventsForRequest,
     queueGatewayRuntimeSnapshot,
@@ -214,6 +219,16 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
       gatewayBridgeEvents.emitError(message, conversationId);
       throw new Error(message);
     }
+    const modelMode = runtimeEntry.modelMode ?? (runtimeEntry.selectedModel ? "legacy" : "ga");
+    const legacySelection =
+      modelMode === "legacy"
+        ? resolveEffectiveChatModelSelection({
+            settings,
+            conversationSelectedModel: runtimeEntry.selectedModel,
+          })
+        : null;
+    const legacyProvider = legacySelection?.provider;
+
     if (runtimeEntry.isSending) {
       if (gatewayBridgeRequest) {
         const message = "Conversation is already sending.";
@@ -291,17 +306,19 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
     if (!text && uploadedFiles.length === 0) return false;
 
     let expandedText = text;
-    try {
-      expandedText = await expandGaCommandPrompt(text, (commandId, argsText) =>
-        gaBridgeClient.executeCommand(commandId, argsText),
-      );
-    } catch (error) {
-      const message = asErrorMessage(error, "GenericAgent command failed");
-      setConversationErrorState(message);
-      setErrorMessage(message);
-      gatewayBridgeEvents.emitError(message, conversationId);
-      await gatewayBridgeEvents.close();
-      return false;
+    if (modelMode === "ga") {
+      try {
+        expandedText = await expandGaCommandPrompt(text, (commandId, argsText) =>
+          gaBridgeClient.executeCommand(commandId, argsText),
+        );
+      } catch (error) {
+        const message = asErrorMessage(error, "GenericAgent command failed");
+        setConversationErrorState(message);
+        setErrorMessage(message);
+        gatewayBridgeEvents.emitError(message, conversationId);
+        await gatewayBridgeEvents.close();
+        return false;
+      }
     }
 
     const abortController = new AbortController();
@@ -318,34 +335,60 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
     setConversationSendingState(conversationId, true);
     if (visible) scrollFollowRef.current?.stickToBottom();
 
-    const files = uploadedFiles.flatMap((file) => {
-      const path = file.absolutePath?.trim();
-      return file.kind !== "image" && path ? [{ name: file.fileName, path }] : [];
-    });
-    const imageMetas = uploadedFiles.flatMap((file) => {
-      const path = file.absolutePath?.trim();
-      return file.kind === "image" && path ? [{ name: file.fileName, path }] : [];
-    });
-    const attachmentPaths = [...files, ...imageMetas].map((file) => file.path);
-    const gaPrompt = [expandedText, ...attachmentPaths].filter(Boolean).join("\n");
     try {
-      await runGaChatTurn({
-        conversationId,
-        prompt: {
-          prompt: gaPrompt,
-          display: text,
-          ...(files.length > 0 ? { files } : {}),
-          ...(imageMetas.length > 0 ? { imageMetas } : {}),
-        },
-        baseState,
-        signal: abortController.signal,
-        applyState: (state) =>
-          updateConversationRuntimeEntry(conversationId, (prev) => ({
-            ...prev,
-            state,
-            errorMessage: null,
-          })),
-      });
+      if (modelMode === "legacy" && legacySelection && legacyProvider) {
+        const transcriptStore = getConversationLiveTranscriptStore(conversationId);
+        await runLegacyTextTurn({
+          sessionId: runtimeEntry.sessionId,
+          text,
+          uploads: uploadedFiles,
+          baseState,
+          providerId: legacySelection.providerId,
+          model: legacySelection.model,
+          runtime: buildProviderRuntimeConfig(
+            legacyProvider,
+            legacySelection.model,
+            overrides?.runtimeControlsOverride,
+          ),
+          workdir: effectiveWorkdir || undefined,
+          signal: abortController.signal,
+          onTextDelta: (delta) => appendDraftAssistantText(delta, transcriptStore),
+          applyState: (state) =>
+            updateConversationRuntimeEntry(conversationId, (prev) => ({
+              ...prev,
+              state,
+              errorMessage: null,
+            })),
+        });
+      } else {
+        const files = uploadedFiles.flatMap((file) => {
+          const path = file.absolutePath?.trim();
+          return file.kind !== "image" && path ? [{ name: file.fileName, path }] : [];
+        });
+        const imageMetas = uploadedFiles.flatMap((file) => {
+          const path = file.absolutePath?.trim();
+          return file.kind === "image" && path ? [{ name: file.fileName, path }] : [];
+        });
+        const attachmentPaths = [...files, ...imageMetas].map((file) => file.path);
+        const gaPrompt = [expandedText, ...attachmentPaths].filter(Boolean).join("\n");
+        await runGaChatTurn({
+          conversationId,
+          prompt: {
+            prompt: gaPrompt,
+            display: text,
+            ...(files.length > 0 ? { files } : {}),
+            ...(imageMetas.length > 0 ? { imageMetas } : {}),
+          },
+          baseState,
+          signal: abortController.signal,
+          applyState: (state) =>
+            updateConversationRuntimeEntry(conversationId, (prev) => ({
+              ...prev,
+              state,
+              errorMessage: null,
+            })),
+        });
+      }
       return true;
     } catch (error) {
       const message = asErrorMessage(error, "GenericAgent request failed");

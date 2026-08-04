@@ -18,6 +18,7 @@ export type ChatTranscriptProps = {
   // handle (force-follow on conversation reset / run start).
   followRef: MutableRefObject<ScrollFollowHandle | null>;
   hasModels: boolean;
+  modelsLoading?: boolean;
   historyItems: RenderTimelineItem[];
   isHistorySwitching: boolean;
   isSending: boolean;

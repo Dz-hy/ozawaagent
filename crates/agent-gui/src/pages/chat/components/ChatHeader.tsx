@@ -32,15 +32,21 @@ import {
   getNextTheme,
   isAgentDevMode,
   isAgentExecutionMode,
-  type ProviderId,
   type SelectedModel,
   type Theme,
 } from "../../../lib/settings";
 import { cn } from "../../../lib/shared/utils";
 import type { SectionId } from "../../settings/types";
 
-function ProviderBrandIcon({ type, className }: { type: ProviderId; className?: string }) {
+function ProviderBrandIcon({
+  type,
+  className,
+}: {
+  type: ModelOption["providerType"];
+  className?: string;
+}) {
   const cls = cn("h-4 w-4 shrink-0", className);
+  if (type === "genericagent") return <Layers className={cls} />;
   if (type === "claude_code") return <ClaudeIcon className={cls} />;
   if (type === "gemini") return <GeminiIcon className={cls} />;
   return <OpenaiChatgptIcon className={cn(cls, "fill-current dark:text-white")} />;
@@ -60,6 +66,7 @@ export const ChatHeader = memo(function ChatHeader(props: {
   selectedValue?: string;
   sidebarOpen: boolean;
   onSelectModel: (selection: SelectedModel) => void;
+  onSelectGaProfile?: (profileId: number) => void;
   // 模型下拉内嵌的执行模式分段器：请求切到 Chat("text") 或 Agent("tools")。
   // agent-dev 视为 Agent 的一种，由调用方决定是否保持不降级。
   onSelectExecutionMode: (mode: "text" | "tools") => void;
@@ -77,6 +84,7 @@ export const ChatHeader = memo(function ChatHeader(props: {
     selectedValue,
     sidebarOpen,
     onSelectModel,
+    onSelectGaProfile,
     onSelectExecutionMode,
     onOpenSettings,
     onToggleTheme,
@@ -345,9 +353,13 @@ export const ChatHeader = memo(function ChatHeader(props: {
                                     key={option.value}
                                     aria-pressed={isSelected}
                                     onClick={() => {
-                                      const parsed = parseModelValue(option.value);
-                                      if (!parsed) return;
-                                      onSelectModel(parsed);
+                                      if (option.gaProfileId != null) {
+                                        onSelectGaProfile?.(option.gaProfileId);
+                                      } else {
+                                        const parsed = parseModelValue(option.value);
+                                        if (!parsed) return;
+                                        onSelectModel(parsed);
+                                      }
                                       setIsModelPickerOpen(false);
                                     }}
                                     className={cn(
