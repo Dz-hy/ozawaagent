@@ -5,6 +5,7 @@ import {
   type AppSettings,
   type ChatRuntimeControls,
   type CloseWindowBehavior,
+  diagnoseWorkspaceProjectPathConflicts,
   getDefaultSettings,
   normalizeChatRuntimeControls,
   normalizeCloseWindowBehavior,
@@ -18,6 +19,7 @@ import {
   type SelectedModel,
   type SkillsSettings,
   type Theme,
+  type WorkspaceProjectPathConflict,
 } from "./index";
 import { buildGatewaySettingsSyncPayload, buildGatewaySettingsSyncUpdatePayload } from "./sync";
 
@@ -179,9 +181,20 @@ function applyDefaultWorkdirToSystem(system: unknown, defaultWorkdir: string): u
   return obj;
 }
 
+function readWorkspaceProjectPathConflicts(input: unknown): WorkspaceProjectPathConflict[] {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return [];
+  const projects = (input as Record<string, unknown>).workspaceProjects;
+  return Array.isArray(projects)
+    ? diagnoseWorkspaceProjectPathConflicts(projects as Array<{ path: unknown }>)
+    : [];
+}
+
 export type PersistedSettingsLoadResult = {
   settings: AppSettings;
   defaultWorkdir: string;
+  // This is intentionally a load-time diagnostic, not part of AppSettings or
+  // any GA payload. It tells the desktop UI that normalization removed aliases.
+  workspaceProjectPathConflicts: WorkspaceProjectPathConflict[];
 };
 
 export async function loadPersistedSettingsWithDefaults(): Promise<PersistedSettingsLoadResult> {
@@ -189,12 +202,11 @@ export async function loadPersistedSettingsWithDefaults(): Promise<PersistedSett
   const localUi = readLocalUiSettings();
   const persisted = await invoke<PersistedSettingsResponse>("settings_load_all");
   const defaultWorkdir = normalizeDefaultWorkdir(persisted?.defaultWorkdir);
+  const persistedSystem = persisted?.system ?? defaults.system;
+  const workspaceProjectPathConflicts = readWorkspaceProjectPathConflicts(persistedSystem);
 
   const settings = normalizeSettings({
-    system: applyDefaultWorkdirToSystem(
-      persisted?.system ?? defaults.system,
-      defaultWorkdir,
-    ) as AppSettings["system"],
+    system: applyDefaultWorkdirToSystem(persistedSystem, defaultWorkdir) as AppSettings["system"],
     customProviders: (persisted?.providers ??
       defaults.customProviders) as AppSettings["customProviders"],
     mcp: (persisted?.mcp ?? defaults.mcp) as AppSettings["mcp"],
@@ -217,11 +229,18 @@ export async function loadPersistedSettingsWithDefaults(): Promise<PersistedSett
       system: resolveWorkspaceProjects(settings.system, defaultWorkdir),
     },
     defaultWorkdir,
+    workspaceProjectPathConflicts,
   };
 }
 
 export async function loadPersistedSettings(): Promise<AppSettings> {
   return (await loadPersistedSettingsWithDefaults()).settings;
+}
+
+export async function persistSystemSettings(system: AppSettings["system"]): Promise<void> {
+  await invoke("settings_save_system", {
+    payload: system,
+  } as any);
 }
 
 export async function persistSettings(

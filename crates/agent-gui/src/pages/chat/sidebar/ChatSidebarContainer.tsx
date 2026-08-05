@@ -9,7 +9,7 @@ import { useLocale } from "../../../i18n";
 import { normalizeConversationTitle } from "../../../lib/chat/page/chatPageHelpers";
 import { gaBridgeClient } from "../../../lib/ga/GaBridgeClient";
 import type { GaProjectMemoryStatus } from "../../../lib/ga/types";
-import type { WorkspaceProject } from "../../../lib/settings";
+import type { WorkspaceProject, WorkspaceProjectPathConflict } from "../../../lib/settings";
 import type { SidebarBatchDeleteOptions } from "../../../lib/sidebar/batchDelete";
 import { deleteSidebarConversations } from "../../../lib/sidebar/batchDelete";
 import {
@@ -36,6 +36,8 @@ type ChatSidebarContainerProps = {
   projects: WorkspaceProject[];
   activeProjectId?: string;
   missingProjectPathKeys: ReadonlySet<string>;
+  workspaceProjectPathConflicts: readonly WorkspaceProjectPathConflict[];
+  onRepairWorkspaceProjectPathConflicts: () => void;
   projectRenamingId: string | null;
   projectRenameDraft: string;
   projectsCollapsed: boolean;
@@ -243,6 +245,8 @@ export function ChatSidebarContainer(props: ChatSidebarContainerProps) {
       projects={sortedProjects}
       activeProjectId={props.activeProjectId}
       missingProjectPathKeys={props.missingProjectPathKeys}
+      workspaceProjectPathConflicts={props.workspaceProjectPathConflicts}
+      onRepairWorkspaceProjectPathConflicts={props.onRepairWorkspaceProjectPathConflicts}
       projectMemoryStatuses={projectMemoryStatuses}
       runningProjectPathKeys={projectActivityInputs.runningWorkdirPathKeys}
       projectRenamingId={props.projectRenamingId}

@@ -1,6 +1,5 @@
 import type { Context } from "@earendil-works/pi-ai";
 import { listen } from "@tauri-apps/api/event";
-import type { GaModelProfile } from "../lib/ga/types";
 import {
   type CSSProperties,
   type SetStateAction,
@@ -51,6 +50,7 @@ import {
 import type { ScrollFollowHandle } from "../lib/chat-scroll/useScrollFollow";
 import { gaBridgeClient } from "../lib/ga/GaBridgeClient";
 import { createGaSidebarBackend } from "../lib/ga/gaSidebarBackend";
+import type { GaModelProfile } from "../lib/ga/types";
 import { tauriGitClient } from "../lib/git/tauriGitClient";
 import { setPreferredMonacoNlsLocale } from "../lib/monacoNls";
 import {
@@ -74,6 +74,7 @@ import {
   updateSkills,
   updateSshProjectHostIds,
   updateSystem,
+  type WorkspaceProjectPathConflict,
   workspaceProjectPathKey,
 } from "../lib/settings";
 import { cn } from "../lib/shared/utils";
@@ -150,6 +151,8 @@ type ChatPageProps = {
   setContext: (next: Context) => void;
   onOpenSettings: (section?: SectionId) => void;
   onToggleTheme: () => void;
+  workspaceProjectPathConflicts: readonly WorkspaceProjectPathConflict[];
+  onRepairWorkspaceProjectPathConflicts: () => void;
 };
 
 export function ChatPage(props: ChatPageProps) {
@@ -161,6 +164,8 @@ export function ChatPage(props: ChatPageProps) {
     setContext,
     onOpenSettings,
     onToggleTheme,
+    workspaceProjectPathConflicts,
+    onRepairWorkspaceProjectPathConflicts,
   } = props;
   // Monaco reads NLS globals while the lazy editor module imports monaco-editor.
   setPreferredMonacoNlsLocale(settings.locale);
@@ -1689,6 +1694,8 @@ export function ChatPage(props: ChatPageProps) {
           projects={workspaceProjects}
           activeProjectId={activeWorkspaceProject?.id}
           missingProjectPathKeys={missingWorkspaceProjectPathKeys}
+          workspaceProjectPathConflicts={workspaceProjectPathConflicts}
+          onRepairWorkspaceProjectPathConflicts={onRepairWorkspaceProjectPathConflicts}
           projectRenamingId={projectRenamingId}
           projectRenameDraft={projectRenameDraft}
           projectsCollapsed={settings.customSettings.chatSidebar.projectsCollapsed}

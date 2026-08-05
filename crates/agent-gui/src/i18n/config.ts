@@ -48,6 +48,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     "chat.memoryExtraction.partial": "记忆部分更新（{accepted} 条已应用，{rejected} 条被拒）。",
     "chat.recentConversation": "最近会话",
     "chat.workspaceSection": "工作空间",
+    "chat.workspaceProjectPathConflict": "检测到 {count} 组工作空间路径冲突。",
+    "chat.workspaceProjectPathConflictRepair": "修复并保存",
     "chat.workspaceCreate": "新建工作空间",
     "chat.workspaceCreateDescription": "打开已有文件夹，或从远程 Git 仓库创建新的工作空间。",
     "chat.workspaceOpenFolder": "打开本地文件夹",
@@ -1167,8 +1169,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     "settings.aboutNotesBody":
       "本版本不检查远程更新；需要更换版本时，请通过项目提供的安装包手动安装。",
     "settings.aboutSecurityTitle": "运行隔离",
-    "settings.aboutSecurityBody":
-      "桌面端将可写数据与内置运行时分离；打开数据归档只访问本地目录。",
+    "settings.aboutSecurityBody": "桌面端将可写数据与内置运行时分离；打开数据归档只访问本地目录。",
 
     /* ── Settings System ── */
     "settings.appearance": "外观主题",
@@ -2168,6 +2169,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     "chat.workspaceUnarchive": "Unarchive",
     "chat.workspaceArchivedGroup": "Archived ({count})",
     "chat.workspaceProjectMemory": "Project memory available",
+    "chat.workspaceProjectPathConflict": "Detected {count} groups of workspace path conflicts.",
+    "chat.workspaceProjectPathConflictRepair": "Repair and save",
     "chat.workspaceProjectMemoryMissing": "Project memory: not created",
     "chat.workspaceProjectMemoryEmpty": "Project memory: empty",
     "chat.workspaceProjectMemoryDetails": "Project memory: {lineCount} lines, updated {updatedAt}",

@@ -18,7 +18,9 @@ import {
 } from "./lib/settings";
 import {
   loadPersistedSettingsWithDefaults,
+  type PersistedSettingsLoadResult,
   persistSettings,
+  persistSystemSettings,
   publishGatewaySettingsSync,
   type SettingsSaveState,
 } from "./lib/settings/storage";
@@ -131,6 +133,9 @@ export default function App() {
   const [settingsSection, setSettingsSection] = useState<SectionId>("system");
   const [settingsReady, setSettingsReady] = useState(false);
   const [settings, setSettingsState] = useState<AppSettings>(() => getDefaultSettings());
+  const [workspaceProjectPathConflicts, setWorkspaceProjectPathConflicts] = useState<
+    PersistedSettingsLoadResult["workspaceProjectPathConflicts"]
+  >([]);
   const [settingsSaveState, setSettingsSaveState] = useState<SettingsSaveState>({
     status: "idle",
   });
@@ -219,12 +224,17 @@ export default function App() {
 
     async function hydrateSettings() {
       try {
-        const { settings: loaded, defaultWorkdir } = await loadPersistedSettingsWithDefaults();
+        const {
+          settings: loaded,
+          defaultWorkdir,
+          workspaceProjectPathConflicts: loadedPathConflicts,
+        } = await loadPersistedSettingsWithDefaults();
         if (!cancelled) {
           defaultWorkdirRef.current = defaultWorkdir;
           const loadedWithDefaults = applyRuntimeSystemDefaults(loaded, defaultWorkdir);
           settingsRef.current = loadedWithDefaults;
           setSettingsState(loadedWithDefaults);
+          setWorkspaceProjectPathConflicts(loadedPathConflicts);
           setSettingsSaveState({ status: "saved" });
           void publishGatewaySettingsSync(loadedWithDefaults).catch((error) => {
             console.error("publish gateway settings sync failed", error);
@@ -235,6 +245,7 @@ export default function App() {
           const fallback = getDefaultSettings();
           settingsRef.current = fallback;
           setSettingsState(fallback);
+          setWorkspaceProjectPathConflicts([]);
           setSettingsSaveState({
             status: "error",
             message: asErrorMessage(error, "加载设置失败，已回退到默认配置。"),
@@ -328,12 +339,40 @@ export default function App() {
 
   const reloadPersistedSettings = useCallback(async () => {
     await saveChainRef.current.catch(() => undefined);
-    const { settings: loaded, defaultWorkdir } = await loadPersistedSettingsWithDefaults();
+    const {
+      settings: loaded,
+      defaultWorkdir,
+      workspaceProjectPathConflicts: loadedPathConflicts,
+    } = await loadPersistedSettingsWithDefaults();
     defaultWorkdirRef.current = defaultWorkdir;
     const loadedWithDefaults = applyRuntimeSystemDefaults(loaded, defaultWorkdir);
     settingsRef.current = loadedWithDefaults;
     setSettingsState(loadedWithDefaults);
+    setWorkspaceProjectPathConflicts(loadedPathConflicts);
     setSettingsSaveState({ status: "saved" });
+  }, []);
+
+  const repairWorkspaceProjectPathConflicts = useCallback(() => {
+    const saveSequence = ++saveSequenceRef.current;
+    const system = settingsRef.current.system;
+    setSettingsSaveState({ status: "saving" });
+    saveChainRef.current = saveChainRef.current
+      .catch(() => undefined)
+      .then(() => persistSystemSettings(system))
+      .then(() => {
+        if (saveSequenceRef.current === saveSequence) {
+          setWorkspaceProjectPathConflicts([]);
+          setSettingsSaveState({ status: "saved" });
+        }
+      })
+      .catch((error) => {
+        if (saveSequenceRef.current === saveSequence) {
+          setSettingsSaveState({
+            status: "error",
+            message: asErrorMessage(error, "修复工作空间路径冲突失败。"),
+          });
+        }
+      });
   }, []);
 
   const toggleTheme = useCallback(() => {
@@ -471,6 +510,8 @@ export default function App() {
             setContext={setContext}
             onOpenSettings={openSettings}
             onToggleTheme={toggleTheme}
+            workspaceProjectPathConflicts={workspaceProjectPathConflicts}
+            onRepairWorkspaceProjectPathConflicts={repairWorkspaceProjectPathConflicts}
           />
         </AppErrorBoundary>
         {visible && (

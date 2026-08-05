@@ -7,6 +7,7 @@ import type { GaProjectMemoryStatus } from "../../lib/ga/types";
 import {
   DEFAULT_WORKSPACE_PROJECT_ID,
   type WorkspaceProject,
+  type WorkspaceProjectPathConflict,
   workspaceProjectPathKey,
 } from "../../lib/settings";
 import { cn } from "../../lib/shared/utils";
@@ -21,6 +22,7 @@ import type {
   SidebarMutationKind,
 } from "../../lib/sidebar/types";
 import {
+  AlertTriangle,
   Archive,
   ArchiveRestore,
   BookOpen,
@@ -41,6 +43,7 @@ import {
   Settings,
   Share2,
   Trash2,
+  Wrench,
   X,
 } from "../icons";
 import { isMacOsTauri, MacOsTitleBarSpacer } from "../MacOsTitleBarSpacer";
@@ -82,6 +85,8 @@ type ChatHistorySidebarProps = {
   projects?: WorkspaceProject[];
   activeProjectId?: string;
   missingProjectPathKeys?: ReadonlySet<string>;
+  workspaceProjectPathConflicts?: readonly WorkspaceProjectPathConflict[];
+  onRepairWorkspaceProjectPathConflicts?: () => void;
   projectMemoryStatuses?: ReadonlyMap<string, GaProjectMemoryStatus>;
   runningProjectPathKeys?: ReadonlySet<string>;
   projectRenamingId?: string | null;
@@ -1028,6 +1033,8 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
     projects = [],
     activeProjectId,
     missingProjectPathKeys = EMPTY_PROJECT_PATH_KEYS,
+    workspaceProjectPathConflicts = [],
+    onRepairWorkspaceProjectPathConflicts,
     projectMemoryStatuses = new Map<string, GaProjectMemoryStatus>(),
     runningProjectPathKeys = EMPTY_PROJECT_PATH_KEYS,
     projectRenamingId = null,
@@ -1804,6 +1811,33 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
                 )}
               >
                 <div ref={projectsBodyRef} className="space-y-0.5 px-2 pb-0.5">
+                  {workspaceProjectPathConflicts.length > 0 ? (
+                    <div
+                      role="alert"
+                      className="mx-1 mb-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[calc(11px*var(--zone-font-scale,1))] text-amber-900 dark:text-amber-100"
+                    >
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        <div className="min-w-0 flex-1">
+                          <div className="leading-4">
+                            {t("chat.workspaceProjectPathConflict").replace(
+                              "{count}",
+                              String(workspaceProjectPathConflicts.length),
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            className="mt-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-medium text-amber-950 underline decoration-amber-950/30 underline-offset-2 transition-colors hover:bg-amber-500/15 hover:decoration-amber-950 dark:text-amber-50 dark:decoration-amber-50/40 dark:hover:bg-amber-400/15 dark:hover:decoration-amber-50"
+                            onClick={() => onRepairWorkspaceProjectPathConflicts?.()}
+                            disabled={!onRepairWorkspaceProjectPathConflicts}
+                          >
+                            <Wrench className="h-3 w-3" aria-hidden="true" />
+                            {t("chat.workspaceProjectPathConflictRepair")}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                   {renderedProjects.map((project) => {
                     const pathKey = workspaceProjectPathKey(project.path);
                     return (
