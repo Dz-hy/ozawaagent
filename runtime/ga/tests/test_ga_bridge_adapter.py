@@ -1705,3 +1705,75 @@ async def test_command_pack_malformed_documents_are_ignored(tmp_path):
     assert "ghost" not in ids
     assert "multi" not in ids
     assert "empty" not in ids
+
+@pytest_asyncio.fixture
+async def command_packs_client(tmp_path):
+    frontends = tmp_path / "frontends"
+    frontends.mkdir()
+    (frontends / "slash_cmds.py").write_text(
+        "PALETTE_ENTRIES = [('/goal', '<objective>', 'Run a goal')]\n"
+        "def prompt_for(cmd, args_text):\n"
+        "    return f'GOAL:{args_text}' if cmd == '/goal' else None\n",
+        encoding="utf-8",
+    )
+    pack_dir = tmp_path / "command_packs"
+    pack_dir.mkdir()
+    (pack_dir / "my_pack.json").write_text(json.dumps({
+        "schema": "ga.command_pack.v1",
+        "pack_id": "my_pack",
+        "commands": [{
+            "id": "hello", "title": "Hello", "description": "Say hi",
+            "arg_hint": "<name>", "prompt_template": "Say hello to {args}",
+        }],
+    }), encoding="utf-8")
+    (pack_dir / "conflict_pack.json").write_text(json.dumps({
+        "schema": "ga.command_pack.v1",
+        "pack_id": "conflict_pack",
+        "commands": [{
+            "id": "goal", "title": "Shadowed", "description": "Conflicts",
+            "arg_hint": "", "prompt_template": "SHADOW {args}",
+        }],
+    }), encoding="utf-8")
+    plugin_dir = tmp_path / "command_plugins"
+    plugin_dir.mkdir()
+    (plugin_dir / "example_plugin.py").write_text(
+        "COMMANDS = ({\"id\": \"plugin_hello\", \"title\": \"Plugin Hello\",\n"
+        "  \"description\": \"\", \"arg_hint\": \"\",\n"
+        "  \"prompt_for\": lambda slash, args: 'PH:' + args},)\n",
+        encoding="utf-8",
+    )
+    manager = ProjectManager()
+    session = manager.create_session()
+    manager.make_agent(session)
+    official = fake_official_module()
+    official.manager = manager
+    app = adapter.create_app(
+        official_module=official,
+        token=TOKEN,
+        allowed_origins=(ORIGIN,),
+        manifest=adapter.load_manifest(),
+        ga_root=tmp_path,
+    )
+    async with TestClient(TestServer(app)) as test_client:
+        yield test_client
+
+
+@pytest.mark.asyncio
+async def test_command_packs_lists_packs_plugins_and_conflicts(command_packs_client):
+    response = await command_packs_client.get("/api/v1/command-packs", headers=AUTH)
+    assert response.status == 200
+    envelope = await response.json()
+    assert envelope["type"] == "command_packs.list"
+    body = envelope["payload"]
+    # Built-in controls (5) + GA goal + pack hello + plugin_hello = 8;
+    # pack "goal" is shadowed by the GA command.
+    assert body["loaded_command_count"] == 8
+    pack_ids = {pack["pack_id"] for pack in body["packs"]}
+    assert pack_ids == {"my_pack", "conflict_pack"}
+    my_pack = next(pack for pack in body["packs"] if pack["pack_id"] == "my_pack")
+    assert my_pack["valid"] is True
+    assert my_pack["command_ids"] == ["hello"]
+    assert body["plugins"][0]["loaded"] is True
+    assert body["plugins"][0]["command_ids"] == ["plugin_hello"]
+    goal_conflicts = [c for c in body["conflicts"] if c["command_id"] == "goal"]
+    assert goal_conflicts and goal_conflicts[0]["sources"] == ["ga", "pack:conflict_pack"]

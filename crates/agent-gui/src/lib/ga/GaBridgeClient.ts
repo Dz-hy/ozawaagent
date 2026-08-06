@@ -7,6 +7,7 @@ import type {
   GaBridgeCapabilities,
   GaBridgeEvent,
   GaCommandDto,
+  GaCommandPacksSnapshot,
   GaCommandResult,
   GaConductorSnapshot,
   GaEnvelope,
@@ -252,6 +253,9 @@ export class GaBridgeClient {
   }
   getHooks(): Promise<GaHooksSnapshot> {
     return this.request("/api/v1/hooks");
+  }
+  getCommandPacks(): Promise<GaCommandPacksSnapshot> {
+    return this.request("/api/v1/command-packs");
   }
   getKnowledgeCatalog(): Promise<GaKnowledgeCatalog> {
     return this.request("/api/v1/knowledge");

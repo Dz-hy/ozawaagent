@@ -2086,6 +2086,89 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
         return _json("commands.list", {"commands": commands}, 200,
                      request.headers.get("X-Request-Id", ""))
 
+    async def command_packs_handler(request: web.Request) -> web.Response:
+        """Declarative Command Pack / Python Plugin inventory with conflict diagnostics.
+
+        Read-only: mirrors what load_command_registry already merges into
+        ``/api/v1/commands`` (GA core wins on duplicate ids) and reports the
+        per-source origin of every command plus id collisions across sources.
+        """
+        if ga_root is None:
+            return command_registry_error(request)
+        try:
+            _, commands = load_command_registry(ga_root)
+        except Exception:
+            return command_registry_error(request)
+
+        pack_dir = ga_root / COMMAND_PACK_DIR
+        packs: list[dict[str, Any]] = []
+        if pack_dir.is_dir():
+            for path in sorted(pack_dir.glob("*.json")):
+                pack_id = path.stem
+                try:
+                    doc = json.loads(path.read_text(encoding="utf-8"))
+                except Exception:
+                    packs.append({"pack_id": pack_id, "file": path.name,
+                                  "valid": False, "command_ids": []})
+                    continue
+                raw_commands = doc.get("commands")
+                command_ids = ([entry.get("id") for entry in raw_commands
+                                if isinstance(entry, dict) and isinstance(entry.get("id"), str)]
+                               if isinstance(raw_commands, list) else [])
+                packs.append({
+                    "pack_id": doc.get("pack_id", pack_id),
+                    "file": path.name,
+                    "valid": doc.get("schema") == COMMAND_PACK_SCHEMA and isinstance(raw_commands, list),
+                    "command_ids": command_ids,
+                })
+
+        plugin_dir = ga_root / COMMAND_PLUGIN_DIR
+        plugins: list[dict[str, Any]] = []
+        if plugin_dir.is_dir():
+            for path in sorted(plugin_dir.glob("*.py")):
+                module_name = ("liveagent_command_plugin_"
+                               + hashlib.sha256(path.name.encode("utf-8")).hexdigest()[:12])
+                try:
+                    module = load_module_from_path(module_name, path)
+                    entries = getattr(module, "COMMANDS", ())
+                    loaded = True
+                except Exception:
+                    entries, loaded = (), False
+                command_ids = [entry.get("id") for entry in entries
+                               if isinstance(entry, dict) and isinstance(entry.get("id"), str)]
+                plugins.append({"file": path.name, "module": module_name,
+                                "loaded": loaded, "command_ids": command_ids})
+
+        claims: dict[str, set[str]] = {}
+        for command in commands:
+            owner = command.get("owner")
+            if not isinstance(owner, str) or not owner:
+                continue
+            group = "ga" if owner == "ga" else owner
+            claims.setdefault(group, set()).add(command["id"])
+        # load_command_registry deduplicates (GA wins), so shadowed pack/plugin
+        # ids never reach ``commands``; re-add their raw declarations so that
+        # collisions are still reported as diagnostics.
+        for pack in packs:
+            claims.setdefault(f"pack:{pack['pack_id']}", set()).update(pack["command_ids"])
+        for plugin in plugins:
+            claims.setdefault(f"plugin:{plugin['module']}", set()).update(plugin["command_ids"])
+
+        conflicts: list[dict[str, Any]] = []
+        all_ids = sorted({cid for ids in claims.values() for cid in ids})
+        for command_id in all_ids:
+            sources = sorted(group for group, ids in claims.items()
+                             if command_id in ids)
+            if len(sources) > 1:
+                conflicts.append({"command_id": command_id, "sources": sources})
+
+        return _json("command_packs.list", {
+            "packs": packs,
+            "plugins": plugins,
+            "conflicts": conflicts,
+            "loaded_command_count": len(commands),
+        }, 200, request.headers.get("X-Request-Id", ""))
+
     async def execute_command_handler(request: web.Request) -> web.Response:
         if ga_root is None:
             return command_registry_error(request)
@@ -2393,6 +2476,7 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
     app.router.add_delete("/api/v1/model-profiles/{profile_id}", model_profile_handler)
     app.router.add_post("/api/v1/model-profiles/{profile_id}/default", set_default_model_profile_handler)
     app.router.add_get("/api/v1/commands", commands_handler)
+    app.router.add_get("/api/v1/command-packs", command_packs_handler)
     app.router.add_post("/api/v1/commands/{command_id}/execute", execute_command_handler)
     app.router.add_get("/api/v1/hooks", hooks_handler)
     app.router.add_get("/api/v1/conductor", conductor_snapshot_handler)

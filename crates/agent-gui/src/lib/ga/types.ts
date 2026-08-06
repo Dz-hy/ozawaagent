@@ -247,6 +247,25 @@ export type GaHooksSnapshot = {
   registrations: GaHookRegistration[];
   observations: GaHookObservation[];
 };
+export type GaCommandPackInfo = {
+  pack_id: string;
+  file: string;
+  valid: boolean;
+  command_ids: string[];
+};
+export type GaCommandPluginInfo = {
+  file: string;
+  module: string;
+  loaded: boolean;
+  command_ids: string[];
+};
+export type GaCommandPackConflict = { command_id: string; sources: string[] };
+export type GaCommandPacksSnapshot = {
+  packs: GaCommandPackInfo[];
+  plugins: GaCommandPluginInfo[];
+  conflicts: GaCommandPackConflict[];
+  loaded_command_count: number;
+};
 export type GaAutomation = {
   id: string;
   schedule: string;

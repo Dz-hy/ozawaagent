@@ -16,6 +16,7 @@ import {
   Waypoints,
   Wrench,
   Zap,
+  FileText,
 } from "../components/icons";
 import { isMacOsTauri, MacOsTitleBarSpacer } from "../components/MacOsTitleBarSpacer";
 
@@ -25,6 +26,7 @@ import { AgentsSection } from "./settings/AgentsSection";
 import { GaAutomationSection } from "./settings/GaAutomationSection";
 import { GaConductorSection } from "./settings/GaConductorSection";
 import { GaHooksSection } from "./settings/GaHooksSection";
+import { GaCommandPacksSection } from "./settings/GaCommandPacksSection";
 import { GaMemorySection } from "./settings/GaMemorySection";
 import { GaModelProfilesSection } from "./settings/GaModelProfilesSection";
 import { GaCapabilitiesSection } from "./settings/GaCapabilitiesSection";
@@ -124,6 +126,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "hooks", icon: <Zap className="h-3.5 w-3.5" /> },
       { id: "cron", icon: <Clock3 className="h-3.5 w-3.5" /> },
+      { id: "commandPacks", icon: <FileText className="h-3.5 w-3.5" /> },
     ],
   },
   {
@@ -168,6 +171,7 @@ export function SettingsPage(props: SettingsPageProps) {
     services: t("settings.navServices"),
     hooks: t("settings.navHooks"),
     cron: t("settings.navCron"),
+    commandPacks: t("settings.navCommandPacks"),
     remote: t("settings.navRemote"),
     about: t("settings.navAbout"),
   };
@@ -211,6 +215,8 @@ export function SettingsPage(props: SettingsPageProps) {
         return <GaHooksSection />;
       case "cron":
         return <GaAutomationSection />;
+      case "commandPacks":
+        return <GaCommandPacksSection />;
       case "agents":
         return <AgentsSection settings={settings} setSettings={setSettings} />;
       case "ssh":
