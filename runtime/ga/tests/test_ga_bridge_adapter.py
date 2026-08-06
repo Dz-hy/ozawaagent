@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import sys
 import threading
 from types import SimpleNamespace
 
@@ -1777,3 +1778,181 @@ async def test_command_packs_lists_packs_plugins_and_conflicts(command_packs_cli
     assert body["plugins"][0]["command_ids"] == ["plugin_hello"]
     goal_conflicts = [c for c in body["conflicts"] if c["command_id"] == "goal"]
     assert goal_conflicts and goal_conflicts[0]["sources"] == ["ga", "pack:conflict_pack"]
+
+
+# ---------- MCP Connectors (P5.10) + Morphling classifier (P5.12) ----------
+
+MCP_FIXTURE_SCRIPT = """\
+import json, sys
+
+def send(obj):
+    sys.stdout.write(json.dumps(obj) + "\\n")
+    sys.stdout.flush()
+
+while True:
+    line = sys.stdin.readline()
+    if not line:
+        break
+    try:
+        msg = json.loads(line)
+    except Exception:
+        continue
+    mid = msg.get("id")
+    method = msg.get("method")
+    if method == "initialize":
+        send({"jsonrpc": "2.0", "id": mid, "result": {
+            "protocolVersion": "2024-11-05", "capabilities": {"tools": {}},
+            "serverInfo": {"name": "fixture-mcp", "version": "1.0"}}})
+    elif method == "tools/list":
+        send({"jsonrpc": "2.0", "id": mid, "result": {"tools": [
+            {"name": "echo", "description": "echo text back",
+             "inputSchema": {"type": "object",
+                             "properties": {"text": {"type": "string"}},
+                             "required": ["text"]}},
+        ]}})
+    elif method == "tools/call":
+        params = msg.get("params") or {}
+        args = params.get("arguments") or {}
+        send({"jsonrpc": "2.0", "id": mid, "result": {"content": [
+            {"type": "text", "text": "ECHO:" + str(args.get("text", "")),
+             "private_data": "sensitive-value"}]}})
+    else:
+        # notifications carry no id; MCP requires no response for them
+        if mid is None:
+            continue
+        send({"jsonrpc": "2.0", "id": mid, "result": {}})
+"""
+
+
+@pytest_asyncio.fixture
+async def mcp_client(tmp_path):
+    frontends = tmp_path / "frontends"
+    frontends.mkdir()
+    (frontends / "slash_cmds.py").write_text("PALETTE_ENTRIES = []\n", encoding="utf-8")
+    script = tmp_path / "mcp_fixture.py"
+    script.write_text(MCP_FIXTURE_SCRIPT, encoding="utf-8")
+    conn_dir = tmp_path / "connectors"
+    conn_dir.mkdir()
+    (conn_dir / "echo.json").write_text(json.dumps({
+        "schema": "ga.connector.v1", "name": "echo", "transport": "stdio",
+        "command": sys.executable, "args": [str(script)],
+        "redact_keys": ["private_data"],
+    }), encoding="utf-8")
+    (conn_dir / "broken.json").write_text("{broken", encoding="utf-8")
+    (conn_dir / "nope.json").write_text(json.dumps({
+        "schema": "ga.connector.v1", "name": "nope", "transport": "udp",
+    }), encoding="utf-8")
+    manager = ProjectManager()
+    official = fake_official_module()
+    official.manager = manager
+    app = adapter.create_app(
+        official_module=official, token=TOKEN, allowed_origins=(ORIGIN,),
+        manifest=adapter.load_manifest(), ga_root=tmp_path,
+    )
+    async with TestClient(TestServer(app)) as client:
+        yield client
+
+
+@pytest.mark.asyncio
+async def test_connectors_inventory_lists_valid_and_broken(mcp_client):
+    response = await mcp_client.get("/api/v1/connectors", headers=AUTH)
+    assert response.status == 200
+    body = (await response.json())["payload"]
+    assert body["schema"] == "ga.connector.v1"
+    by_name = {c["name"]: c for c in body["connectors"]}
+    assert by_name["echo"]["valid"] is True
+    assert by_name["echo"]["transport"] == "stdio"
+    assert by_name["broken"]["valid"] is False
+    assert by_name["nope"]["valid"] is False
+    assert by_name["nope"]["error"].startswith("unsupported transport")
+
+
+@pytest.mark.asyncio
+async def test_mcp_stdio_tools_list_and_call_with_redaction(mcp_client):
+    listed = await mcp_client.post(
+        "/api/v1/connectors/echo/tools/list", headers=AUTH, json={})
+    assert listed.status == 200
+    payload = (await listed.json())["payload"]
+    assert payload["protocol"] == "mcp"
+    assert payload["tools"][0]["name"] == "echo"
+    called = await mcp_client.post(
+        "/api/v1/connectors/echo/tools/call", headers=AUTH,
+        json={"tool": "echo", "arguments": {"text": "hi"}})
+    assert called.status == 200
+    call_payload = (await called.json())["payload"]
+    assert call_payload["content"][0]["text"] == "ECHO:hi"
+    assert call_payload["content"][0]["private_data"] == "[REDACTED]"
+
+
+@pytest.mark.asyncio
+async def test_mcp_unknown_connector_and_oversized_arguments(mcp_client):
+    missing = await mcp_client.post(
+        "/api/v1/connectors/ghost/tools/list", headers=AUTH, json={})
+    assert missing.status == 404
+    oversized = await mcp_client.post(
+        "/api/v1/connectors/echo/tools/call", headers=AUTH,
+        json={"tool": "echo",
+              "arguments": {"text": "x" * (adapter.MCP_MAX_ARGUMENT_CHARS + 1)}})
+    assert oversized.status == 400
+    assert "size limit" in (await oversized.json())["payload"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_mcp_http_transport(tmp_path):
+    async def mcp_http_handler(request):
+        body = await request.json()
+        if body.get("method") == "tools/list":
+            return web.json_response({"jsonrpc": "2.0", "id": body.get("id"),
+                                      "result": {"tools": [{
+                                          "name": "ping", "description": "p",
+                                          "inputSchema": {"type": "object",
+                                                          "properties": {}}}]}})
+        return web.json_response({"jsonrpc": "2.0", "id": body.get("id"),
+                                  "result": {"content": []}})
+
+    server_app = web.Application()
+    server_app.router.add_post("/mcp", mcp_http_handler)
+    async with TestServer(server_app) as server:
+        frontends = tmp_path / "frontends"
+        frontends.mkdir()
+        (frontends / "slash_cmds.py").write_text("PALETTE_ENTRIES = []\n", encoding="utf-8")
+        conn_dir = tmp_path / "connectors"
+        conn_dir.mkdir()
+        (conn_dir / "web.json").write_text(json.dumps({
+            "schema": "ga.connector.v1", "name": "web", "transport": "http",
+            "url": f"http://127.0.0.1:{server.port}/mcp",
+        }), encoding="utf-8")
+        manager = ProjectManager()
+        official = fake_official_module()
+        official.manager = manager
+        app = adapter.create_app(
+            official_module=official, token=TOKEN, allowed_origins=(ORIGIN,),
+            manifest=adapter.load_manifest(), ga_root=tmp_path,
+        )
+        async with TestClient(TestServer(app)) as client:
+            listed = await client.post(
+                "/api/v1/connectors/web/tools/list", headers=AUTH, json={})
+            assert listed.status == 200
+            tools = (await listed.json())["payload"]["tools"]
+            assert tools[0]["name"] == "ping"
+
+
+def test_morphling_classify_rule_based():
+    assert adapter._morphling_classify("api_key=abc secret!")["class"] == "discard"
+    assert adapter._morphling_classify("curl https://example.com/api/v1 x")["class"] == "tool"
+    assert adapter._morphling_classify("第一步 第二步 流程")["class"] == "memory_l3"
+    assert adapter._morphling_classify("short")["class"] == "memory_l1"
+    assert adapter._morphling_classify("x" * 500)["class"] == "memory_l2"
+
+
+@pytest.mark.asyncio
+async def test_morphling_classify_endpoint(mcp_client):
+    response = await mcp_client.post(
+        "/api/v1/morphling/classify", headers=AUTH, json={"text": "api_key=hunter2"})
+    assert response.status == 200
+    payload = (await response.json())["payload"]
+    assert payload["schema"] == "ga.morphling.classify.v1"
+    assert payload["suggestion"]["class"] == "discard"
+    empty = await mcp_client.post(
+        "/api/v1/morphling/classify", headers=AUTH, json={"text": "  "})
+    assert empty.status == 400

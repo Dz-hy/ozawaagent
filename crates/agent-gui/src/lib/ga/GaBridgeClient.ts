@@ -9,16 +9,20 @@ import type {
   GaCommandDto,
   GaCommandPacksSnapshot,
   GaCommandResult,
+  GaConnectorsSnapshot,
   GaConductorSnapshot,
   GaEnvelope,
   GaHooksSnapshot,
   GaKnowledgeCatalog,
+  GaMcpCallResult,
+  GaMcpToolsPayload,
   GaMemoryImportResult,
   GaMessageDto,
   GaMessagesSnapshot,
   GaModelProfile,
   GaModelProfileInput,
   GaModelProfilesSnapshot,
+  GaMorphlingClassifyResult,
   GaProjectMemoryStatus,
   GaPromptAccepted,
   GaPromptRequest,
@@ -256,6 +260,27 @@ export class GaBridgeClient {
   }
   getCommandPacks(): Promise<GaCommandPacksSnapshot> {
     return this.request("/api/v1/command-packs");
+  }
+  getConnectors(): Promise<GaConnectorsSnapshot> {
+    return this.request("/api/v1/connectors");
+  }
+  listConnectorTools(name: string): Promise<GaMcpToolsPayload> {
+    return this.request(`/api/v1/connectors/${encodeURIComponent(name)}/tools/list`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  }
+  callConnectorTool(name: string, tool: string, arguments_: Record<string, unknown>): Promise<GaMcpCallResult> {
+    return this.request(`/api/v1/connectors/${encodeURIComponent(name)}/tools/call`, {
+      method: "POST",
+      body: JSON.stringify({ tool, arguments: arguments_ }),
+    });
+  }
+  classifyMorphling(text: string): Promise<GaMorphlingClassifyResult> {
+    return this.request("/api/v1/morphling/classify", {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    });
   }
   getKnowledgeCatalog(): Promise<GaKnowledgeCatalog> {
     return this.request("/api/v1/knowledge");

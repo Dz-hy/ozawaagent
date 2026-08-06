@@ -3,12 +3,29 @@ import { GlassPanel, HubBackdrop, HubHeader } from "../../components/hub/HubChro
 import { BookOpen, Brain, Loader2, RefreshCw, Sparkles } from "../../components/icons";
 import { Button } from "../../components/ui/button";
 import { gaBridgeClient } from "../../lib/ga/GaBridgeClient";
-import type { GaKnowledgeCatalog } from "../../lib/ga/types";
+import type { GaKnowledgeCatalog, GaMorphlingClassifyResult } from "../../lib/ga/types";
 
 export function KnowledgeHubPage(props: { sidebarOpen: boolean; onOpenSidebar: () => void }) {
   const [catalog, setCatalog] = useState<GaKnowledgeCatalog | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [morphText, setMorphText] = useState("");
+  const [morphResult, setMorphResult] = useState<GaMorphlingClassifyResult | null>(null);
+  const [morphBusy, setMorphBusy] = useState(false);
+  const [morphError, setMorphError] = useState<string | null>(null);
+
+  const classify = useCallback(async () => {
+    setMorphBusy(true);
+    setMorphError(null);
+    setMorphResult(null);
+    try {
+      setMorphResult(await gaBridgeClient.classifyMorphling(morphText));
+    } catch (cause) {
+      setMorphError(cause instanceof Error ? cause.message : "Classification failed");
+    } finally {
+      setMorphBusy(false);
+    }
+  }, [morphText]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -137,6 +154,61 @@ export function KnowledgeHubPage(props: { sidebarOpen: boolean; onOpenSidebar: (
                         {id}
                       </code>
                     ))}
+                  </div>
+                ) : null}
+              </GlassPanel>
+              <GlassPanel tone="amber" className="mt-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-amber-500" />
+                  <h3 className="text-sm font-semibold">Absorption wizard</h3>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  Paste a fragment and let the classifier suggest the correct absorption target.
+                  The wizard never writes anything: Memory goes through the Memory import flow,
+                  SOPs through Skills, and callable logic through Tool/Connector + tests.
+                </p>
+                <textarea
+                  value={morphText}
+                  onChange={(event) => setMorphText(event.target.value)}
+                  placeholder={"e.g. When X fails, retry with backoff; endpoint GET /api/v1/…"}
+                  rows={3}
+                  className="mt-3 w-full resize-y rounded-xl border border-border/60 bg-background/60 p-3 font-mono text-xs outline-none focus:border-primary/50"
+                />
+                <div className="mt-2 flex items-center gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={morphBusy || morphText.trim().length === 0}
+                    onClick={() => void classify()}
+                  >
+                    {morphBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                    Classify target
+                  </Button>
+                  {morphError ? (
+                    <span className="text-xs text-destructive">{morphError}</span>
+                  ) : null}
+                </div>
+                {morphResult ? (
+                  <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-amber-600">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Suggested target:{" "}
+                      <code className="rounded bg-background/60 px-1.5 py-0.5 font-mono">
+                        {morphResult.suggestion.class}
+                      </code>
+                    </div>
+                    <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                      {morphResult.suggestion.reasons.map((reason) => (
+                        <li key={reason}>· {reason}</li>
+                      ))}
+                    </ul>
+                    <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+                      {morphResult.suggestion.class.startsWith("memory_")
+                        ? "→ Layered memory (L1 index / L2 facts / L3 procedural) via the Memory import flow."
+                        : morphResult.suggestion.class === "tool"
+                          ? "→ Callable logic: register as Tool/Connector with tests, not as Memory."
+                          : "→ Discard: informational only, no absorption target required."}
+                    </p>
                   </div>
                 ) : null}
               </GlassPanel>

@@ -1119,6 +1119,213 @@ CORE_RUNTIME_COMMANDS: tuple[dict[str, Any], ...] = (
 COMMAND_PACK_SCHEMA = "ga.command_pack.v1"
 COMMAND_PACK_DIR = "command_packs"
 COMMAND_PLUGIN_DIR = "command_plugins"
+
+# --- MCP Connector support (adapter-owned extension; GenericAgent core has no MCP surface) ---
+CONNECTOR_SCHEMA = "ga.connector.v1"
+CONNECTOR_DIR = "connectors"
+CONNECTOR_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+MCP_PROTOCOL_VERSION = "2024-11-05"
+MCP_MAX_TOOLS = 64
+MCP_MAX_TOOL_NAME_CHARS = 256
+MCP_MAX_ARGUMENT_CHARS = 32_768
+MCP_MAX_BODY_BYTES = 64 * 1024
+MCP_MAX_RESPONSE_BYTES = 512 * 1024
+MCP_TOOLS_TIMEOUT_SECONDS = 10.0
+MCP_CALL_TIMEOUT_SECONDS = 30.0
+
+
+def _load_connectors(ga_root: Path) -> list[dict[str, Any]]:
+    """Load MCP connector declarations from the adapter-owned connectors dir."""
+    conn_dir = ga_root / CONNECTOR_DIR
+    connectors: list[dict[str, Any]] = []
+    if not conn_dir.is_dir():
+        return connectors
+    for path in sorted(conn_dir.glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            connectors.append({"name": path.stem[:64], "valid": False,
+                               "error": "invalid JSON", "transport": ""})
+            continue
+        name = str(data.get("name") or path.stem)
+        if not CONNECTOR_NAME.match(name):
+            connectors.append({"name": name[:64], "valid": False,
+                               "error": "invalid connector name", "transport": ""})
+            continue
+        transport = str(data.get("transport", "stdio"))
+        if transport not in ("stdio", "http"):
+            connectors.append({"name": name, "valid": False,
+                               "error": f"unsupported transport '{transport}'",
+                               "transport": transport})
+            continue
+        if transport == "stdio" and not isinstance(data.get("command"), str):
+            connectors.append({"name": name, "valid": False,
+                               "error": "stdio transport requires 'command' string",
+                               "transport": transport})
+            continue
+        if transport == "http" and not isinstance(data.get("url"), str):
+            connectors.append({"name": name, "valid": False,
+                               "error": "http transport requires 'url' string",
+                               "transport": transport})
+            continue
+        try:
+            timeout = float(data.get("timeout", MCP_CALL_TIMEOUT_SECONDS))
+            max_tools = int(data.get("max_tools", MCP_MAX_TOOLS))
+        except (TypeError, ValueError):
+            connectors.append({"name": name, "valid": False,
+                               "error": "invalid timeout/max_tools", "transport": transport})
+            continue
+        connectors.append({
+            "name": name, "valid": True, "transport": transport,
+            "command": str(data.get("command", "")),
+            "args": [str(a) for a in (data.get("args") or [])],
+            "url": str(data.get("url", "")),
+            "headers": {str(k): str(v) for k, v in (data.get("headers") or {}).items()},
+            "env": {str(k): str(v) for k, v in (data.get("env") or {}).items()},
+            "redact_keys": [str(k) for k in (data.get("redact_keys") or [])],
+            "timeout": max(1.0, min(timeout, 300.0)),
+            "max_tools": max(1, min(max_tools, MCP_MAX_TOOLS)),
+        })
+    return connectors
+
+
+def _redact_extra(value: Any, extra_keys: list[str]) -> Any:
+    """Recursively redact connector-specific keys in addition to the global policy."""
+    if isinstance(value, dict):
+        return {str(k): "[REDACTED]" if k in extra_keys else _redact_extra(v, extra_keys)
+                for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact_extra(v, extra_keys) for v in value]
+    return value
+
+
+async def _mcp_stdio(connector: dict[str, Any],
+                     requests: list[tuple[str, dict[str, Any]]],
+                     timeout: float) -> list[dict[str, Any]]:
+    """Run JSON-RPC 2.0 requests over a stdio MCP subprocess (no shell)."""
+    env = dict(os.environ)
+    env.update(connector["env"])
+    proc = await asyncio.create_subprocess_exec(
+        connector["command"], *connector["args"],
+        stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL, env=env)
+    try:
+        proc.stdin.write((json.dumps({
+            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": {"protocolVersion": MCP_PROTOCOL_VERSION,
+                       "capabilities": {},
+                       "clientInfo": {"name": "ga-desktop-adapter",
+                                      "version": ADAPTER_VERSION}},
+        }) + "\n").encode("utf-8"))
+        await proc.stdin.drain()
+        line = await asyncio.wait_for(proc.stdout.readline(), timeout)
+        if not line:
+            raise ValueError("MCP stdio server closed during initialize")
+        init = json.loads(line.decode("utf-8", "replace"))
+        if "error" in init:
+            raise ValueError(f"MCP initialize failed: {init['error']}")
+        proc.stdin.write((json.dumps(
+            {"jsonrpc": "2.0", "method": "notifications/initialized"}) + "\n").encode("utf-8"))
+        await proc.stdin.drain()
+        results: list[dict[str, Any]] = []
+        for idx, (method, params) in enumerate(requests, start=2):
+            proc.stdin.write((json.dumps({
+                "jsonrpc": "2.0", "id": idx, "method": method,
+                "params": params}) + "\n").encode("utf-8"))
+            await proc.stdin.drain()
+            response = None
+            while response is None:
+                line = await asyncio.wait_for(proc.stdout.readline(), timeout)
+                if not line:
+                    raise ValueError(f"MCP stdio server closed during {method}")
+                candidate = json.loads(line.decode("utf-8", "replace"))
+                if candidate.get("id") == idx:
+                    response = candidate
+            results.append(response)
+        return results
+    finally:
+        proc.kill()
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=2.0)
+        except (asyncio.TimeoutError, ProcessLookupError):
+            pass
+
+
+async def _mcp_http(connector: dict[str, Any],
+                    requests: list[tuple[str, dict[str, Any]]],
+                    timeout: float) -> list[dict[str, Any]]:
+    """Run JSON-RPC 2.0 requests over HTTP (streamable-http compatible)."""
+    headers = dict(connector["headers"])
+    headers.setdefault("Content-Type", "application/json")
+    results: list[dict[str, Any]] = []
+    async with ClientSession() as session:
+        for idx, (method, params) in enumerate(requests, start=1):
+            req = {"jsonrpc": "2.0", "id": idx, "method": method, "params": params}
+            async with session.post(connector["url"], json=req, headers=headers,
+                                    timeout=ClientTimeout(total=timeout)) as resp:
+                if resp.status >= 400:
+                    raise ValueError(f"MCP http endpoint returned {resp.status}")
+                raw = await resp.read()
+                content_type = resp.headers.get("Content-Type", "")
+                if "text/event-stream" in content_type or raw[:1] == b":":
+                    msg: dict[str, Any] | None = None
+                    for text_line in raw.decode("utf-8", "replace").splitlines():
+                        if text_line.startswith("data:"):
+                            msg = json.loads(text_line[5:].strip())
+                            break
+                    if msg is None:
+                        raise ValueError("MCP http endpoint returned no SSE data")
+                    results.append(msg)
+                else:
+                    results.append(json.loads(raw.decode("utf-8", "replace")))
+    return results
+
+
+async def _mcp_rpc(connector: dict[str, Any],
+                   requests: list[tuple[str, dict[str, Any]]],
+                   timeout: float) -> list[dict[str, Any]]:
+    if connector["transport"] == "stdio":
+        return await _mcp_stdio(connector, requests, timeout)
+    return await _mcp_http(connector, requests, timeout)
+
+
+# --- Morphling absorption classifier (adapter-owned suggestion engine, never writes) ---
+MORPHLING_SCHEMA = "ga.morphling.classify.v1"
+MORPHLING_MAX_TEXT_CHARS = 64_000
+_CREDENTIAL_PATTERN = re.compile(
+    r"api[_-]?key|secret|password|passwd|bearer\s|authorization|private[_-]?key", re.I)
+_INTERFACE_PATTERN = re.compile(
+    r"\bcurl\b|https?://|endpoint|jsonrpc|\bmcp\b|\bapi\b|schema|socket", re.I)
+_PROCEDURE_PATTERN = re.compile(r"\bstep\b|流程|步骤|when .+ then|if .+ do|规程", re.I)
+
+
+def _morphling_classify(text: str, max_chars: int = MORPHLING_MAX_TEXT_CHARS) -> dict[str, Any]:
+    """Return a rule-based absorption suggestion for a text fragment.
+
+    Suggestion only: the caller decides whether and where to persist. Credential-
+    like fragments are always classified as discard to protect secrets.
+    """
+    clipped = (text or "")[:max_chars]
+    low = clipped.lower()
+    reasons: list[str] = []
+    if _CREDENTIAL_PATTERN.search(low):
+        cls = "discard"
+        reasons.append("contains credential-like material; never absorb")
+    elif _INTERFACE_PATTERN.search(low):
+        cls = "tool"
+        reasons.append("describes an interface or call pattern (tool/connector candidate)")
+    elif _PROCEDURE_PATTERN.search(low):
+        cls = "memory_l3"
+        reasons.append("procedural, SOP-like content")
+    elif len(clipped) < 400:
+        cls = "memory_l1"
+        reasons.append("short index-sized fragment")
+    else:
+        cls = "memory_l2"
+        reasons.append("verified-fact style content")
+    return {"class": cls, "reasons": reasons, "analyzed_chars": len(clipped)}
+
+
 COMMAND_ID_PATTERN = re.compile(r"[a-z][a-z0-9_-]*")
 COMMAND_ARGS_PLACEHOLDER = "{args}"
 
@@ -2086,6 +2293,120 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
         return _json("commands.list", {"commands": commands}, 200,
                      request.headers.get("X-Request-Id", ""))
 
+    def mcp_connector_error(request: web.Request, message: str, status: int = 400) -> web.Response:
+        return _json("error", {"code": "mcp_connector_error", "message": message}, status,
+                     request.headers.get("X-Request-Id", ""))
+
+    def connectors_handler(request: web.Request) -> web.Response:
+        """Read-only MCP connector inventory (adapter-owned extensions)."""
+        if ga_root is None:
+            return mcp_connector_error(request, "adapter is unavailable", 503)
+        try:
+            connectors = _load_connectors(ga_root)
+        except Exception as exc:
+            return mcp_connector_error(request, f"cannot read connectors: {exc}", 503)
+        return _json("connectors", {"schema": CONNECTOR_SCHEMA, "connectors": [
+            {"name": c["name"], "valid": c["valid"], "transport": c.get("transport", ""),
+             "error": c.get("error")}
+            for c in connectors
+        ]}, 200, request.headers.get("X-Request-Id", ""))
+
+    async def mcp_tools_handler(request: web.Request) -> web.Response:
+        """List tools exposed by one MCP connector (live protocol call)."""
+        request_id = request.headers.get("X-Request-Id", "")
+        if ga_root is None:
+            return mcp_connector_error(request, "adapter is unavailable", 503)
+        name = request.match_info["name"]
+        connector = next((c for c in _load_connectors(ga_root)
+                          if c["valid"] and c["name"] == name), None)
+        if connector is None:
+            return mcp_connector_error(request, f"unknown or invalid connector '{name}'", 404)
+        try:
+            results = await _mcp_rpc(connector, [("tools/list", {})],
+                                     MCP_TOOLS_TIMEOUT_SECONDS)
+        except (asyncio.TimeoutError, ValueError, OSError) as exc:
+            return mcp_connector_error(request, f"tools/list failed: {exc}")
+        reply = results[-1]
+        if "error" in reply:
+            return mcp_connector_error(request, f"tools/list failed: {reply['error']}")
+        tools = reply.get("result", {}).get("tools", [])
+        if not isinstance(tools, list):
+            tools = []
+        safe_tools = []
+        for tool in tools[:connector["max_tools"]]:
+            if not isinstance(tool, dict):
+                continue
+            safe_tools.append({
+                "name": str(tool.get("name", ""))[:MCP_MAX_TOOL_NAME_CHARS],
+                "description": str(tool.get("description", ""))[:1024],
+                "inputSchema": redact(tool.get("inputSchema", {})),
+            })
+        return _json("mcp.tools", {"connector": name, "protocol": "mcp",
+                                   "tools": safe_tools}, 200, request_id)
+
+    async def mcp_call_handler(request: web.Request) -> web.Response:
+        """Invoke one MCP tool with size limits, timeouts and response redaction."""
+        request_id = request.headers.get("X-Request-Id", "")
+        if ga_root is None:
+            return mcp_connector_error(request, "adapter is unavailable", 503)
+        name = request.match_info["name"]
+        connector = next((c for c in _load_connectors(ga_root)
+                          if c["valid"] and c["name"] == name), None)
+        if connector is None:
+            return mcp_connector_error(request, f"unknown or invalid connector '{name}'", 404)
+        raw = await request.read()
+        if len(raw) > MCP_MAX_BODY_BYTES:
+            return mcp_connector_error(request, "request body too large")
+        try:
+            body = json.loads(raw.decode("utf-8"))
+            tool = str(body.get("tool", ""))
+            arguments = body.get("arguments") or {}
+        except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+            return mcp_connector_error(request, "invalid JSON body")
+        if not tool or len(tool) > MCP_MAX_TOOL_NAME_CHARS:
+            return mcp_connector_error(request, "invalid tool name")
+        try:
+            arguments_json = json.dumps(arguments)
+        except (TypeError, ValueError):
+            return mcp_connector_error(request, "invalid arguments")
+        if len(arguments_json) > MCP_MAX_ARGUMENT_CHARS:
+            return mcp_connector_error(request, "arguments exceed size limit")
+        try:
+            results = await _mcp_rpc(connector, [("tools/call", {
+                "name": tool, "arguments": arguments})], connector["timeout"])
+        except (asyncio.TimeoutError, ValueError, OSError) as exc:
+            return mcp_connector_error(request, f"tools/call failed: {exc}")
+        reply = results[-1]
+        if "error" in reply:
+            return mcp_connector_error(request, f"tools/call failed: {reply['error']}")
+        content = reply.get("result", {}).get("content", [])
+        truncated = False
+        if len(json.dumps(content).encode("utf-8")) > MCP_MAX_RESPONSE_BYTES:
+            content = content[:4]
+            truncated = True
+        content = _redact_extra(content, connector["redact_keys"])
+        return _json("mcp.call", {"connector": name, "tool": tool,
+                                  "content": content, "truncated": truncated},
+                     200, request_id)
+
+    async def morphling_classify_handler(request: web.Request) -> web.Response:
+        """Suggest an absorption target for a text fragment (never writes)."""
+        request_id = request.headers.get("X-Request-Id", "")
+        raw = await request.read()
+        if len(raw) > MCP_MAX_BODY_BYTES:
+            return mcp_connector_error(request, "request body too large")
+        try:
+            body = json.loads(raw.decode("utf-8"))
+            text = body.get("text", "")
+        except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+            return mcp_connector_error(request, "invalid JSON body")
+        if not isinstance(text, str) or not text.strip():
+            return mcp_connector_error(request, "field 'text' must be a non-empty string")
+        return _json("morphling.classify", {
+            "schema": MORPHLING_SCHEMA,
+            "suggestion": _morphling_classify(text),
+        }, 200, request_id)
+
     async def command_packs_handler(request: web.Request) -> web.Response:
         """Declarative Command Pack / Python Plugin inventory with conflict diagnostics.
 
@@ -2485,6 +2806,10 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
     app.router.add_patch("/api/v1/automations/{automation_id}", patch_automation_handler)
     app.router.add_delete("/api/v1/automations/{automation_id}", delete_automation_handler)
     app.router.add_get("/api/v1/automations/{automation_id}/runs", automation_runs_handler)
+    app.router.add_get("/api/v1/connectors", connectors_handler)
+    app.router.add_post("/api/v1/connectors/{name}/tools/list", mcp_tools_handler)
+    app.router.add_post("/api/v1/connectors/{name}/tools/call", mcp_call_handler)
+    app.router.add_post("/api/v1/morphling/classify", morphling_classify_handler)
     return app
 
 

@@ -266,6 +266,40 @@ export type GaCommandPacksSnapshot = {
   conflicts: GaCommandPackConflict[];
   loaded_command_count: number;
 };
+export type GaConnectorInfo = {
+  name: string;
+  schema: string;
+  transport: "stdio" | "http" | string;
+  command?: string;
+  args?: string[];
+  url?: string;
+  env_keys: string[];
+  redact_keys: string[];
+  valid: boolean;
+  error?: string;
+};
+export type GaConnectorsSnapshot = { connectors: GaConnectorInfo[] };
+export type GaMcpTool = {
+  name: string;
+  description?: string;
+  input_schema?: Record<string, unknown>;
+};
+export type GaMcpToolsPayload = { connector: string; tools: GaMcpTool[] };
+export type GaMcpCallResult = {
+  connector: string;
+  tool: string;
+  content: string;
+  truncated: boolean;
+};
+export type GaMorphlingSuggestion = {
+  class: string;
+  reasons: string[];
+  analyzed_chars: number;
+};
+export type GaMorphlingClassifyResult = {
+  schema: string;
+  suggestion: GaMorphlingSuggestion;
+};
 export type GaAutomation = {
   id: string;
   schedule: string;

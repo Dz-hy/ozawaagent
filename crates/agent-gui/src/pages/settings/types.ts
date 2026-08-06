@@ -14,6 +14,7 @@ export type SectionId =
   | "usage"
   | "conductor"
   | "capabilities"
+  | "connectors"
   | "hooks"
   | "cron"
   | "commandPacks"

@@ -10,6 +10,7 @@ import {
   Key,
   Keyboard,
   Layers,
+  Plug,
   Server,
   Settings2,
   Wallet,
@@ -30,6 +31,7 @@ import { GaCommandPacksSection } from "./settings/GaCommandPacksSection";
 import { GaMemorySection } from "./settings/GaMemorySection";
 import { GaModelProfilesSection } from "./settings/GaModelProfilesSection";
 import { GaCapabilitiesSection } from "./settings/GaCapabilitiesSection";
+import { GaConnectorsSection } from "./settings/GaConnectorsSection";
 import { GaServicesSection } from "./settings/GaServicesSection";
 import { GaUsageSection } from "./settings/GaUsageSection";
 import { GlobalShortcutsSection } from "./settings/GlobalShortcutsSection";
@@ -117,6 +119,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "usage", icon: <Wallet className="h-3.5 w-3.5" /> },
       { id: "conductor", icon: <Waypoints className="h-3.5 w-3.5" /> },
       { id: "capabilities", icon: <Layers className="h-3.5 w-3.5" /> },
+      { id: "connectors", icon: <Plug className="h-3.5 w-3.5" /> },
       { id: "services", icon: <Server className="h-3.5 w-3.5" /> },
       { id: "systemTools", icon: <Wrench className="h-3.5 w-3.5" /> },
     ],
@@ -168,6 +171,7 @@ export function SettingsPage(props: SettingsPageProps) {
     usage: t("settings.navUsage"),
     conductor: t("settings.navConductor"),
     capabilities: t("settings.navCapabilities"),
+    connectors: t("settings.navConnectors"),
     services: t("settings.navServices"),
     hooks: t("settings.navHooks"),
     cron: t("settings.navCron"),
@@ -231,6 +235,8 @@ export function SettingsPage(props: SettingsPageProps) {
         return <GaConductorSection />;
       case "capabilities":
         return <GaCapabilitiesSection />;
+      case "connectors":
+        return <GaConnectorsSection />;
       case "services":
         return <GaServicesSection />;
       case "about":
