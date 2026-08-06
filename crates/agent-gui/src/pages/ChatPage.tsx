@@ -50,7 +50,7 @@ import {
 import type { ScrollFollowHandle } from "../lib/chat-scroll/useScrollFollow";
 import { gaBridgeClient } from "../lib/ga/GaBridgeClient";
 import { createGaSidebarBackend } from "../lib/ga/gaSidebarBackend";
-import type { GaModelProfile } from "../lib/ga/types";
+import type { GaCommandControlResult, GaModelProfile } from "../lib/ga/types";
 import { tauriGitClient } from "../lib/git/tauriGitClient";
 import { setPreferredMonacoNlsLocale } from "../lib/monacoNls";
 import {
@@ -95,6 +95,7 @@ import { disposeTodoToolState } from "../lib/tools/todoTools";
 import type { LocalTunnelClient } from "../lib/tunnels/constants";
 import { createTauriTunnelClient } from "../lib/tunnels/tauriTunnelClient";
 import { tauriWorkspaceActivityClient } from "../lib/workspace-activity/tauriWorkspaceActivityClient";
+import { resolveGitWorkdir } from "../lib/workspaceProjects";
 import {
   ChatComposerBar,
   ChatHeader,
@@ -646,6 +647,12 @@ export function ChatPage(props: ChatPageProps) {
     currentConversationPersistedCwd ||
     currentConversationRuntimeWorkdir ||
     (isAgentMode ? activeWorkspaceProjectPath || workdir : "");
+  const gitWorkdir = resolveGitWorkdir({
+    isAgentMode,
+    activeWorkspaceProjectPath,
+    displayedConversationWorkdir,
+    missingWorkspaceProjectPathKeys,
+  });
   const terminalProjectPath = isAgentMode ? activeWorkspaceProjectPath.trim() : "";
   const terminalProjectPathKey = terminalProjectPath
     ? workspaceProjectPathKey(terminalProjectPath)
@@ -1440,6 +1447,13 @@ export function ChatPage(props: ChatPageProps) {
     getMcpSettings,
     t,
     setErrorMessage,
+    onGaControlResult: (control: GaCommandControlResult, conversationId: string) => {
+      if (conversationId !== currentConversationIdRef.current) return;
+      const llmNo = control.model?.llmNo;
+      if (typeof llmNo === "number" && Number.isSafeInteger(llmNo) && llmNo >= 0) {
+        setGaCurrentModelNo(llmNo);
+      }
+    },
     sidebarStore,
     titleJobRef,
     subagentStoresRef,
@@ -1904,6 +1918,7 @@ export function ChatPage(props: ChatPageProps) {
                 isInputDisabled={isComposerInputDisabled}
                 inputPlaceholder={composerPlaceholder}
                 workdir={displayedConversationWorkdir}
+                gitWorkdir={gitWorkdir}
                 enabledSkills={enabledComposerSkills}
                 availableCommands={availableComposerCommands}
                 isAgentMode={isAgentMode}

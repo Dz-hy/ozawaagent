@@ -13,6 +13,7 @@ import {
 } from "../../../lib/chat/messages/uploadedFiles";
 import type { ScrollFollowHandle } from "../../../lib/chat-scroll/useScrollFollow";
 import { gaBridgeClient } from "../../../lib/ga/GaBridgeClient";
+import type { GaCommandControlResult } from "../../../lib/ga/types";
 import { registerGaAskSender } from "../../../lib/ga/gaAskUser";
 import {
   type AppSettings,
@@ -68,6 +69,7 @@ type UseSendChatTurnParams = {
   isImportingPastedTextRef: MutableRefObject<boolean>;
   setIsImportingPastedText: Dispatch<SetStateAction<boolean>>;
   setErrorMessage: Dispatch<SetStateAction<string | null>>;
+  onGaControlResult?: (control: GaCommandControlResult, conversationId: string) => void;
   hydratingConversationIdRef: MutableRefObject<string | null>;
   hydrationFailedConversationIdRef: MutableRefObject<string | null>;
   currentConversationIdRef: ChatPageRuntimeStore["currentConversationIdRef"];
@@ -128,6 +130,7 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
     isImportingPastedTextRef,
     setIsImportingPastedText,
     setErrorMessage,
+    onGaControlResult,
     hydratingConversationIdRef,
     hydrationFailedConversationIdRef,
     currentConversationIdRef,
@@ -306,11 +309,20 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
     if (!text && uploadedFiles.length === 0) return false;
 
     let expandedText = text;
+    let handledCommand = false;
     if (modelMode === "ga") {
       try {
-        expandedText = await expandGaCommandPrompt(text, (commandId, argsText) =>
-          gaBridgeClient.executeCommand(commandId, argsText),
+        const expansion = await expandGaCommandPrompt(
+          text,
+          (commandId, argsText, sessionId) =>
+            gaBridgeClient.executeCommand(commandId, argsText, sessionId),
+          runtimeEntry.sessionId,
         );
+        expandedText = expansion.text;
+        handledCommand = expansion.handled;
+        if (expansion.control) {
+          onGaControlResult?.(expansion.control, conversationId);
+        }
       } catch (error) {
         const message = asErrorMessage(error, "GenericAgent command failed");
         setConversationErrorState(message);
@@ -319,6 +331,13 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
         await gatewayBridgeEvents.close();
         return false;
       }
+    }
+    if (handledCommand) {
+      if (!hasTextOverride && !overrides?.composerDraftOverride) {
+        clearCachedComposerDraft(conversationId);
+      }
+      if (!overrides?.preserveComposerOnStart) resetVisibleTransientState(conversationId);
+      return false;
     }
 
     const abortController = new AbortController();

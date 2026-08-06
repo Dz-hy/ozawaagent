@@ -406,6 +406,49 @@ test("workspace project activity merge keeps newer timestamps", () => {
   );
 });
 
+test("resolveGitWorkdir isolates Agent Git from stale or missing conversation cwd", () => {
+  const activePath = "C:\\Users\\Me\\Repo";
+  const conversationPath = "C:\\Users\\Me\\OldRepo";
+  const missing = new Set([settings.workspaceProjectPathKey(activePath)]);
+
+  assert.equal(
+    workspaceProjects.resolveGitWorkdir({
+      isAgentMode: true,
+      activeWorkspaceProjectPath: activePath,
+      displayedConversationWorkdir: conversationPath,
+      missingWorkspaceProjectPathKeys: new Set(),
+    }),
+    activePath,
+  );
+  assert.equal(
+    workspaceProjects.resolveGitWorkdir({
+      isAgentMode: true,
+      activeWorkspaceProjectPath: activePath,
+      displayedConversationWorkdir: conversationPath,
+      missingWorkspaceProjectPathKeys: missing,
+    }),
+    "",
+  );
+  assert.equal(
+    workspaceProjects.resolveGitWorkdir({
+      isAgentMode: true,
+      activeWorkspaceProjectPath: "",
+      displayedConversationWorkdir: conversationPath,
+      missingWorkspaceProjectPathKeys: new Set(),
+    }),
+    "",
+  );
+  assert.equal(
+    workspaceProjects.resolveGitWorkdir({
+      isAgentMode: false,
+      activeWorkspaceProjectPath: activePath,
+      displayedConversationWorkdir: `  ${conversationPath}  `,
+      missingWorkspaceProjectPathKeys: missing,
+    }),
+    conversationPath,
+  );
+});
+
 test("workspace project ordering uses deterministic path tie breaker", () => {
   const projects = [
     project("project-b", "/tmp/project-b", 1),

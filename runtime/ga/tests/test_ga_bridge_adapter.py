@@ -518,7 +518,7 @@ async def test_project_memory_status_is_metadata_only(command_client, tmp_path):
         "projectId": "project-1", "status": "missing", "lineCount": 0, "updatedAt": None,
     }
 
-    memory = tmp_path / "private" / "projects" / "project-1" / "project_memory.md"
+    memory = tmp_path / "temp" / "projects" / "project-1" / "project_memory.md"
     memory.parent.mkdir(parents=True)
     memory.write_text("", encoding="utf-8")
     empty = await command_client.get(endpoint, headers=AUTH)
@@ -558,12 +558,39 @@ async def test_command_registry_requires_a_verified_ga_root(client):
     assert (await listed.json())["payload"]["code"] == "command_registry_unavailable"
 
 
+@pytest_asyncio.fixture
+async def runtime_command_client(tmp_path):
+    frontends = tmp_path / "frontends"
+    frontends.mkdir()
+    (frontends / "slash_cmds.py").write_text(
+        "PALETTE_ENTRIES = [('/goal', '<objective>', 'Run a goal')]\n"
+        "def prompt_for(cmd, args_text):\n"
+        "    return f'GOAL:{args_text}' if cmd == '/goal' else None\n",
+        encoding="utf-8",
+    )
+    manager = ProjectManager()
+    session = manager.create_session()
+    manager.make_agent(session)
+    official = fake_official_module()
+    official.manager = manager
+    app = adapter.create_app(
+        official_module=official,
+        token=TOKEN,
+        allowed_origins=(ORIGIN,),
+        manifest=adapter.load_manifest(),
+        ga_root=tmp_path,
+    )
+    async with TestClient(TestServer(app)) as test_client:
+        yield test_client, manager, session
+
+
 @pytest.mark.asyncio
 async def test_command_registry_discovers_ga_metadata_and_executes_prompt(command_client):
     listed = await command_client.get("/api/v1/commands", headers=AUTH)
     assert listed.status == 200
     commands = (await listed.json())["payload"]["commands"]
-    assert [command["id"] for command in commands] == ["goal"]
+    prompt_commands = [command for command in commands if command["kind"] == "prompt"]
+    assert [command["id"] for command in prompt_commands] == ["goal"]
     assert commands[0]["name"] == "/goal"
     assert commands[0]["arg_hint"] == "<objective>"
     assert commands[0]["argument_schema"]["properties"]["args_text"] == {
@@ -593,6 +620,166 @@ async def test_command_registry_discovers_ga_metadata_and_executes_prompt(comman
         json={"args_text": "x" * (adapter.MAX_COMMAND_ARGUMENT_CHARS + 1)})
     assert too_long.status == 400
     assert (await too_long.json())["payload"]["code"] == "invalid_command_input"
+
+
+@pytest.mark.asyncio
+async def test_effort_command_is_a_session_bound_control(runtime_command_client):
+    client, manager, session = runtime_command_client
+    listed = await client.get("/api/v1/commands", headers=AUTH)
+    assert listed.status == 200
+    effort = next(command for command in (await listed.json())["payload"]["commands"]
+                  if command["id"] == "effort")
+    assert effort["name"] == "/effort"
+    assert effort["kind"] == "control"
+    assert effort["arg_hint"] == "[level]"
+    assert effort["argument_schema"]["properties"]["session_id"]["type"] == "string"
+
+    missing_session = await client.post(
+        "/api/v1/commands/effort/execute", headers=AUTH, json={"args_text": "high"})
+    assert missing_session.status == 400
+    assert (await missing_session.json())["payload"]["code"] == "invalid_command_input"
+
+    updated = await client.post(
+        "/api/v1/commands/effort/execute", headers=AUTH,
+        json={"args_text": "high", "session_id": session.id})
+    assert updated.status == 200
+    result = (await updated.json())["payload"]
+    assert result["command_id"] == "effort"
+    assert result["result"]["type"] == "control"
+    assert result["result"]["handled"] is True
+    assert result["result"]["runtime"]["reasoning_effort"] == "high"
+    assert session.reasoning_effort == "high"
+    assert session.agent.llmclient.backend.reasoning_effort == "high"
+
+    cleared = await client.post(
+        "/api/v1/commands/effort/execute", headers=AUTH,
+        json={"args_text": "off", "session_id": session.id})
+    assert cleared.status == 200
+    assert (await cleared.json())["payload"]["result"]["runtime"]["reasoning_effort"] is None
+    assert session.reasoning_effort is None
+
+    invalid = await client.post(
+        "/api/v1/commands/effort/execute", headers=AUTH,
+        json={"args_text": "turbo", "session_id": session.id})
+    assert invalid.status == 400
+    assert (await invalid.json())["payload"]["code"] == "invalid_command_input"
+
+
+@pytest.mark.asyncio
+async def test_runtime_commands_register_workspace_btw_cost_and_execute_read_only_controls(runtime_command_client, monkeypatch):
+    client, manager, session = runtime_command_client
+    listed = await client.get("/api/v1/commands", headers=AUTH)
+    assert listed.status == 200
+    commands = {item["id"]: item for item in (await listed.json())["payload"]["commands"]}
+    assert {"workspace", "btw", "cost"}.issubset(commands)
+    assert commands["workspace"]["kind"] == "control"
+    assert commands["btw"]["kind"] == "control"
+    assert commands["cost"]["kind"] == "control"
+
+    original_cwd = session.cwd
+    workspace = await client.post(
+        "/api/v1/commands/workspace/execute", headers=AUTH,
+        json={"args_text": "project-alpha", "session_id": session.id},
+    )
+    assert workspace.status == 200
+    workspace_result = (await workspace.json())["payload"]["result"]
+    assert workspace_result["type"] == "control"
+    assert workspace_result["workspace"]["projectId"] == "project-alpha"
+    assert session.cwd == original_cwd
+
+    backend = session.agent.llmclient.backend
+    backend.history = [{"role": "user", "content": [{"type": "text", "text": "main"}]}]
+    backend.raw_ask = lambda wire: iter(["side answer"])
+    btw = await client.post(
+        "/api/v1/commands/btw/execute", headers=AUTH,
+        json={"args_text": "what changed?", "session_id": session.id},
+    )
+    assert btw.status == 200
+    btw_result = (await btw.json())["payload"]["result"]
+    assert btw_result == {"type": "control", "handled": True, "text": "side answer"}
+    assert backend.history == [{"role": "user", "content": [{"type": "text", "text": "main"}]}]
+
+    monkeypatch.setattr(adapter, "read_official_token_json", lambda *args: {
+        "payload": {"records": [{"thread": "secret-thread", "input": 3, "output": 4,
+                                  "cacheCreate": 0, "cacheRead": 1, "model": "model-a",
+                                  "api_key": "must-not-leak", "cwd": "C:\\\\private"}]}
+    })
+    cost = await client.post(
+        "/api/v1/commands/cost/execute", headers=AUTH,
+        json={"args_text": "", "session_id": session.id},
+    )
+    assert cost.status == 200
+    cost_result = (await cost.json())["payload"]["result"]
+    assert cost_result["type"] == "control"
+    assert cost_result["cost"]["schema"] == "ga.token_usage.v1"
+    assert "secret-thread" not in json.dumps(cost_result)
+    assert "must-not-leak" not in json.dumps(cost_result)
+    assert "private" not in json.dumps(cost_result)
+
+
+@pytest.mark.asyncio
+async def test_btw_and_cost_require_a_session(runtime_command_client):
+    client, _manager, _session = runtime_command_client
+    for command_id in ("btw", "cost"):
+        response = await client.post(
+            f"/api/v1/commands/{command_id}/execute", headers=AUTH,
+            json={"args_text": "question" if command_id == "btw" else ""},
+        )
+        assert response.status == 400
+        assert (await response.json())["payload"]["code"] == "invalid_command_input"
+
+
+@pytest.mark.asyncio
+async def test_model_command_switches_a_session_model(runtime_command_client):
+    client, manager, session = runtime_command_client
+    listed = await client.get("/api/v1/commands", headers=AUTH)
+    assert listed.status == 200
+    model = next(command for command in (await listed.json())["payload"]["commands"]
+                 if command["id"] == "model")
+    assert model["name"] == "/model"
+    assert model["kind"] == "control"
+    assert model["arg_hint"] == "<profile id>"
+    assert model["argument_schema"]["required"] == ["session_id"]
+
+    missing_session = await client.post(
+        "/api/v1/commands/model/execute", headers=AUTH, json={"args_text": "1"})
+    assert missing_session.status == 400
+    assert (await missing_session.json())["payload"]["code"] == "invalid_command_input"
+
+    updated = await client.post(
+        "/api/v1/commands/model/execute", headers=AUTH,
+        json={"args_text": "1", "session_id": session.id})
+    assert updated.status == 200
+    result = (await updated.json())["payload"]
+    assert result["command_id"] == "model"
+    assert result["result"]["type"] == "control"
+    assert result["result"]["handled"] is True
+    assert result["result"]["model"] == {
+        "current": "model-b", "isMixin": False, "llmNo": 1,
+    }
+    assert result["result"]["runtime"]["reasoning_effort"] is None
+    assert session.llm_no == 1
+    assert session.agent.llm_no == 1
+
+    for args_text in ("", "-1", "one", "1 extra"):
+        invalid = await client.post(
+            "/api/v1/commands/model/execute", headers=AUTH,
+            json={"args_text": args_text, "session_id": session.id})
+        assert invalid.status == 400
+        assert (await invalid.json())["payload"]["code"] == "invalid_command_input"
+
+    missing_profile = await client.post(
+        "/api/v1/commands/model/execute", headers=AUTH,
+        json={"args_text": "9", "session_id": session.id})
+    assert missing_profile.status == 404
+    assert (await missing_profile.json())["payload"]["code"] == "model_profile_not_found"
+
+    manager.set_session_model = None
+    unavailable = await client.post(
+        "/api/v1/commands/model/execute", headers=AUTH,
+        json={"args_text": "0", "session_id": session.id})
+    assert unavailable.status == 503
+    assert (await unavailable.json())["payload"]["code"] == "model_profiles_unavailable"
 
 
 @pytest.mark.asyncio
@@ -1006,6 +1193,7 @@ class ProjectSession:
         self.reasoning_effort = None
         self.service_tier = None
         self.thinking_type = None
+        self.llm_no = 0
         self.agent = None
 
 
@@ -1013,6 +1201,11 @@ class ProjectManager:
     def __init__(self):
         self.sessions = {}
         self.persisted = []
+        self.config = {"llmNo": 0}
+        self.model_profiles = [
+            {"id": 0, "name": "Primary", "model": "model-a"},
+            {"id": 1, "name": "Fallback", "model": "model-b"},
+        ]
 
     def _persist_session(self, session):
         self.persisted.append(session)
@@ -1032,14 +1225,42 @@ class ProjectManager:
         return {"id": session.id, "cwd": session.cwd,
                 "reasoning_effort": session.reasoning_effort,
                 "service_tier": session.service_tier,
-                "thinking_type": session.thinking_type}
+                "thinking_type": session.thinking_type,
+                "llm_no": session.llm_no}
 
     def _session_from_item(self, item):
         session = ProjectSession(sid=item["id"], cwd=item.get("cwd", "C:\\ga"))
         session.reasoning_effort = item.get("reasoning_effort")
         session.service_tier = item.get("service_tier")
         session.thinking_type = item.get("thinking_type")
+        session.llm_no = item.get("llm_no", 0)
         return session
+
+    def list_model_profiles(self):
+        return [
+            {**profile, "active": profile["id"] == self.config["llmNo"]}
+            for profile in self.model_profiles
+        ]
+
+    def set_session_model(self, sid, llm_no):
+        session = self.sessions.get(sid)
+        if session is None:
+            raise KeyError(sid)
+        if not any(profile["id"] == llm_no for profile in self.model_profiles):
+            raise ValueError("profile not found")
+        session.llm_no = llm_no
+        if session.agent is not None and hasattr(session.agent, "next_llm"):
+            session.agent.next_llm(llm_no)
+        return {
+            "ok": True,
+            "sessionId": sid,
+            "llmNo": llm_no,
+            "model": {
+                "current": next(profile["model"] for profile in self.model_profiles if profile["id"] == llm_no),
+                "isMixin": False,
+                "llmNo": llm_no,
+            },
+        }
 
     def make_agent(self, session):
         calls = []
@@ -1048,7 +1269,9 @@ class ProjectManager:
             handler=SimpleNamespace(enter_project_mode=calls.append),
             llmclient=SimpleNamespace(backend=backend),
             project_calls=calls,
+            llm_no=session.llm_no,
         )
+        agent.next_llm = lambda llm_no: setattr(agent, "llm_no", llm_no)
         session.agent = agent
         return agent
 

@@ -26,7 +26,14 @@ export type GaSetSessionModelResult = {
   llmNo: number;
   model?: GaSessionModel | null;
 };
-export type GaModelReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+export type GaModelReasoningEffort =
+  | "none"
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh"
+  | "max";
 export type GaModelServiceTier = "auto" | "default" | "priority" | "flex";
 export type GaModelThinkingType = "adaptive" | "enabled" | "disabled";
 export type GaSessionRuntime = {
@@ -61,6 +68,7 @@ export type GaMessageDto = Record<string, unknown> & {
   ts?: number;
   timestamp?: number;
   turn_segs?: string[];
+  partial?: boolean;
   stopped?: boolean;
   event_id?: string;
 };
@@ -99,9 +107,16 @@ export type GaCommandDto = {
   argument_schema: Record<string, unknown>;
   permissions: string[];
 };
+export type GaCommandPromptResult = { type: "prompt"; prompt: string };
+export type GaCommandControlResult = {
+  type: "control";
+  handled: boolean;
+  runtime: GaSessionRuntime;
+  model?: GaSessionModel | null;
+};
 export type GaCommandResult = {
   command_id: string;
-  result: { type: "prompt"; prompt: string };
+  result: GaCommandPromptResult | GaCommandControlResult;
 };
 export type GaProjectMemoryStatus = {
   projectId: string;

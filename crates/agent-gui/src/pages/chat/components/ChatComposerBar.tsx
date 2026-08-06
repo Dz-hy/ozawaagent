@@ -135,6 +135,7 @@ export const ChatComposerBar = memo(function ChatComposerBar(props: {
   isInputDisabled: boolean;
   inputPlaceholder: string;
   workdir: string;
+  gitWorkdir?: string;
   enabledSkills: MentionComposerSkill[];
   availableCommands: MentionComposerCommand[];
   isAgentMode: boolean;
@@ -169,6 +170,7 @@ export const ChatComposerBar = memo(function ChatComposerBar(props: {
     isInputDisabled,
     inputPlaceholder,
     workdir,
+    gitWorkdir = workdir,
     enabledSkills,
     availableCommands,
     isAgentMode,
@@ -921,7 +923,7 @@ export const ChatComposerBar = memo(function ChatComposerBar(props: {
               ) : null}
 
               <GitBranchSelector
-                workdir={workdir}
+                workdir={gitWorkdir}
                 gitClient={gitClient}
                 workspaceActivityClient={workspaceActivityClient}
                 disabled={controlsDisabled}

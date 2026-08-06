@@ -3,9 +3,12 @@ import { GA_ASK_CONVERSATION_ARG } from "./gaAskUser";
 
 const TOOL_HEADER = /^🛠️ Tool: `([^`]+)`\s*(?:📥 args:)?\s*$/;
 const FENCE = /^(`{4,})([^`]*)$/;
+const THINKING_OPEN = "<thinking>";
+const THINKING_CLOSE = "</thinking>";
 
 export type GaProtocolChunk =
   | { kind: "text"; text: string }
+  | { kind: "thinking"; text: string }
   | { kind: "tool"; call: ToolCall; result?: ToolResultMessage };
 
 function parseArguments(raw: string): Record<string, unknown> {
@@ -51,9 +54,49 @@ function findClosingFence(lines: string[], from: number, ticks: number) {
   return -1;
 }
 
-function pushText(chunks: GaProtocolChunk[], lines: string[]) {
-  const text = lines.join("\n").trim();
-  if (text) chunks.push({ kind: "text", text });
+function pushTextChunk(chunks: GaProtocolChunk[], text: string) {
+  const normalized = text.trim();
+  if (normalized) chunks.push({ kind: "text", text: normalized });
+}
+
+export type GaProtocolOptions = {
+  allowUnclosedThinking?: boolean;
+};
+
+function pushMixedText(chunks: GaProtocolChunk[], text: string, options: GaProtocolOptions = {}) {
+  let cursor = 0;
+  while (cursor < text.length) {
+    const open = text.indexOf(THINKING_OPEN, cursor);
+    if (open < 0) {
+      pushTextChunk(chunks, text.slice(cursor));
+      return;
+    }
+
+    const close = text.indexOf(THINKING_CLOSE, open + THINKING_OPEN.length);
+    if (close < 0) {
+      if (!options.allowUnclosedThinking) {
+        pushTextChunk(chunks, text.slice(cursor));
+        return;
+      }
+      pushTextChunk(chunks, text.slice(cursor, open));
+      const thinking = text.slice(open + THINKING_OPEN.length).trim();
+      if (thinking) {
+        chunks.push({ kind: "thinking", text: thinking });
+      } else {
+        pushTextChunk(chunks, text.slice(open));
+      }
+      return;
+    }
+
+    pushTextChunk(chunks, text.slice(cursor, open));
+    const thinking = text.slice(open + THINKING_OPEN.length, close).trim();
+    if (thinking) chunks.push({ kind: "thinking", text: thinking });
+    cursor = close + THINKING_CLOSE.length;
+  }
+}
+
+function pushText(chunks: GaProtocolChunk[], lines: string[], options?: GaProtocolOptions) {
+  pushMixedText(chunks, lines.join("\n"), options);
 }
 
 export function parseGaProtocol(
@@ -61,6 +104,7 @@ export function parseGaProtocol(
   idPrefix: string,
   timestamp: number,
   conversationId?: string,
+  options?: GaProtocolOptions,
 ): GaProtocolChunk[] {
   const lines = String(text || "").split(/\r?\n/);
   const chunks: GaProtocolChunk[] = [];
@@ -83,7 +127,7 @@ export function parseGaProtocol(
       break;
     }
 
-    pushText(chunks, prose);
+    pushText(chunks, prose, options);
     prose = [];
     const rawName = header[1].trim();
     const name = rawName === "ask_user" ? "AskUserQuestion" : rawName;
@@ -121,8 +165,18 @@ export function parseGaProtocol(
     }
     chunks.push(result ? { kind: "tool", call, result } : { kind: "tool", call });
   }
-  pushText(chunks, prose);
+  pushText(chunks, prose, options);
   return chunks;
+}
+
+function appendAssistantContentChunk(content: AssistantMessage["content"], chunk: GaProtocolChunk) {
+  if (chunk.kind === "text") {
+    content.push({ type: "text", text: chunk.text });
+  } else if (chunk.kind === "thinking") {
+    content.push({ type: "thinking", thinking: chunk.text });
+  } else {
+    content.push(chunk.call);
+  }
 }
 
 export function gaProtocolToMessages(
@@ -130,10 +184,16 @@ export function gaProtocolToMessages(
   base: Omit<AssistantMessage, "content">,
   idPrefix: string,
   conversationId?: string,
+  options?: GaProtocolOptions,
 ): Message[] {
-  const chunks = parseGaProtocol(text, idPrefix, base.timestamp, conversationId);
+  const chunks = parseGaProtocol(text, idPrefix, base.timestamp, conversationId, options);
   if (!chunks.some((chunk) => chunk.kind === "tool")) {
-    return [{ ...base, content: [{ type: "text", text }] }];
+    if (chunks.length === 0 || (chunks.length === 1 && chunks[0]?.kind === "text")) {
+      return [{ ...base, content: [{ type: "text", text }] }];
+    }
+    const content: AssistantMessage["content"] = [];
+    for (const chunk of chunks) appendAssistantContentChunk(content, chunk);
+    return [{ ...base, content }];
   }
 
   const messages: Message[] = [];
@@ -144,13 +204,13 @@ export function gaProtocolToMessages(
     assistantContent = [];
   };
   for (const chunk of chunks) {
-    if (chunk.kind === "text") {
-      assistantContent.push({ type: "text", text: chunk.text });
+    if (chunk.kind === "tool") {
+      assistantContent.push(chunk.call);
+      flushAssistant();
+      if (chunk.result) messages.push(chunk.result);
       continue;
     }
-    assistantContent.push(chunk.call);
-    flushAssistant();
-    if (chunk.result) messages.push(chunk.result);
+    appendAssistantContentChunk(assistantContent, chunk);
   }
   flushAssistant();
   return messages;

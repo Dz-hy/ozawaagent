@@ -43,6 +43,47 @@ test("GA protocol parser preserves prose and converts closed tool blocks", () =>
   assert.equal(chunks[2].text, "Done.");
 });
 
+test("GA protocol parser separates closed thinking from visible text", () => {
+  const chunks = parseGaProtocol("before\n<thinking>inspect files</thinking>\nafter", "ga-think", 1);
+  assert.deepEqual(chunks, [
+    { kind: "text", text: "before" },
+    { kind: "thinking", text: "inspect files" },
+    { kind: "text", text: "after" },
+  ]);
+});
+
+test("GA protocol parser keeps an unfinished thinking tag visible verbatim", () => {
+  const text = "before\n<thinking>still streaming";
+  assert.deepEqual(parseGaProtocol(text, "ga-open", 1), [{ kind: "text", text }]);
+});
+
+test("GA thinking and visible text stay in one assistant message", () => {
+  const messages = gaProtocolToMessages(
+    "answer\n<thinking>private plan</thinking>\nfinal",
+    {
+      role: "assistant",
+      ...model,
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: "stop",
+      timestamp: 1,
+    },
+    "ga-think",
+  );
+  assert.equal(messages.length, 1);
+  assert.deepEqual(messages[0].content, [
+    { type: "text", text: "answer" },
+    { type: "thinking", thinking: "private plan" },
+    { type: "text", text: "final" },
+  ]);
+});
+
 test("GA protocol parser preserves malformed and unknown text losslessly", () => {
   const text = "before\n🛠️ Tool: `Bash`   📥 args:\n````text\n{bad";
   const chunks = parseGaProtocol(text, "ga-bad", 1);
@@ -161,6 +202,53 @@ test("unknown authoritative GA messages become generic cards without leaking sen
   assert.match(resultText, /\[redacted\]/);
   assert.match(resultText, /"visible": 7/);
   assert.doesNotMatch(resultText, /must-not-leak/);
+});
+
+test("GA snapshots and partial responses preserve thinking blocks", () => {
+  const thinkingText = "<thinking>inspect the workspace</thinking>Visible answer";
+  const state = gaSnapshotToConversationState(
+    {
+      meta: { systemPrompt: "", tools: [] },
+      segments: [
+        {
+          segmentIndex: 0,
+          segmentId: "segment-thinking",
+          messages: [],
+          messageCount: 0,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+      activeSegmentIndex: 0,
+      historyRenderItems: [],
+    },
+    {
+      sessionId: "thinking-session",
+      status: "running",
+      messages: [{ id: 11, role: "assistant", content: thinkingText, ts: 2 }],
+      partial: {
+        id: 12,
+        role: "assistant",
+        content: "<thinking>still working",
+        ts: 3,
+        partial: true,
+      },
+      msgSeq: 12,
+    },
+    model,
+  );
+
+  const assistants = state.segments[0].messages.filter((message) => message.role === "assistant");
+  assert.equal(assistants.length, 2);
+  assert.deepEqual(assistants.map((message) => message.content), [
+    [
+      { type: "thinking", thinking: "inspect the workspace" },
+      { type: "text", text: "Visible answer" },
+    ],
+    [
+      { type: "thinking", thinking: "still working" },
+    ],
+  ]);
 });
 
 test("GA DTO and authoritative snapshots expand tool protocol into conversation messages", () => {

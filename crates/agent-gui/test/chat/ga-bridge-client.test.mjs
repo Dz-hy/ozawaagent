@@ -61,6 +61,9 @@ test("client unwraps v1 envelopes and sends authenticated session CRUD", async (
   assert.equal((await client.createSession({ cwd: "C:/space dir" })).id, "s2");
   assert.equal((await client.listCommands())[0].id, "goal");
   assert.equal((await client.executeCommand("goal/safe", "ship")).result.prompt, "GOAL:ship");
+  await client.executeCommand("effort", "high", "s2");
+  const effortCall = calls.find(({ url }) => String(url).endsWith("/api/v1/commands/effort/execute"));
+  assert.deepEqual(JSON.parse(effortCall.options.body), { args_text: "high", session_id: "s2" });
   assert.equal((await client.renameSession("s2", "renamed")).title, "renamed");
   await client.deleteSession("s2");
 
@@ -72,8 +75,11 @@ test("client unwraps v1 envelopes and sends authenticated session CRUD", async (
   assert.match(calls[3].url, /\/api\/v1\/commands\/goal%2Fsafe\/execute$/);
   assert.equal(calls[3].options.method, "POST");
   assert.deepEqual(JSON.parse(calls[3].options.body), { args_text: "ship" });
-  assert.match(calls[4].url, /\/session\/s2$/);
-  assert.equal(calls[5].options.method, "DELETE");
+  assert.match(calls[4].url, /\/api\/v1\/commands\/effort\/execute$/);
+  assert.equal(calls[4].options.method, "POST");
+  assert.deepEqual(JSON.parse(calls[4].options.body), { args_text: "high", session_id: "s2" });
+  assert.match(calls[5].url, /\/session\/s2$/);
+  assert.equal(calls[6].options.method, "DELETE");
 });
 
 test("default fetcher binds Window.fetch to globalThis", async () => {

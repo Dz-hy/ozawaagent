@@ -76,6 +76,7 @@ export function gaMessageToPiMessages(
     base,
     protocolIdPrefix,
     conversationId,
+    { allowUnclosedThinking: message.partial === true },
   );
 }
 

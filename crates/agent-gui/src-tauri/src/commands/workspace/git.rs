@@ -581,6 +581,19 @@ fn read_temp_file(file: &mut NamedTempFile, label: &str) -> Result<Vec<u8>, Stri
     Ok(bytes)
 }
 
+fn validate_git_workdir(workdir: &str) -> Result<PathBuf, String> {
+    let trimmed = workdir.trim();
+    if trimmed.is_empty() {
+        return Err("Git 工作目录不能为空。".to_string());
+    }
+    let path = Path::new(trimmed);
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.is_dir() => Ok(path.to_path_buf()),
+        Ok(_) => Err(format!("Git 工作目录不是目录：{trimmed}")),
+        Err(error) => Err(format!("Git 工作目录不可用：{trimmed}（{error}）")),
+    }
+}
+
 fn git_output(workdir: &str, args: &[&str]) -> Result<Output, String> {
     git_output_with_timeout(workdir, args, Duration::from_secs(GIT_COMMAND_TIMEOUT_SECS))
 }
@@ -590,6 +603,7 @@ fn git_output_with_timeout(
     args: &[&str],
     timeout: Duration,
 ) -> Result<Output, String> {
+    let workdir = validate_git_workdir(workdir)?;
     let mut stdout_file =
         NamedTempFile::new().map_err(|error| format!("创建 git stdout 缓存失败：{error}"))?;
     let mut stderr_file =
@@ -604,7 +618,7 @@ fn git_output_with_timeout(
     configure_child_process_group(&mut command);
     let mut child = command
         .args(args)
-        .current_dir(workdir)
+        .current_dir(&workdir)
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_OPTIONAL_LOCKS", "0")
         // Pin the message locale: callers (transient-lock retry, the
@@ -3437,6 +3451,24 @@ mod tests {
 
     use serde_json::json;
     use tempfile::TempDir;
+
+    #[test]
+    fn validates_git_workdir_before_spawning() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let valid = temp.path().to_string_lossy().to_string();
+        assert!(validate_git_workdir(&format!("  {valid}  ")).is_ok());
+
+        let file_path = temp.path().join("not-a-directory");
+        fs::write(&file_path, "file").expect("write file");
+        let file_error = validate_git_workdir(&file_path.to_string_lossy()).expect_err("file path");
+        assert!(file_error.contains("Git 工作目录不是目录"));
+
+        let missing_path = temp.path().join("missing");
+        let missing = missing_path.to_string_lossy().to_string();
+        let missing_error = validate_git_workdir(&missing).expect_err("missing path");
+        assert!(missing_error.contains("Git 工作目录不可用"));
+        assert!(missing_error.contains(&missing));
+    }
 
     #[test]
     fn parses_porcelain_v2_branch_and_counts() {

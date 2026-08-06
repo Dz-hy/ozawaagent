@@ -193,10 +193,13 @@ export class GaBridgeClient {
     const result = await this.request<{ commands: GaCommandDto[] }>("/api/v1/commands");
     return result.commands;
   }
-  executeCommand(id: string, argsText = ""): Promise<GaCommandResult> {
+  executeCommand(id: string, argsText = "", sessionId?: string): Promise<GaCommandResult> {
+    const body: { args_text: string; session_id?: string } = { args_text: argsText };
+    const normalizedSessionId = sessionId?.trim();
+    if (normalizedSessionId) body.session_id = normalizedSessionId;
     return this.request(`/api/v1/commands/${encodeURIComponent(id)}/execute`, {
       method: "POST",
-      body: JSON.stringify({ args_text: argsText }),
+      body: JSON.stringify(body),
     });
   }
   getProjectMemoryStatus(projectId: string): Promise<GaProjectMemoryStatus> {

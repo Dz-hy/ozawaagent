@@ -6,8 +6,10 @@ import argparse
 import asyncio
 from collections import deque
 from contextvars import ContextVar
+import copy
 import hashlib
 import importlib.util
+import inspect
 import json
 import math
 import os
@@ -630,6 +632,25 @@ def _safe_manager_profiles(manager: Any) -> list[dict[str, Any]]:
             for item in manager.list_model_profiles()]
 
 
+def _safe_session_model(value: Any, llm_no: int) -> dict[str, Any]:
+    """Return only the official bridge's non-secret live-model snapshot."""
+    raw = value.get("model") if isinstance(value, dict) else None
+    raw = raw if isinstance(raw, dict) else {}
+    current = raw.get("current")
+    if not isinstance(current, str):
+        current = None
+    else:
+        current = current[:MAX_TOKEN_MODEL_CHARS]
+    live_no = raw.get("llmNo", llm_no)
+    if not isinstance(live_no, int) or isinstance(live_no, bool) or live_no != llm_no:
+        live_no = llm_no
+    return {
+        "current": current,
+        "isMixin": raw.get("isMixin") is True,
+        "llmNo": live_no,
+    }
+
+
 def _private_profile_io_available(manager: Any, *, creating: bool) -> bool:
     required = ["_build_cfg", "_mykey_file", "_patch_var_block", "_save_mykey_text"]
     required += ["_next_native_var", "_format_py_dict"] if creating else ["_profile_at"]
@@ -751,6 +772,125 @@ def atomic_write_automation(path: Path, automation: dict[str, Any]) -> None:
             temporary.unlink()
 
 
+CORE_RUNTIME_COMMANDS: tuple[dict[str, Any], ...] = (
+    {
+        "id": "effort",
+        "name": "/effort",
+        "aliases": [],
+        "title": "/effort",
+        "description": "查看 / 设置 reasoning effort（off 清除）",
+        "arg_hint": "[level]",
+        "argument_schema": {
+            "type": "object",
+            "properties": {
+                "args_text": {"type": "string", "maxLength": MAX_COMMAND_ARGUMENT_CHARS},
+                "session_id": {"type": "string", "minLength": 1},
+            },
+            "required": ["session_id"],
+            "additionalProperties": False,
+        },
+        "owner": "ga",
+        "kind": "control",
+        "api_version": COMMAND_API_VERSION,
+        "plugin_version": "runtime",
+        "requires_capabilities": ["sessions"],
+        "permissions": [],
+    },
+    {
+        "id": "model",
+        "name": "/model",
+        "aliases": [],
+        "title": "/model",
+        "description": "切换当前会话使用的模型 profile",
+        "arg_hint": "<profile id>",
+        "argument_schema": {
+            "type": "object",
+            "properties": {
+                "args_text": {"type": "string", "pattern": "^[0-9]+$", "maxLength": 32},
+                "session_id": {"type": "string", "minLength": 1},
+            },
+            "required": ["session_id"],
+            "additionalProperties": False,
+        },
+        "owner": "ga",
+        "kind": "control",
+        "api_version": COMMAND_API_VERSION,
+        "plugin_version": "runtime",
+        "requires_capabilities": ["sessions", "model_profiles"],
+        "permissions": [],
+    },
+    {
+        "id": "workspace",
+        "name": "/workspace",
+        "aliases": [],
+        "title": "/workspace",
+        "description": "绑定项目工作区（切换 cwd 需创建新会话）",
+        "arg_hint": "<project id>",
+        "argument_schema": {
+            "type": "object",
+            "properties": {
+                "args_text": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$", "maxLength": 128},
+                "session_id": {"type": "string", "minLength": 1},
+            },
+            "required": ["session_id"],
+            "additionalProperties": False,
+        },
+        "owner": "ga",
+        "kind": "control",
+        "api_version": COMMAND_API_VERSION,
+        "plugin_version": "runtime",
+        "requires_capabilities": ["sessions", "projects"],
+        "permissions": [],
+    },
+    {
+        "id": "btw",
+        "name": "/btw",
+        "aliases": [],
+        "title": "/btw",
+        "description": "旁路询问当前 Agent，不修改主会话历史",
+        "arg_hint": "<question>",
+        "argument_schema": {
+            "type": "object",
+            "properties": {
+                "args_text": {"type": "string", "minLength": 1, "maxLength": MAX_COMMAND_ARGUMENT_CHARS},
+                "session_id": {"type": "string", "minLength": 1},
+            },
+            "required": ["session_id"],
+            "additionalProperties": False,
+        },
+        "owner": "ga",
+        "kind": "control",
+        "api_version": COMMAND_API_VERSION,
+        "plugin_version": "runtime",
+        "requires_capabilities": ["sessions", "side_questions"],
+        "permissions": [],
+    },
+    {
+        "id": "cost",
+        "name": "/cost",
+        "aliases": [],
+        "title": "/cost",
+        "description": "查看当前 GenericAgent 令牌用量",
+        "arg_hint": "",
+        "argument_schema": {
+            "type": "object",
+            "properties": {
+                "args_text": {"type": "string", "maxLength": 0},
+                "session_id": {"type": "string", "minLength": 1},
+            },
+            "required": ["session_id"],
+            "additionalProperties": False,
+        },
+        "owner": "ga",
+        "kind": "control",
+        "api_version": COMMAND_API_VERSION,
+        "plugin_version": "runtime",
+        "requires_capabilities": ["sessions", "token_usage"],
+        "permissions": [],
+    },
+)
+
+
 def load_command_registry(root: Path) -> tuple[Any, list[dict[str, Any]]]:
     """Reflect GA-owned slash metadata without copying command logic into the adapter."""
     path = root / "frontends" / "slash_cmds.py"
@@ -792,6 +932,10 @@ def load_command_registry(root: Path) -> tuple[Any, list[dict[str, Any]]]:
             "requires_capabilities": [],
             "permissions": [],
         })
+    for runtime_command in CORE_RUNTIME_COMMANDS:
+        if runtime_command["id"] not in seen:
+            commands.append(dict(runtime_command))
+            seen.add(runtime_command["id"])
     return module, commands
 
 
@@ -902,6 +1046,64 @@ async def read_official_token_json(official_module: Any, handler_name: str, requ
     if not isinstance(body, dict):
         raise RuntimeError("official token usage response was invalid")
     return body
+
+
+def _side_question_text(session: Any, question: str) -> str:
+    """Ask one bounded side question without mutating the live backend history."""
+    if not question.strip():
+        raise ValueError("side question is required")
+    agent = getattr(session, "agent", None)
+    backend = getattr(getattr(agent, "llmclient", None), "backend", None)
+    raw_ask = getattr(backend, "raw_ask", None)
+    if backend is None or not callable(raw_ask):
+        raise RuntimeError("side questions are unavailable")
+    history = copy.deepcopy(list(getattr(backend, "history", []) or []))
+    question_message = {
+        "role": "user",
+        "content": [{"type": "text", "text": question.strip()}],
+    }
+    messages = history + [question_message]
+    make_messages = getattr(backend, "make_messages", None)
+    wire = make_messages(messages) if callable(make_messages) else messages
+    result = raw_ask(wire)
+    if inspect.isawaitable(result):
+        raise RuntimeError("async side questions are unavailable")
+    chunks: list[str] = []
+    for chunk in result:
+        if isinstance(chunk, str):
+            chunks.append(chunk)
+        elif chunk is not None:
+            chunks.append(str(chunk))
+        if sum(len(value) for value in chunks) >= MAX_COMMAND_ARGUMENT_CHARS * 4:
+            break
+    return "".join(chunks)[: MAX_COMMAND_ARGUMENT_CHARS * 4].strip()
+
+
+def _safe_token_usage_payload(document: Any) -> dict[str, Any]:
+    if not isinstance(document, dict) or not isinstance(document.get("records"), list):
+        raise RuntimeError("official token usage response was invalid")
+    raw_records = document["records"]
+    records = [
+        record
+        for raw in raw_records[:MAX_TOKEN_RECORDS]
+        if (record := safe_token_record(raw, include_timestamp=False)) is not None
+    ]
+    return {
+        "schema": "ga.token_usage.v1",
+        "records": records,
+        "truncated": len(raw_records) > MAX_TOKEN_RECORDS,
+    }
+
+
+def _workspace_control(session: Any, project_id: str) -> dict[str, Any]:
+    """Describe a requested binding; an active session's cwd is immutable."""
+    return {
+        "projectId": project_id,
+        "currentProjectId": _normalize_project_id(getattr(session, "project_id", None)),
+        "cwd": getattr(session, "cwd", None),
+        "cwdImmutable": True,
+        "requiresNewSession": project_id != getattr(session, "project_id", None),
+    }
 
 
 def token_usage_error(request: web.Request) -> web.Response:
@@ -1254,7 +1456,7 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
             return _json("error", {"code": "project_memory_unavailable",
                                    "message": "GenericAgent project memory is unavailable"}, 503,
                          request.headers.get("X-Request-Id", ""))
-        memory_path = ga_root / "private" / "projects" / project_id / "project_memory.md"
+        memory_path = ga_root / "temp" / "projects" / project_id / "project_memory.md"
         exists = memory_path.is_file() and not memory_path.is_symlink()
         payload: dict[str, Any] = {"projectId": project_id, "status": "missing",
                                    "lineCount": 0, "updatedAt": None}
@@ -1489,6 +1691,137 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
             return _json("error", {"code": "invalid_command_input",
                                     "message": f"args_text must be a string of at most {MAX_COMMAND_ARGUMENT_CHARS} characters"}, 400,
                          request.headers.get("X-Request-Id", ""))
+        if command["kind"] == "control":
+            session_id = body.get("session_id")
+            if not isinstance(session_id, str) or not session_id.strip():
+                return _json("error", {"code": "invalid_command_input",
+                                        "message": "session_id is required for control commands"}, 400,
+                             request.headers.get("X-Request-Id", ""))
+            manager = getattr(official_module, "manager", None)
+            if manager is None:
+                return _json("error", {"code": "command_execution_failed",
+                                        "message": "Session runtime is unavailable"}, 503,
+                             request.headers.get("X-Request-Id", ""))
+            try:
+                session = _session_for_runtime(manager, session_id.strip())
+            except (KeyError, LookupError):
+                return _json("error", {"code": "session_not_found", "message": "Session not found"}, 404,
+                             request.headers.get("X-Request-Id", ""))
+            if command_id == "workspace":
+                project_id = args_text.strip()
+                try:
+                    project_id = _normalize_project_id(project_id)
+                except ValueError:
+                    project_id = None
+                if project_id is None:
+                    return _json("error", {"code": "invalid_command_input",
+                                            "message": "project id is required and must be a safe identifier"}, 400,
+                                 request.headers.get("X-Request-Id", ""))
+                return _json("command.completed", {
+                    "command_id": command_id,
+                    "result": {"type": "control", "handled": True,
+                                "workspace": _workspace_control(session, project_id)},
+                }, 200, request.headers.get("X-Request-Id", ""))
+            if command_id == "btw":
+                try:
+                    text = _side_question_text(session, args_text)
+                except ValueError as error:
+                    return _json("error", {"code": "invalid_command_input", "message": str(error)}, 400,
+                                 request.headers.get("X-Request-Id", ""))
+                except Exception:
+                    return _json("error", {"code": "side_question_unavailable",
+                                            "message": "GenericAgent side question is unavailable"}, 503,
+                                 request.headers.get("X-Request-Id", ""))
+                return _json("command.completed", {
+                    "command_id": command_id,
+                    "result": {"type": "control", "handled": True, "text": text},
+                }, 200, request.headers.get("X-Request-Id", ""))
+            if command_id == "cost":
+                if args_text.strip():
+                    return _json("error", {"code": "invalid_command_input",
+                                            "message": "cost does not accept arguments"}, 400,
+                                 request.headers.get("X-Request-Id", ""))
+                try:
+                    document = read_official_token_json(official_module, "token_stats_handler", request)
+                    if inspect.isawaitable(document):
+                        document = await document
+                    if isinstance(document, dict) and isinstance(document.get("payload"), dict) and "records" not in document:
+                        document = document["payload"]
+                    cost = _safe_token_usage_payload(document)
+                except Exception:
+                    return _json("error", {"code": "token_usage_unavailable",
+                                            "message": "GenericAgent token usage is unavailable"}, 503,
+                                 request.headers.get("X-Request-Id", ""))
+                return _json("command.completed", {
+                    "command_id": command_id,
+                    "result": {"type": "control", "handled": True, "cost": cost},
+                }, 200, request.headers.get("X-Request-Id", ""))
+            if command_id == "model":
+                argument = args_text.strip()
+                if not re.fullmatch(r"[0-9]+", argument):
+                    return _json("error", {"code": "invalid_command_input",
+                                            "message": "Model profile id must be a non-negative decimal integer"}, 400,
+                                 request.headers.get("X-Request-Id", ""))
+                try:
+                    llm_no = int(argument, 10)
+                    profiles = _safe_manager_profiles(manager)
+                except (ValueError, TypeError, AttributeError, OverflowError):
+                    return _json("error", {"code": "model_profiles_unavailable",
+                                            "message": "GenericAgent model profiles are unavailable"}, 503,
+                                 request.headers.get("X-Request-Id", ""))
+                if not any(profile.get("id") == llm_no for profile in profiles):
+                    return _json("error", {"code": "model_profile_not_found",
+                                            "message": "Model profile not found"}, 404,
+                                 request.headers.get("X-Request-Id", ""))
+                switch_model = getattr(manager, "set_session_model", None)
+                if not callable(switch_model):
+                    return _json("error", {"code": "model_profiles_unavailable",
+                                            "message": "GenericAgent model profiles are unavailable"}, 503,
+                                 request.headers.get("X-Request-Id", ""))
+                try:
+                    switched = switch_model(session_id.strip(), llm_no)
+                except (KeyError, LookupError):
+                    return _json("error", {"code": "session_not_found", "message": "Session not found"}, 404,
+                                 request.headers.get("X-Request-Id", ""))
+                except (ValueError, TypeError):
+                    return _json("error", {"code": "model_profile_not_found",
+                                            "message": "Model profile not found"}, 404,
+                                 request.headers.get("X-Request-Id", ""))
+                except Exception:
+                    return _json("error", {"code": "model_profiles_unavailable",
+                                            "message": "GenericAgent model profiles are unavailable"}, 503,
+                                 request.headers.get("X-Request-Id", ""))
+                return _json("command.completed", {
+                    "command_id": command_id,
+                    "result": {
+                        "type": "control",
+                        "handled": True,
+                        "model": _safe_session_model(switched, llm_no),
+                        "runtime": _session_runtime(session),
+                    },
+                }, 200, request.headers.get("X-Request-Id", ""))
+            if command_id != "effort":
+                return _json("error", {"code": "command_execution_failed",
+                                        "message": "Unsupported control command"}, 500,
+                             request.headers.get("X-Request-Id", ""))
+            effort = args_text.strip().lower()
+            if effort in {"", "off", "clear", "unset"}:
+                effort = None
+            try:
+                value = _runtime_value(effort, "reasoning_effort")
+            except ValueError:
+                return _json("error", {"code": "invalid_command_input",
+                                        "message": "Invalid reasoning effort"}, 400,
+                             request.headers.get("X-Request-Id", ""))
+            setattr(session, "reasoning_effort", value)
+            _apply_session_runtime(session)
+            persist = getattr(manager, "_persist_session", None)
+            if callable(persist):
+                persist(session)
+            return _json("command.completed", {
+                "command_id": command_id,
+                "result": {"type": "control", "handled": True, "runtime": _session_runtime(session)},
+            }, 200, request.headers.get("X-Request-Id", ""))
         try:
             prompt = module.prompt_for(command["name"], args_text)
         except Exception:
