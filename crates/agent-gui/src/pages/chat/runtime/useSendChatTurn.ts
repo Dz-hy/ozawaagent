@@ -13,8 +13,8 @@ import {
 } from "../../../lib/chat/messages/uploadedFiles";
 import type { ScrollFollowHandle } from "../../../lib/chat-scroll/useScrollFollow";
 import { gaBridgeClient } from "../../../lib/ga/GaBridgeClient";
-import type { GaCommandControlResult } from "../../../lib/ga/types";
 import { registerGaAskSender } from "../../../lib/ga/gaAskUser";
+import type { GaCommandControlResult } from "../../../lib/ga/types";
 import {
   type AppSettings,
   type ChatRuntimeControls,

@@ -399,24 +399,46 @@ def _safe_profile_string(value: Any, key: str) -> str:
 def _safe_profile_proxy(value: Any) -> tuple[str, bool]:
     if not isinstance(value, str):
         return "", False
-    proxy = value[:MODEL_PROFILE_LIMITS["proxy"]]
+    proxy = value[:MODEL_PROFILE_LIMITS["proxy"]].strip()
     if not proxy:
         return "", False
-    # A proxy may contain embedded credentials. Expose only its endpoint shape;
-    # an update with an empty field preserves the existing credentialed value.
+    # A proxy may contain credentials or sensitive path/query data. Expose only
+    # its scheme://host:port endpoint shape; an update with an equal display
+    # value (or the legacy [REDACTED] marker) preserves the stored value.
     try:
-        from urllib.parse import urlsplit, urlunsplit
+        from urllib.parse import urlsplit
         parsed = urlsplit(proxy)
-        if parsed.username is not None or parsed.password is not None:
-            host = parsed.hostname or ""
-            if parsed.port is not None:
-                host = f"{host}:{parsed.port}"
-            proxy = urlunsplit((parsed.scheme, f"[REDACTED]@{host}", parsed.path,
-                                parsed.query, parsed.fragment))
-            return proxy, True
+        host = parsed.hostname or ""
+        if not host:
+            return "", True
+        scheme = (parsed.scheme or "http").lower()
+        if parsed.port is not None:
+            host = f"{host}:{parsed.port}"
+        return f"{scheme}://{host}", True
     except (ValueError, TypeError):
-        pass
-    return proxy, True
+        return "", True
+
+
+def _safe_profile_apibase(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    apibase = value[:MODEL_PROFILE_LIMITS["apibase"]].strip()
+    if not apibase:
+        return ""
+    # API base URLs may embed credentials or per-deployment paths; expose only
+    # the scheme://host:port endpoint shape for read-back and UI display.
+    try:
+        from urllib.parse import urlsplit
+        parsed = urlsplit(apibase)
+        host = parsed.hostname or ""
+        if not host:
+            return ""
+        scheme = (parsed.scheme or "http").lower()
+        if parsed.port is not None:
+            host = f"{host}:{parsed.port}"
+        return f"{scheme}://{host}"
+    except (ValueError, TypeError):
+        return ""
 
 
 def _safe_profile_advanced(value: dict[str, Any], result: dict[str, Any], *, defaults: bool = False) -> None:
@@ -471,7 +493,7 @@ def safe_model_profile(value: Any) -> dict[str, Any]:
         result.update({"protocol": protocol, "protocol_source": protocol_source,
                        "group": "native" if value.get("group") == "native" else "std",
                        "in_mixin": value.get("inMixin") is True,
-                       "apibase": _safe_profile_string(value.get("apibase"), "apibase"),
+                       "apibase": _safe_profile_apibase(value.get("apibase")),
                        "api_key_configured": bool(value.get("apikey")),
                        "max_retries": int(value.get("max_retries", 5)),
                        "connect_timeout": int(value.get("connect_timeout", value.get("timeout", 15))),
@@ -486,7 +508,7 @@ def safe_editable_model_profile(value: Any) -> dict[str, Any]:
         raise ValueError("invalid model profile")
     result = safe_model_profile({**value, "kind": "native"})
     result.update({
-        "apibase": str(value.get("apibase") or "")[:2048],
+        "apibase": _safe_profile_apibase(value.get("apibase")),
         "api_key_configured": bool(value.get("apikey")),
         "max_retries": int(value.get("max_retries", 5)),
         "connect_timeout": int(value.get("connect_timeout", value.get("timeout", 15))),
@@ -664,6 +686,14 @@ def _private_profile_cfg(manager: Any, data: dict[str, Any], existing: dict[str,
     if not isinstance(cfg, dict):
         raise RuntimeError("invalid GenericAgent profile configuration")
     cfg = dict(cfg)
+    # A redacted read-back endpoint is a display token, never a replacement:
+    # when the UI submits exactly the whitelisted display shape of an existing
+    # value, keep the stored value (credentials/path/query included).
+    if existing is not None:
+        if isinstance(cfg.get("apibase"), str):
+            submitted_apibase = cfg["apibase"].strip()
+            if submitted_apibase and submitted_apibase == _safe_profile_apibase(existing.get("apibase")):
+                cfg["apibase"] = existing["apibase"]
     # BaseSession consumes `timeout`; the official bridge's legacy helper writes
     # `connect_timeout`, so keep the latter for compatibility and also write the
     # effective runtime key when the UI explicitly supplies this value.
@@ -676,6 +706,11 @@ def _private_profile_cfg(manager: Any, data: dict[str, Any], existing: dict[str,
         # A redacted read-back proxy is a display token, never a replacement.
         if key == "proxy" and isinstance(value, str) and "[REDACTED]" in value:
             continue
+        if key == "proxy" and existing is not None and isinstance(value, str) and existing.get("proxy"):
+            stripped_proxy = value.strip()
+            if stripped_proxy and stripped_proxy == _safe_profile_proxy(existing["proxy"])[0]:
+                cfg["proxy"] = existing["proxy"]
+                continue
         if value is None:
             cfg.pop(key, None)
         else:
@@ -683,13 +718,203 @@ def _private_profile_cfg(manager: Any, data: dict[str, Any], existing: dict[str,
     return cfg
 
 
+def _private_save_mykey_text_atomic(manager: Any, text: str) -> list:
+    """Persist mykey.py atomically with syntax pre-flight and rollback.
+
+    The official bridge's _save_mykey_text writes in place and can surface
+    "200 but reverted after restart" when activation fails after the file has
+    already changed. Here the new text is validated, written to a temp file,
+    atomically swapped, and only then activated; any activation failure rolls
+    the file back before re-raising.
+    """
+    try:
+        import ast as _ast
+        _ast.parse(text)
+    except SyntaxError as exc:
+        raise ValueError(f"invalid mykey configuration: {exc}") from exc
+    model_file = manager._mykey_file()
+    backup = model_file.read_text(encoding="utf-8")
+    tmp = model_file.with_name(model_file.name + f".tmp.{os.getpid()}")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, model_file)
+    try:
+        manager._invalidate_mykey_cache()
+        manager._reload_live_agents()
+        profiles = manager.list_model_profiles()
+    except Exception:
+        rollback = model_file.with_name(model_file.name + f".rollback.{os.getpid()}")
+        rollback.write_text(backup, encoding="utf-8")
+        os.replace(rollback, model_file)
+        try:
+            manager._invalidate_mykey_cache()
+            manager._reload_live_agents()
+        except Exception:
+            pass
+        raise
+    if not isinstance(profiles, list):
+        profiles = manager.list_model_profiles()
+    return profiles
+
+
+def _private_profile_idempotent(manager: Any, data: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the existing profile that a create request would duplicate.
+
+    A failed-but-retried create (e.g. timeout after persist) must not append a
+    second entry; matching on model + apibase + name keeps retries idempotent
+    while still allowing intentionally identical configs under a new name.
+    """
+    target = (str(data.get("model") or "").strip(), str(data.get("apibase") or "").strip(),
+              str(data.get("name") or "").strip())
+    if not any(target):
+        return None
+    keys_getter = getattr(manager, "_profile_keys", None)
+    if not callable(keys_getter):
+        return None
+    try:
+        keys = keys_getter()
+    except Exception:
+        return None
+    for index in range(len(keys)):
+        try:
+            var_name, cfg = manager._profile_at(index)
+        except Exception:
+            continue
+        if not isinstance(cfg, dict):
+            continue
+        if (str(cfg.get("model") or "").strip(), str(cfg.get("apibase") or "").strip(),
+                str(cfg.get("name") or "").strip()) == target:
+            return {"varName": var_name, "profileId": index}
+    return None
+
+
+def _private_clean_mixins(manager: Any, profile_id: int, name: str) -> None:
+    """Remove references to a deleted profile from every mixin.
+
+    The official bridge only cleans the first mixin channel and only by name;
+    integer references or additional channels can otherwise leave dangling
+    llm_nos entries that break mixin construction. This pass is idempotent and
+    best-effort: a failure here must not undo the deletion itself.
+    """
+    try:
+        text = manager._mykey_file().read_text(encoding="utf-8")
+        keys, mk = manager._mykey_vars()
+        changed = False
+        for key in keys:
+            if "mixin" not in key.lower():
+                continue
+            mcfg = mk.get(key)
+            if not isinstance(mcfg, dict):
+                continue
+            llm_nos = [str(item) for item in (mcfg.get("llm_nos") or [])]
+            cleaned = [
+                item for item in llm_nos
+                if not ((name and item == name) or (item.isdigit() and int(item) == profile_id))
+            ]
+            if len(cleaned) == len(llm_nos):
+                continue
+            patched = {**mcfg, "llm_nos": cleaned}
+            if manager._find_var_block_span(text, key):
+                text = manager._patch_var_block(text, key, patched)
+                changed = True
+        if changed:
+            _private_save_mykey_text_atomic(manager, text)
+    except Exception:
+        pass
+
+
+def _private_remap_session_llm_no(manager: Any, deleted_id: int, count_before: int) -> None:
+    """Remap every persisted/live session's model index after a profile delete.
+
+    The official bridge remaps only the global default; sessions that pointed
+    at the deleted profile (or past it) keep an out-of-range llm_no until
+    restart. Remap here and persist each changed session.
+    """
+    sessions = getattr(manager, "sessions", None)
+    if not isinstance(sessions, dict):
+        return
+    fallback = min(deleted_id, count_before - 2)
+    persist = getattr(manager, "_persist_session", None)
+    for session in list(sessions.values()):
+        old = getattr(session, "llm_no", None)
+        if not isinstance(old, int) or isinstance(old, bool):
+            continue
+        if old < deleted_id:
+            new = old
+        elif old == deleted_id:
+            new = fallback
+        else:
+            new = old - 1
+        if new == old:
+            continue
+        session.llm_no = new
+        agent = getattr(session, "agent", None)
+        if agent is not None and isinstance(getattr(agent, "llm_no", None), int) \
+                and not isinstance(agent.llm_no, bool):
+            agent.llm_no = new
+        if callable(persist):
+            try:
+                persist(session)
+            except Exception:
+                pass
+
+
+def _private_persist_session_checked(manager: Any, session: Any) -> None:
+    """Persist a session and verify the file actually matches memory.
+
+    The official _persist_session swallows every exception and reports
+    nothing, so a "successful" runtime update can silently revert on restart.
+    This helper re-reads the written file and raises when the swap failed or
+    the key fields did not land.
+    """
+    persist = getattr(manager, "_persist_session", None)
+    if not callable(persist):
+        raise RuntimeError("session persistence is unavailable")
+    persist(session)
+    session_file = getattr(manager, "_session_file", None)
+    if not callable(session_file):
+        raise RuntimeError("session persistence is unavailable")
+    file_path = session_file(session.id)
+    if not file_path.exists():
+        raise RuntimeError("session persist failed: file missing")
+    try:
+        data = json.loads(file_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise RuntimeError("session persist failed: unreadable file") from exc
+    expected = manager._session_dict(session)
+    for key, value in expected.items():
+        if key in ("messages", "msg_seq", "updated_at", "created_at", "plan_scan_baseline"):
+            continue
+        if data.get(key) != value:
+            raise RuntimeError(f"session persist failed: {key} mismatch")
+
+
+def _private_delete_model_profile(manager: Any, profile_id: int) -> dict[str, Any]:
+    """Delete a profile atomically instead of the official in-place write."""
+    if len(manager._profile_keys()) <= 1:
+        raise ValueError("cannot delete the last profile")
+    var_name, _cfg = manager._profile_at(profile_id)
+    text = manager._mykey_file().read_text(encoding="utf-8")
+    text = manager._patch_var_block(text, var_name).rstrip() + "\n"
+    profiles = _private_save_mykey_text_atomic(manager, text)
+    if not isinstance(profiles, list):
+        profiles = manager.list_model_profiles()
+    return {"profileId": profile_id, "profiles": profiles}
+
+
 def _private_add_model_profile(manager: Any, data: dict[str, Any]) -> dict[str, Any]:
+    existing = _private_profile_idempotent(manager, data)
+    if existing is not None:
+        # A retried create that already landed: return the stored entry
+        # unchanged instead of appending a duplicate.
+        profiles = manager.list_model_profiles()
+        return {"varName": existing["varName"], "profileId": existing["profileId"],
+                "profiles": profiles, "duplicate": True}
     cfg = _private_profile_cfg(manager, data, None, require_key=True)
     model_file = manager._mykey_file()
     text = model_file.read_text(encoding="utf-8")
     var_name = manager._next_native_var(text, data.get("protocol", ""))
     formatted = manager._format_py_dict(cfg)
-    profiles = manager._save_mykey_text(text.rstrip() + f"\n{var_name} = {formatted}\n")
+    profiles = _private_save_mykey_text_atomic(manager, text.rstrip() + f"\n{var_name} = {formatted}\n")
     if not isinstance(profiles, list):
         profiles = manager.list_model_profiles()
     profile_id = next((item.get("id") for item in profiles
@@ -706,7 +931,7 @@ def _private_update_model_profile(manager: Any, profile_id: int, data: dict[str,
     text = model_file.read_text(encoding="utf-8")
     cfg = _private_profile_cfg(manager, data, existing)
     patched = manager._patch_var_block(text, var_name, cfg)
-    profiles = manager._save_mykey_text(patched)
+    profiles = _private_save_mykey_text_atomic(manager, patched)
     if not isinstance(profiles, list):
         profiles = manager.list_model_profiles()
     return {"varName": var_name, "profileId": profile_id, "profiles": profiles}
@@ -1315,7 +1540,13 @@ def _install_project_session_support(official_module: Any) -> None:
         for field in SESSION_RUNTIME_FIELDS:
             if not hasattr(session, field):
                 setattr(session, field, None)
-        manager._persist_session(session)
+        try:
+            _private_persist_session_checked(manager, session)
+        except Exception:
+            sessions = getattr(manager, "sessions", None)
+            if isinstance(sessions, dict):
+                sessions.pop(session.id, None)
+            raise
         return session
 
     def snapshot(session: Any, include_messages: bool = True) -> dict[str, Any]:
@@ -1431,12 +1662,27 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
                       for field in SESSION_RUNTIME_FIELDS if field in payload}
         except ValueError as exc:
             return runtime_error(request, "invalid_runtime", str(exc), 400)
+        previous = {field: getattr(session, field, None) for field in values}
         for field, value in values.items():
             setattr(session, field, value)
-        _apply_session_runtime(session)
-        persist = getattr(manager, "_persist_session", None)
-        if callable(persist):
-            persist(session)
+        try:
+            _private_persist_session_checked(manager, session)
+        except Exception as exc:
+            for field, old_value in previous.items():
+                setattr(session, field, old_value)
+            return runtime_error(request, "session_runtime_unavailable",
+                                 f"Session runtime persist failed: {exc}", 503)
+        try:
+            _apply_session_runtime(session)
+        except Exception as exc:
+            for field, old_value in previous.items():
+                setattr(session, field, old_value)
+            try:
+                _private_persist_session_checked(manager, session)
+            except Exception:
+                pass
+            return runtime_error(request, "session_runtime_unavailable",
+                                 f"Session runtime apply failed: {exc}", 503)
         return _json("session.runtime.updated", _session_runtime(session), 200,
                      request.headers.get("X-Request-Id", ""))
 
@@ -1596,12 +1842,26 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
             default_changed = new_default != old_default
             if default_changed:
                 persist_default_model(manager, new_default)
+            deleted_name = ""
             try:
-                manager.delete_model_profile(profile_id)
+                if _private_profile_io_available(manager, creating=False):
+                    try:
+                        _, deleted_cfg = manager._profile_at(profile_id)
+                        if isinstance(deleted_cfg, dict):
+                            deleted_name = str(deleted_cfg.get("name")
+                                               or deleted_cfg.get("model") or "").strip()
+                    except Exception:
+                        deleted_name = ""
+                    _private_delete_model_profile(manager, profile_id)
+                else:
+                    manager.delete_model_profile(profile_id)
             except Exception:
                 if default_changed:
                     persist_default_model(manager, old_default)
                 raise
+            if _private_profile_io_available(manager, creating=False):
+                _private_clean_mixins(manager, profile_id, deleted_name)
+                _private_remap_session_llm_no(manager, profile_id, len(profiles_before))
             profiles = _safe_manager_profiles(manager)
             return _json("model_profile.deleted", {"id": profile_id, "profiles": profiles}, 200,
                          request.headers.get("X-Request-Id", ""))
@@ -1730,7 +1990,8 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
                                  request.headers.get("X-Request-Id", ""))
                 except Exception:
                     return _json("error", {"code": "side_question_unavailable",
-                                            "message": "GenericAgent side question is unavailable"}, 503,
+                                            "message": "GenericAgent side question is unavailable; "
+                                                       "ensure GenericAgent is running and the bridge process is healthy"}, 503,
                                  request.headers.get("X-Request-Id", ""))
                 return _json("command.completed", {
                     "command_id": command_id,

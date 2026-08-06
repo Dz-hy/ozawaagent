@@ -135,23 +135,17 @@ export class GaBridgeClient {
     });
   }
   async setSessionModel(id: string, llmNo: number): Promise<GaSetSessionModelResult> {
-    return this.request<GaSetSessionModelResult>(
-      `/session/${encodeURIComponent(id)}/model`,
-      {
-        method: "POST",
-        body: JSON.stringify({ llmNo }),
-      },
-    );
+    return this.request<GaSetSessionModelResult>(`/session/${encodeURIComponent(id)}/model`, {
+      method: "POST",
+      body: JSON.stringify({ llmNo }),
+    });
   }
   getSessionRuntime(id: string): Promise<GaSessionRuntimeResult> {
     return this.request<GaSessionRuntimeResult>(
       `/api/v1/sessions/${encodeURIComponent(id)}/runtime`,
     );
   }
-  updateSessionRuntime(
-    id: string,
-    patch: GaSessionRuntimePatch,
-  ): Promise<GaSessionRuntimeResult> {
+  updateSessionRuntime(id: string, patch: GaSessionRuntimePatch): Promise<GaSessionRuntimeResult> {
     return this.request<GaSessionRuntimeResult>(
       `/api/v1/sessions/${encodeURIComponent(id)}/runtime`,
       { method: "PATCH", body: JSON.stringify(patch) },
