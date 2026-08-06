@@ -9,8 +9,8 @@ import type {
   GaCommandDto,
   GaCommandPacksSnapshot,
   GaCommandResult,
-  GaConnectorsSnapshot,
   GaConductorSnapshot,
+  GaConnectorsSnapshot,
   GaEnvelope,
   GaHooksSnapshot,
   GaKnowledgeCatalog,
@@ -26,8 +26,8 @@ import type {
   GaProjectMemoryStatus,
   GaPromptAccepted,
   GaPromptRequest,
-  GaRuntimeStartResponse,
   GaRuntimeHealth,
+  GaRuntimeStartResponse,
   GaRuntimeVersion,
   GaServiceLogs,
   GaServicePanel,
@@ -270,7 +270,11 @@ export class GaBridgeClient {
       body: JSON.stringify({}),
     });
   }
-  callConnectorTool(name: string, tool: string, arguments_: Record<string, unknown>): Promise<GaMcpCallResult> {
+  callConnectorTool(
+    name: string,
+    tool: string,
+    arguments_: Record<string, unknown>,
+  ): Promise<GaMcpCallResult> {
     return this.request(`/api/v1/connectors/${encodeURIComponent(name)}/tools/call`, {
       method: "POST",
       body: JSON.stringify({ tool, arguments: arguments_ }),

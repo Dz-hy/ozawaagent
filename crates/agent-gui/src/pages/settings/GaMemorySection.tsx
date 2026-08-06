@@ -113,7 +113,9 @@ export function GaMemorySection() {
               ? `Imported ${importResult.memory_copied ?? 0} memory file(s), ${
                   importResult.responses_copied ?? 0
                 } response(s) (${importResult.responses_skipped ?? 0} skipped)${
-                  importResult.sessions_imported ? `, ${importResult.sessions_imported} session(s)` : ""
+                  importResult.sessions_imported
+                    ? `, ${importResult.sessions_imported} session(s)`
+                    : ""
                 }. Backup: ${importResult.backup_dir || "none"}.`
               : `Import failed: ${importResult.error ?? "unknown error"}`}
           </div>

@@ -35,8 +35,8 @@ export function GaCommandPacksSection() {
           <div>
             <h3 className="text-sm font-semibold">Command Packs</h3>
             <p className="text-xs text-muted-foreground">
-              Declarative packs and Python plugins merged into /commands; GA core
-              wins on duplicate ids.
+              Declarative packs and Python plugins merged into /commands; GA core wins on duplicate
+              ids.
             </p>
           </div>
         </div>
@@ -62,7 +62,9 @@ export function GaCommandPacksSection() {
           <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
             {snapshot.conflicts.map((conflict) => (
               <li key={conflict.command_id}>
-                <span className="font-mono font-semibold text-amber-700">/{conflict.command_id}</span>{" "}
+                <span className="font-mono font-semibold text-amber-700">
+                  /{conflict.command_id}
+                </span>{" "}
                 claimed by {conflict.sources.join(", ")}
               </li>
             ))}

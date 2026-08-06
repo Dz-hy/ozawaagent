@@ -163,9 +163,9 @@ export function KnowledgeHubPage(props: { sidebarOpen: boolean; onOpenSidebar: (
                   <h3 className="text-sm font-semibold">Absorption wizard</h3>
                 </div>
                 <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                  Paste a fragment and let the classifier suggest the correct absorption target.
-                  The wizard never writes anything: Memory goes through the Memory import flow,
-                  SOPs through Skills, and callable logic through Tool/Connector + tests.
+                  Paste a fragment and let the classifier suggest the correct absorption target. The
+                  wizard never writes anything: Memory goes through the Memory import flow, SOPs
+                  through Skills, and callable logic through Tool/Connector + tests.
                 </p>
                 <textarea
                   value={morphText}

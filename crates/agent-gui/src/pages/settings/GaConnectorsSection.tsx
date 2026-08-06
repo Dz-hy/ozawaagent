@@ -11,11 +11,7 @@ import {
 } from "../../components/icons";
 import { Button } from "../../components/ui/button";
 import { gaBridgeClient } from "../../lib/ga/GaBridgeClient";
-import type {
-  GaConnectorInfo,
-  GaMcpCallResult,
-  GaMcpTool,
-} from "../../lib/ga/types";
+import type { GaConnectorInfo, GaMcpCallResult, GaMcpTool } from "../../lib/ga/types";
 
 type ExpandedTools = Record<string, GaMcpTool[]>;
 
@@ -114,8 +110,7 @@ export function GaConnectorsSection() {
     if (!query) return [];
     return allTools.filter(
       (row) =>
-        row.tool.name.toLowerCase().includes(query) ||
-        row.connector.toLowerCase().includes(query),
+        row.tool.name.toLowerCase().includes(query) || row.connector.toLowerCase().includes(query),
     );
   }, [allTools, toolQuery]);
 
@@ -129,9 +124,8 @@ export function GaConnectorsSection() {
           <div>
             <h3 className="text-sm font-semibold">Connectors (MCP)</h3>
             <p className="text-xs text-muted-foreground">
-              Adapter-owned MCP servers under{" "}
-              <span className="font-mono">connectors/</span>. Tools can be
-              expanded per server and searched across servers.
+              Adapter-owned MCP servers under <span className="font-mono">connectors/</span>. Tools
+              can be expanded per server and searched across servers.
             </p>
           </div>
         </div>
@@ -170,7 +164,10 @@ export function GaConnectorsSection() {
           ) : (
             <ul className="space-y-1.5">
               {matchingTools.map((row) => (
-                <li key={`${row.connector}/${row.tool.name}`} className="flex items-center gap-2 text-xs">
+                <li
+                  key={`${row.connector}/${row.tool.name}`}
+                  className="flex items-center gap-2 text-xs"
+                >
                   <span className="rounded-md bg-violet-500/10 px-1.5 py-0.5 font-mono text-[11px] text-violet-600">
                     {row.tool.name}
                   </span>
@@ -209,7 +206,10 @@ export function GaConnectorsSection() {
           const isOpen = expanded[connector.name] ?? false;
           const tools = toolsByConnector[connector.name] ?? [];
           return (
-            <section key={connector.name} className="rounded-2xl border border-border/60 bg-card/40 p-4">
+            <section
+              key={connector.name}
+              className="rounded-2xl border border-border/60 bg-card/40 p-4"
+            >
               <button
                 type="button"
                 className="flex w-full items-start justify-between gap-3 text-left"
@@ -222,7 +222,9 @@ export function GaConnectorsSection() {
                     ) : (
                       <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     )}
-                    <span className="truncate font-mono text-xs font-semibold">{connector.name}</span>
+                    <span className="truncate font-mono text-xs font-semibold">
+                      {connector.name}
+                    </span>
                     {connector.valid ? (
                       <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
                     ) : (
@@ -243,8 +245,8 @@ export function GaConnectorsSection() {
 
               {connector.env_keys.length > 0 ? (
                 <p className="mt-1.5 text-[11px] text-muted-foreground">
-                  Env vars: <span className="font-mono">{connector.env_keys.join(", ")}</span> (values
-                  never leave the adapter)
+                  Env vars: <span className="font-mono">{connector.env_keys.join(", ")}</span>{" "}
+                  (values never leave the adapter)
                 </p>
               ) : null}
               {connector.redact_keys.length > 0 ? (
@@ -274,7 +276,10 @@ export function GaConnectorsSection() {
                     const toolArgs = args[`${connector.name}/${tool.name}`] ?? {};
                     const running = busy === `${connector.name}/${tool.name}`;
                     return (
-                      <div key={tool.name} className="rounded-xl border border-border/60 bg-background/60 p-3">
+                      <div
+                        key={tool.name}
+                        className="rounded-xl border border-border/60 bg-background/60 p-3"
+                      >
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-mono text-[11px] font-semibold">{tool.name}</span>
                           <Button
@@ -287,7 +292,9 @@ export function GaConnectorsSection() {
                           </Button>
                         </div>
                         {tool.description ? (
-                          <p className="mt-1 text-[11px] text-muted-foreground">{tool.description}</p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            {tool.description}
+                          </p>
                         ) : null}
                         {argKeys.length > 0 ? (
                           <div className="mt-2 grid grid-cols-2 gap-2">

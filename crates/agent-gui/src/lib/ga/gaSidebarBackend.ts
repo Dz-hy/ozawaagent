@@ -5,7 +5,7 @@ import type {
   SidebarScope,
   SidebarWorkdirSummary,
 } from "../sidebar/types";
-import { gaBridgeClient, type GaBridgeClient } from "./GaBridgeClient";
+import { type GaBridgeClient, gaBridgeClient } from "./GaBridgeClient";
 import type { GaBridgeEvent, GaSessionDto } from "./types";
 
 function epochMillis(value: unknown): number {
@@ -60,7 +60,9 @@ export function createGaSidebarBackend(client: GaBridgeClient = gaBridgeClient):
   return {
     async listConversations(page, pageSize, scope) {
       const response = await client.listSessions();
-      const all = response.sessions.map(mapSession).filter((item) => item.id && matchesScope(item, scope));
+      const all = response.sessions
+        .map(mapSession)
+        .filter((item) => item.id && matchesScope(item, scope));
       all.sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id));
       const start = Math.max(0, page - 1) * pageSize;
       return { items: all.slice(start, start + pageSize), totalCount: all.length };
@@ -104,7 +106,12 @@ export function createGaSidebarBackend(client: GaBridgeClient = gaBridgeClient):
             listener({ kind: "upsert", conversationId: id, conversation });
             const running = snapshot.session.status === "running";
             const runningEvent: SidebarBackendEvent = running
-              ? { kind: "running", conversationId: id, workdir: conversation.cwd, updatedAt: conversation.updatedAt }
+              ? {
+                  kind: "running",
+                  conversationId: id,
+                  workdir: conversation.cwd,
+                  updatedAt: conversation.updatedAt,
+                }
               : { kind: "idle", conversationId: id };
             listener(runningEvent);
           })

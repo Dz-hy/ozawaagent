@@ -1,6 +1,6 @@
-import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { useState } from "react";
 import { Archive, CheckCircle2, Info, Loader2, Shield } from "../../components/icons";
 import { Button } from "../../components/ui/button";
 import { useLocale } from "../../i18n";

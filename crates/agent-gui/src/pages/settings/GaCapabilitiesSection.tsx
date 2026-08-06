@@ -44,10 +44,7 @@ export function GaCapabilitiesSection() {
     return commands.filter((cmd) => {
       if (kindFilter !== "all" && cmd.kind !== kindFilter) return false;
       if (!q) return true;
-      return [cmd.id, cmd.title, cmd.description, cmd.arg_hint]
-        .join(" ")
-        .toLowerCase()
-        .includes(q);
+      return [cmd.id, cmd.title, cmd.description, cmd.arg_hint].join(" ").toLowerCase().includes(q);
     });
   }, [commands, query, kindFilter]);
 
@@ -66,9 +63,7 @@ export function GaCapabilitiesSection() {
           </div>
           <div>
             <h3 className="text-sm font-semibold">{t("settings.capabilitiesTitle")}</h3>
-            <p className="text-xs text-muted-foreground">
-              {t("settings.capabilitiesDescription")}
-            </p>
+            <p className="text-xs text-muted-foreground">{t("settings.capabilitiesDescription")}</p>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>
@@ -90,11 +85,7 @@ export function GaCapabilitiesSection() {
             <h4 className="text-sm font-semibold">{t("settings.capabilitiesBridge")}</h4>
             <p className="mt-1 text-xs text-muted-foreground">
               {t("settings.capabilitiesHealth")}:{" "}
-              <span
-                className={
-                  health === "ready" ? "text-emerald-600" : "text-muted-foreground"
-                }
-              >
+              <span className={health === "ready" ? "text-emerald-600" : "text-muted-foreground"}>
                 {health ?? "…"}
               </span>
             </p>

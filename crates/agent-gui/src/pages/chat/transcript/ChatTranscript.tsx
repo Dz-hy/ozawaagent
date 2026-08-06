@@ -60,10 +60,12 @@ export const ChatTranscript = memo(function ChatTranscript(props: ChatTranscript
   const { locale } = useLocale();
   const showModelsLoadingState = modelsLoading && historyItems.length === 0 && !isSending;
   const showNoModelsState = !modelsLoading && !hasModels;
-  const showStartChatState =
-    !modelsLoading && hasModels && historyItems.length === 0 && !isSending;
-  const shouldReserveTranscriptBottomSpace =
-    !(showModelsLoadingState || showNoModelsState || showStartChatState);
+  const showStartChatState = !modelsLoading && hasModels && historyItems.length === 0 && !isSending;
+  const shouldReserveTranscriptBottomSpace = !(
+    showModelsLoadingState ||
+    showNoModelsState ||
+    showStartChatState
+  );
   // The reserve minimum doubles as the scroll-follow reattach zone: stopping
   // anywhere inside the reserve looks like "the bottom" to the user, so the
   // zone must stay >= this minimum for scroll-back-to-bottom to re-stick.

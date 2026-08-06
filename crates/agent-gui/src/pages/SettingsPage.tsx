@@ -6,6 +6,7 @@ import {
   Clock3,
   Cloud,
   Cpu,
+  FileText,
   Info,
   Key,
   Keyboard,
@@ -17,7 +18,6 @@ import {
   Waypoints,
   Wrench,
   Zap,
-  FileText,
 } from "../components/icons";
 import { isMacOsTauri, MacOsTitleBarSpacer } from "../components/MacOsTitleBarSpacer";
 
@@ -25,13 +25,13 @@ import { useLocale } from "../i18n";
 import { AboutSection } from "./settings/AboutSection";
 import { AgentsSection } from "./settings/AgentsSection";
 import { GaAutomationSection } from "./settings/GaAutomationSection";
-import { GaConductorSection } from "./settings/GaConductorSection";
-import { GaHooksSection } from "./settings/GaHooksSection";
+import { GaCapabilitiesSection } from "./settings/GaCapabilitiesSection";
 import { GaCommandPacksSection } from "./settings/GaCommandPacksSection";
+import { GaConductorSection } from "./settings/GaConductorSection";
+import { GaConnectorsSection } from "./settings/GaConnectorsSection";
+import { GaHooksSection } from "./settings/GaHooksSection";
 import { GaMemorySection } from "./settings/GaMemorySection";
 import { GaModelProfilesSection } from "./settings/GaModelProfilesSection";
-import { GaCapabilitiesSection } from "./settings/GaCapabilitiesSection";
-import { GaConnectorsSection } from "./settings/GaConnectorsSection";
 import { GaServicesSection } from "./settings/GaServicesSection";
 import { GaUsageSection } from "./settings/GaUsageSection";
 import { GlobalShortcutsSection } from "./settings/GlobalShortcutsSection";

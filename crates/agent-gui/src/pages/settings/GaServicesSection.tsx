@@ -150,7 +150,10 @@ export function GaServicesSection() {
           </div>
           <div className="mt-2 text-sm font-semibold">{health?.status ?? "—"}</div>
           {health?.official_bridge ? (
-            <div className="mt-1 truncate text-[11px] text-muted-foreground" title={health.official_bridge}>
+            <div
+              className="mt-1 truncate text-[11px] text-muted-foreground"
+              title={health.official_bridge}
+            >
               {health.official_bridge}
             </div>
           ) : null}
@@ -164,7 +167,10 @@ export function GaServicesSection() {
             {version?.adapter_version ?? "—"}
           </div>
           {version?.api_version ? (
-            <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground" title={version.api_version}>
+            <div
+              className="mt-1 truncate font-mono text-[11px] text-muted-foreground"
+              title={version.api_version}
+            >
               {t("settings.servicesApiVersion")} {version.api_version}
             </div>
           ) : null}
@@ -198,7 +204,9 @@ export function GaServicesSection() {
                 </div>
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
                   <span>
-                    {service.running ? t("settings.servicesRunning") : t("settings.servicesStopped")}
+                    {service.running
+                      ? t("settings.servicesRunning")
+                      : t("settings.servicesStopped")}
                   </span>
                   {typeof service.memMb === "number" ? <span>{service.memMb} MB</span> : null}
                   {typeof service.cpuPct === "number" ? (
@@ -217,7 +225,9 @@ export function GaServicesSection() {
                   disabled={logsLoading && logsFor === service.id}
                 >
                   <ScrollText className="h-3.5 w-3.5" />
-                  {logsFor === service.id ? t("settings.servicesHideLogs") : t("settings.servicesLogs")}
+                  {logsFor === service.id
+                    ? t("settings.servicesHideLogs")
+                    : t("settings.servicesLogs")}
                 </Button>
                 {!isBridgeService(service) ? (
                   <Button

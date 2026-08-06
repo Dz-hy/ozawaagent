@@ -271,7 +271,10 @@ export function GaModelProfilesSection() {
         });
         setSelectedId(created.id);
       } else {
-        const updated = await gaBridgeClient.updateModelProfile(editor.profileId, toInput(value, false));
+        const updated = await gaBridgeClient.updateModelProfile(
+          editor.profileId,
+          toInput(value, false),
+        );
         setSelectedId(updated.id);
       }
       setEditor(null);
@@ -434,13 +437,15 @@ export function GaModelProfilesSection() {
                               <span className="truncate text-sm font-medium">
                                 {profile.name || profile.model || "Unnamed profile"}
                               </span>
-                              {profile.active ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" /> : null}
+                              {profile.active ? (
+                                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                              ) : null}
                             </span>
                             <span className="mt-1 block truncate text-xs text-muted-foreground">
                               {profile.model || "No model configured"}
                             </span>
                             <span className="mt-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/80">
-                              {readOnly ? "mix-in" : profile.protocol ?? "unknown"}
+                              {readOnly ? "mix-in" : (profile.protocol ?? "unknown")}
                               {profile.api_key_configured ? <span>• key ready</span> : null}
                             </span>
                           </span>
@@ -469,7 +474,9 @@ export function GaModelProfilesSection() {
                         </span>
                       ) : null}
                       <span className="rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] text-muted-foreground">
-                        {selectedProfile.kind === "mixin" ? "Mix-in" : selectedProfile.protocol ?? "Unknown"}
+                        {selectedProfile.kind === "mixin"
+                          ? "Mix-in"
+                          : (selectedProfile.protocol ?? "Unknown")}
                       </span>
                     </div>
                     <p className="mt-1 truncate text-xs text-muted-foreground">
@@ -519,26 +526,40 @@ export function GaModelProfilesSection() {
 
                 <div className="min-h-0 flex-1 overflow-y-auto p-5">
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <InfoTile label="API base" value={selectedProfile.apibase || "Not configured"} wide />
+                    <InfoTile
+                      label="API base"
+                      value={selectedProfile.apibase || "Not configured"}
+                      wide
+                    />
                     <InfoTile
                       label="API key"
                       value={selectedProfile.api_key_configured ? "Configured" : "Not configured"}
                       tone={selectedProfile.api_key_configured ? "success" : "muted"}
                     />
-                    <InfoTile label="Protocol source" value={selectedProfile.protocol_source ?? "Unknown"} />
-                    <InfoTile label="Streaming" value={selectedProfile.stream === false ? "Disabled" : "Enabled"} />
+                    <InfoTile
+                      label="Protocol source"
+                      value={selectedProfile.protocol_source ?? "Unknown"}
+                    />
+                    <InfoTile
+                      label="Streaming"
+                      value={selectedProfile.stream === false ? "Disabled" : "Enabled"}
+                    />
                   </div>
 
                   {selectedProfile.kind === "mixin" ? (
                     <div className="mt-5 rounded-xl border border-border/70 bg-muted/25 p-4">
                       <h4 className="text-sm font-semibold">Read-only mix-in</h4>
                       <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                        This profile is composed by GenericAgent and cannot be edited from the desktop UI.
+                        This profile is composed by GenericAgent and cannot be edited from the
+                        desktop UI.
                       </p>
                       {selectedProfile.members?.length ? (
                         <div className="mt-3 flex flex-wrap gap-1.5">
                           {selectedProfile.members.map((member) => (
-                            <span key={member} className="rounded-md bg-background px-2 py-1 text-xs text-muted-foreground">
+                            <span
+                              key={member}
+                              className="rounded-md bg-background px-2 py-1 text-xs text-muted-foreground"
+                            >
                               {member}
                             </span>
                           ))}
@@ -547,12 +568,29 @@ export function GaModelProfilesSection() {
                     </div>
                   ) : (
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                      <SummaryTile label="API mode" value={selectedProfile.api_mode ?? "chat_completions"} />
-                      <SummaryTile label="Reasoning" value={selectedProfile.reasoning_effort || "Provider default"} />
-                      <SummaryTile label="Context window" value={formatNumber(selectedProfile.context_win)} />
-                      <SummaryTile label="Max output tokens" value={formatNumber(selectedProfile.max_tokens)} />
+                      <SummaryTile
+                        label="API mode"
+                        value={selectedProfile.api_mode ?? "chat_completions"}
+                      />
+                      <SummaryTile
+                        label="Reasoning"
+                        value={selectedProfile.reasoning_effort || "Provider default"}
+                      />
+                      <SummaryTile
+                        label="Context window"
+                        value={formatNumber(selectedProfile.context_win)}
+                      />
+                      <SummaryTile
+                        label="Max output tokens"
+                        value={formatNumber(selectedProfile.max_tokens)}
+                      />
                       <SummaryTile label="Timeouts" value={formatTimeouts(selectedProfile)} />
-                      <SummaryTile label="Security" value={selectedProfile.verify === false ? "TLS verification off" : "TLS verified"} />
+                      <SummaryTile
+                        label="Security"
+                        value={
+                          selectedProfile.verify === false ? "TLS verification off" : "TLS verified"
+                        }
+                      />
                     </div>
                   )}
                 </div>
@@ -564,7 +602,8 @@ export function GaModelProfilesSection() {
                 </div>
                 <h3 className="mt-4 text-sm font-semibold">No model profile selected</h3>
                 <p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">
-                  Add a GenericAgent model profile or select one from the list to review its runtime settings.
+                  Add a GenericAgent model profile or select one from the list to review its runtime
+                  settings.
                 </p>
                 <Button type="button" size="sm" className="mt-4 gap-1.5" onClick={openCreate}>
                   <Plus className="h-3.5 w-3.5" />
@@ -591,7 +630,10 @@ export function GaModelProfilesSection() {
                     <Settings2 className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div id="ga-model-profile-editor-title" className="truncate text-base font-semibold">
+                    <div
+                      id="ga-model-profile-editor-title"
+                      className="truncate text-base font-semibold"
+                    >
                       {editor.mode === "create" ? "Add model profile" : "Edit model profile"}
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">
@@ -645,26 +687,87 @@ export function GaModelProfilesSection() {
                     <section className="min-w-0 rounded-2xl border border-black/[0.06] bg-white/[0.68] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] dark:border-white/[0.08] dark:bg-white/[0.04] dark:shadow-none">
                       {editorSection === "connection" ? (
                         <div className="space-y-5">
-                          <EditorSectionHeading title="Connection" description="Choose the protocol and endpoint used by GenericAgent." />
+                          <EditorSectionHeading
+                            title="Connection"
+                            description="Choose the protocol and endpoint used by GenericAgent."
+                          />
                           <div className="grid gap-4 sm:grid-cols-2">
-                            <Field label="Display name" htmlFor="model-profile-name" hint="Optional label shown in the model picker.">
-                              <Input id="model-profile-name" value={editor.value.name} onChange={(event) => updateForm("name", event.target.value)} placeholder="Production model" />
+                            <Field
+                              label="Display name"
+                              htmlFor="model-profile-name"
+                              hint="Optional label shown in the model picker."
+                            >
+                              <Input
+                                id="model-profile-name"
+                                value={editor.value.name}
+                                onChange={(event) => updateForm("name", event.target.value)}
+                                placeholder="Production model"
+                              />
                             </Field>
-                            <Field label="Protocol" htmlFor="model-profile-protocol" hint={editor.mode === "edit" ? "Protocol cannot be changed after creation." : undefined}>
-                              <select id="model-profile-protocol" className={SELECT_CLASS} value={editor.value.protocol} disabled={editor.mode === "edit"} onChange={(event) => updateForm("protocol", event.target.value as FormValue["protocol"])}>
+                            <Field
+                              label="Protocol"
+                              htmlFor="model-profile-protocol"
+                              hint={
+                                editor.mode === "edit"
+                                  ? "Protocol cannot be changed after creation."
+                                  : undefined
+                              }
+                            >
+                              <select
+                                id="model-profile-protocol"
+                                className={SELECT_CLASS}
+                                value={editor.value.protocol}
+                                disabled={editor.mode === "edit"}
+                                onChange={(event) =>
+                                  updateForm(
+                                    "protocol",
+                                    event.target.value as FormValue["protocol"],
+                                  )
+                                }
+                              >
                                 <option value="oai">OpenAI compatible</option>
                                 <option value="claude">Claude compatible</option>
                               </select>
                             </Field>
                             <Field label="Model" htmlFor="model-profile-model">
-                              <Input id="model-profile-model" value={editor.value.model} onChange={(event) => updateForm("model", event.target.value)} placeholder="gpt-4.1" autoFocus={editor.mode === "create"} />
+                              <Input
+                                id="model-profile-model"
+                                value={editor.value.model}
+                                onChange={(event) => updateForm("model", event.target.value)}
+                                placeholder="gpt-4.1"
+                                autoFocus={editor.mode === "create"}
+                              />
                             </Field>
                             <Field label="API base" htmlFor="model-profile-base">
-                              <Input id="model-profile-base" value={editor.value.apibase} onChange={(event) => updateForm("apibase", event.target.value)} placeholder="https://api.example.com/v1" />
+                              <Input
+                                id="model-profile-base"
+                                value={editor.value.apibase}
+                                onChange={(event) => updateForm("apibase", event.target.value)}
+                                placeholder="https://api.example.com/v1"
+                              />
                             </Field>
                             <div className="sm:col-span-2">
-                              <Field label="API key" htmlFor="model-profile-key" hint={editor.mode === "edit" ? "Leave blank to preserve the configured key." : "Required for a new profile. The key is never displayed after saving."}>
-                                <Input id="model-profile-key" type="password" autoComplete="new-password" value={editor.value.api_key} onChange={(event) => updateForm("api_key", event.target.value)} placeholder={editor.mode === "edit" ? "Leave blank to keep the configured key" : "Required for a new profile"} />
+                              <Field
+                                label="API key"
+                                htmlFor="model-profile-key"
+                                hint={
+                                  editor.mode === "edit"
+                                    ? "Leave blank to preserve the configured key."
+                                    : "Required for a new profile. The key is never displayed after saving."
+                                }
+                              >
+                                <Input
+                                  id="model-profile-key"
+                                  type="password"
+                                  autoComplete="new-password"
+                                  value={editor.value.api_key}
+                                  onChange={(event) => updateForm("api_key", event.target.value)}
+                                  placeholder={
+                                    editor.mode === "edit"
+                                      ? "Leave blank to keep the configured key"
+                                      : "Required for a new profile"
+                                  }
+                                />
                               </Field>
                             </div>
                           </div>
@@ -673,29 +776,74 @@ export function GaModelProfilesSection() {
 
                       {editorSection === "runtime" ? (
                         <div className="space-y-5">
-                          <EditorSectionHeading title="Runtime" description="Tune retries, request limits, and generation behavior." />
+                          <EditorSectionHeading
+                            title="Runtime"
+                            description="Tune retries, request limits, and generation behavior."
+                          />
                           <div className="grid gap-4 sm:grid-cols-2">
                             <Field label="Max retries" htmlFor="model-profile-retries">
-                              <Input id="model-profile-retries" type="number" min="0" value={editor.value.max_retries} onChange={(event) => updateForm("max_retries", event.target.value)} />
+                              <Input
+                                id="model-profile-retries"
+                                type="number"
+                                min="0"
+                                value={editor.value.max_retries}
+                                onChange={(event) => updateForm("max_retries", event.target.value)}
+                              />
                             </Field>
                             <Field label="Connect timeout" htmlFor="model-profile-connect">
-                              <Input id="model-profile-connect" type="number" min="1" value={editor.value.connect_timeout} onChange={(event) => updateForm("connect_timeout", event.target.value)} />
+                              <Input
+                                id="model-profile-connect"
+                                type="number"
+                                min="1"
+                                value={editor.value.connect_timeout}
+                                onChange={(event) =>
+                                  updateForm("connect_timeout", event.target.value)
+                                }
+                              />
                             </Field>
                             <Field label="Read timeout" htmlFor="model-profile-read">
-                              <Input id="model-profile-read" type="number" min="1" value={editor.value.read_timeout} onChange={(event) => updateForm("read_timeout", event.target.value)} />
+                              <Input
+                                id="model-profile-read"
+                                type="number"
+                                min="1"
+                                value={editor.value.read_timeout}
+                                onChange={(event) => updateForm("read_timeout", event.target.value)}
+                              />
                             </Field>
                             <label className="flex min-h-9 items-center gap-2 self-end pb-1 text-sm">
-                              <input className={CHECKBOX_CLASS} type="checkbox" checked={editor.value.stream} onChange={(event) => updateForm("stream", event.target.checked)} />
+                              <input
+                                className={CHECKBOX_CLASS}
+                                type="checkbox"
+                                checked={editor.value.stream}
+                                onChange={(event) => updateForm("stream", event.target.checked)}
+                              />
                               Stream responses
                             </label>
                             <Field label="OpenAI API mode" htmlFor="model-profile-api-mode">
-                              <select id="model-profile-api-mode" className={SELECT_CLASS} value={editor.value.api_mode} onChange={(event) => updateForm("api_mode", event.target.value as GaModelApiMode)}>
+                              <select
+                                id="model-profile-api-mode"
+                                className={SELECT_CLASS}
+                                value={editor.value.api_mode}
+                                onChange={(event) =>
+                                  updateForm("api_mode", event.target.value as GaModelApiMode)
+                                }
+                              >
                                 <option value="chat_completions">Chat Completions</option>
                                 <option value="responses">Responses</option>
                               </select>
                             </Field>
                             <Field label="Reasoning effort" htmlFor="model-profile-reasoning">
-                              <select id="model-profile-reasoning" className={SELECT_CLASS} value={editor.value.reasoning_effort} onChange={(event) => updateForm("reasoning_effort", event.target.value as FormValue["reasoning_effort"])}>
+                              <select
+                                id="model-profile-reasoning"
+                                className={SELECT_CLASS}
+                                value={editor.value.reasoning_effort}
+                                onChange={(event) =>
+                                  updateForm(
+                                    "reasoning_effort",
+                                    event.target.value as FormValue["reasoning_effort"],
+                                  )
+                                }
+                              >
                                 <option value="">Provider default</option>
                                 <option value="none">None</option>
                                 <option value="minimal">Minimal</option>
@@ -707,7 +855,17 @@ export function GaModelProfilesSection() {
                               </select>
                             </Field>
                             <Field label="Service tier" htmlFor="model-profile-service-tier">
-                              <select id="model-profile-service-tier" className={SELECT_CLASS} value={editor.value.service_tier} onChange={(event) => updateForm("service_tier", event.target.value as FormValue["service_tier"])}>
+                              <select
+                                id="model-profile-service-tier"
+                                className={SELECT_CLASS}
+                                value={editor.value.service_tier}
+                                onChange={(event) =>
+                                  updateForm(
+                                    "service_tier",
+                                    event.target.value as FormValue["service_tier"],
+                                  )
+                                }
+                              >
                                 <option value="">Provider default</option>
                                 <option value="auto">Auto</option>
                                 <option value="default">Default</option>
@@ -716,27 +874,85 @@ export function GaModelProfilesSection() {
                               </select>
                             </Field>
                             <Field label="Thinking mode" htmlFor="model-profile-thinking-type">
-                              <select id="model-profile-thinking-type" className={SELECT_CLASS} value={editor.value.thinking_type} onChange={(event) => updateForm("thinking_type", event.target.value as FormValue["thinking_type"])}>
+                              <select
+                                id="model-profile-thinking-type"
+                                className={SELECT_CLASS}
+                                value={editor.value.thinking_type}
+                                onChange={(event) =>
+                                  updateForm(
+                                    "thinking_type",
+                                    event.target.value as FormValue["thinking_type"],
+                                  )
+                                }
+                              >
                                 <option value="">Provider default</option>
                                 <option value="adaptive">Adaptive</option>
                                 <option value="enabled">Enabled</option>
                                 <option value="disabled">Disabled</option>
                               </select>
                             </Field>
-                            <Field label="Thinking budget tokens" htmlFor="model-profile-thinking-budget">
-                              <Input id="model-profile-thinking-budget" type="number" min="1" value={editor.value.thinking_budget_tokens} onChange={(event) => updateForm("thinking_budget_tokens", event.target.value)} placeholder="32768" />
+                            <Field
+                              label="Thinking budget tokens"
+                              htmlFor="model-profile-thinking-budget"
+                            >
+                              <Input
+                                id="model-profile-thinking-budget"
+                                type="number"
+                                min="1"
+                                value={editor.value.thinking_budget_tokens}
+                                onChange={(event) =>
+                                  updateForm("thinking_budget_tokens", event.target.value)
+                                }
+                                placeholder="32768"
+                              />
                             </Field>
                             <Field label="Temperature" htmlFor="model-profile-temperature">
-                              <Input id="model-profile-temperature" type="number" min="0" max="2" step="0.1" value={editor.value.temperature} onChange={(event) => updateForm("temperature", event.target.value)} placeholder="1" />
+                              <Input
+                                id="model-profile-temperature"
+                                type="number"
+                                min="0"
+                                max="2"
+                                step="0.1"
+                                value={editor.value.temperature}
+                                onChange={(event) => updateForm("temperature", event.target.value)}
+                                placeholder="1"
+                              />
                             </Field>
                             <Field label="Max output tokens" htmlFor="model-profile-max-tokens">
-                              <Input id="model-profile-max-tokens" type="number" min="1" value={editor.value.max_tokens} onChange={(event) => updateForm("max_tokens", event.target.value)} placeholder="8192" />
+                              <Input
+                                id="model-profile-max-tokens"
+                                type="number"
+                                min="1"
+                                value={editor.value.max_tokens}
+                                onChange={(event) => updateForm("max_tokens", event.target.value)}
+                                placeholder="8192"
+                              />
                             </Field>
                             <Field label="Context window" htmlFor="model-profile-context-win">
-                              <Input id="model-profile-context-win" type="number" min="1" value={editor.value.context_win} onChange={(event) => updateForm("context_win", event.target.value)} placeholder="30000" />
+                              <Input
+                                id="model-profile-context-win"
+                                type="number"
+                                min="1"
+                                value={editor.value.context_win}
+                                onChange={(event) => updateForm("context_win", event.target.value)}
+                                placeholder="30000"
+                              />
                             </Field>
-                            <Field label="Keep first messages when trimming" htmlFor="model-profile-trim-prefix" hint="0 is valid and keeps the default trimming behavior.">
-                              <Input id="model-profile-trim-prefix" type="number" min="0" value={editor.value.trim_keep_prefix} onChange={(event) => updateForm("trim_keep_prefix", event.target.value)} placeholder="0" />
+                            <Field
+                              label="Keep first messages when trimming"
+                              htmlFor="model-profile-trim-prefix"
+                              hint="0 is valid and keeps the default trimming behavior."
+                            >
+                              <Input
+                                id="model-profile-trim-prefix"
+                                type="number"
+                                min="0"
+                                value={editor.value.trim_keep_prefix}
+                                onChange={(event) =>
+                                  updateForm("trim_keep_prefix", event.target.value)
+                                }
+                                placeholder="0"
+                              />
                             </Field>
                           </div>
                         </div>
@@ -744,28 +960,72 @@ export function GaModelProfilesSection() {
 
                       {editorSection === "transport" ? (
                         <div className="space-y-5">
-                          <EditorSectionHeading title="Transport" description="Control proxying, client identity, and TLS behavior." />
+                          <EditorSectionHeading
+                            title="Transport"
+                            description="Control proxying, client identity, and TLS behavior."
+                          />
                           <div className="grid gap-4 sm:grid-cols-2">
                             <div className="sm:col-span-2">
-                              <Field label="Session proxy" htmlFor="model-profile-proxy" hint="Credentials embedded in an existing proxy are hidden and preserved unless you replace the whole value.">
-                                <Input id="model-profile-proxy" value={editor.value.proxy} onChange={(event) => updateForm("proxy", event.target.value)} placeholder="http://127.0.0.1:2082" />
+                              <Field
+                                label="Session proxy"
+                                htmlFor="model-profile-proxy"
+                                hint="Credentials embedded in an existing proxy are hidden and preserved unless you replace the whole value."
+                              >
+                                <Input
+                                  id="model-profile-proxy"
+                                  value={editor.value.proxy}
+                                  onChange={(event) => updateForm("proxy", event.target.value)}
+                                  placeholder="http://127.0.0.1:2082"
+                                />
                               </Field>
                             </div>
                             <Field label="User-Agent override" htmlFor="model-profile-user-agent">
-                              <Input id="model-profile-user-agent" value={editor.value.user_agent} onChange={(event) => updateForm("user_agent", event.target.value)} placeholder="codex_cli/0.139.0" />
+                              <Input
+                                id="model-profile-user-agent"
+                                value={editor.value.user_agent}
+                                onChange={(event) => updateForm("user_agent", event.target.value)}
+                                placeholder="codex_cli/0.139.0"
+                              />
                             </Field>
                             <Field label="Originator" htmlFor="model-profile-originator">
-                              <Input id="model-profile-originator" value={editor.value.originator} onChange={(event) => updateForm("originator", event.target.value)} placeholder="codex_cli" />
+                              <Input
+                                id="model-profile-originator"
+                                value={editor.value.originator}
+                                onChange={(event) => updateForm("originator", event.target.value)}
+                                placeholder="codex_cli"
+                              />
                             </Field>
                           </div>
                           <div className="border-t border-black/[0.06] pt-4 dark:border-white/[0.08]">
-                            <p className="text-xs font-semibold text-foreground/80">Compatibility and security</p>
+                            <p className="text-xs font-semibold text-foreground/80">
+                              Compatibility and security
+                            </p>
                             <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                              <ToggleField checked={editor.value.codex_client} onChange={(checked) => updateForm("codex_client", checked)} label="Codex client fingerprint" />
-                              <ToggleField checked={editor.value.codex_client_metadata} onChange={(checked) => updateForm("codex_client_metadata", checked)} label="Send Codex client metadata" />
-                              <ToggleField checked={editor.value.fake_cc_system_prompt} onChange={(checked) => updateForm("fake_cc_system_prompt", checked)} label="Claude Code-compatible system prompt" />
-                              <ToggleField checked={editor.value.verify} onChange={(checked) => updateForm("verify", checked)} label="Verify TLS certificates" />
-                              <ToggleField checked={editor.value.omit_thinking} onChange={(checked) => updateForm("omit_thinking", checked)} label="Omit thinking blocks from history" />
+                              <ToggleField
+                                checked={editor.value.codex_client}
+                                onChange={(checked) => updateForm("codex_client", checked)}
+                                label="Codex client fingerprint"
+                              />
+                              <ToggleField
+                                checked={editor.value.codex_client_metadata}
+                                onChange={(checked) => updateForm("codex_client_metadata", checked)}
+                                label="Send Codex client metadata"
+                              />
+                              <ToggleField
+                                checked={editor.value.fake_cc_system_prompt}
+                                onChange={(checked) => updateForm("fake_cc_system_prompt", checked)}
+                                label="Claude Code-compatible system prompt"
+                              />
+                              <ToggleField
+                                checked={editor.value.verify}
+                                onChange={(checked) => updateForm("verify", checked)}
+                                label="Verify TLS certificates"
+                              />
+                              <ToggleField
+                                checked={editor.value.omit_thinking}
+                                onChange={(checked) => updateForm("omit_thinking", checked)}
+                                label="Omit thinking blocks from history"
+                              />
                             </div>
                           </div>
                         </div>
@@ -775,7 +1035,12 @@ export function GaModelProfilesSection() {
                 </div>
 
                 <div className="flex shrink-0 items-center justify-end gap-2 border-t border-black/[0.06] px-6 py-4 dark:border-white/[0.08]">
-                  <Button type="button" variant="ghost" onClick={() => setEditor(null)} disabled={saving}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setEditor(null)}
+                    disabled={saving}
+                  >
                     Cancel
                   </Button>
                   <Button type="button" onClick={() => void saveEditor()} disabled={saving}>
@@ -819,10 +1084,14 @@ function EditorNavButton({
       aria-current={active ? "page" : undefined}
       onClick={onClick}
       className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors ${
-        active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+        active
+          ? "bg-primary/10 text-primary"
+          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
       }`}
     >
-      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${active ? "bg-primary/10" : "bg-muted/70"}`}>
+      <span
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${active ? "bg-primary/10" : "bg-muted/70"}`}
+      >
         {icon}
       </span>
       <span className="min-w-0">
@@ -833,20 +1102,49 @@ function EditorNavButton({
   );
 }
 
-function ToggleField({ checked, onChange, label }: { checked: boolean; onChange: (value: boolean) => void; label: string }) {
+function ToggleField({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  label: string;
+}) {
   return (
     <label className="flex items-center gap-2 rounded-lg border border-transparent px-2 py-2 text-xs text-muted-foreground transition-colors hover:border-border hover:bg-muted/30 hover:text-foreground">
-      <input className={CHECKBOX_CLASS} type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <input
+        className={CHECKBOX_CLASS}
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
       <span>{label}</span>
     </label>
   );
 }
 
-function InfoTile({ label, value, wide, tone = "default" }: { label: string; value: string; wide?: boolean; tone?: "default" | "success" | "muted" }) {
+function InfoTile({
+  label,
+  value,
+  wide,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  wide?: boolean;
+  tone?: "default" | "success" | "muted";
+}) {
   return (
-    <div className={`rounded-xl border border-border/70 bg-muted/20 px-3.5 py-3 ${wide ? "sm:col-span-2" : ""}`}>
-      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={`mt-1 truncate text-sm ${tone === "success" ? "text-emerald-600 dark:text-emerald-400" : tone === "muted" ? "text-muted-foreground" : "text-foreground"}`}>
+    <div
+      className={`rounded-xl border border-border/70 bg-muted/20 px-3.5 py-3 ${wide ? "sm:col-span-2" : ""}`}
+    >
+      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      <div
+        className={`mt-1 truncate text-sm ${tone === "success" ? "text-emerald-600 dark:text-emerald-400" : tone === "muted" ? "text-muted-foreground" : "text-foreground"}`}
+      >
         {value}
       </div>
     </div>
@@ -856,18 +1154,26 @@ function InfoTile({ label, value, wide, tone = "default" }: { label: string; val
 function SummaryTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-border/60 px-3.5 py-3">
-      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
       <div className="mt-1 truncate text-sm text-foreground">{value}</div>
     </div>
   );
 }
 
 function formatNumber(value?: number): string {
-  return typeof value === "number" && Number.isFinite(value) ? value.toLocaleString() : "Provider default";
+  return typeof value === "number" && Number.isFinite(value)
+    ? value.toLocaleString()
+    : "Provider default";
 }
 
 function formatTimeouts(profile: GaModelProfile): string {
-  const connect = typeof profile.connect_timeout === "number" ? `${profile.connect_timeout}s connect` : "default connect";
-  const read = typeof profile.read_timeout === "number" ? `${profile.read_timeout}s read` : "default read";
+  const connect =
+    typeof profile.connect_timeout === "number"
+      ? `${profile.connect_timeout}s connect`
+      : "default connect";
+  const read =
+    typeof profile.read_timeout === "number" ? `${profile.read_timeout}s read` : "default read";
   return `${connect} · ${read}`;
 }

@@ -216,7 +216,10 @@ export function useConversationHistoryActions(params: UseConversationHistoryActi
     let readiness!: Promise<string | null>;
     readiness = (async () => {
       try {
-        const created = await gaBridgeClient.createSession({ cwd: workdir, projectId: options?.projectId });
+        const created = await gaBridgeClient.createSession({
+          cwd: workdir,
+          projectId: options?.projectId,
+        });
         const item = gaSessionToSidebar(created);
         if (!item.id) throw new Error("GenericAgent returned a session without an id");
         const nextEntry = createBlankConversationEntry({

@@ -45,7 +45,14 @@ export type ObserveGaChatTurnParams = Omit<RunGaChatTurnParams, "prompt"> & {
 };
 
 export async function observeGaChatTurn(params: ObserveGaChatTurnParams) {
-  const { conversationId, sessionId: requestedSessionId, baseState, signal, applyState, cancelOnAbort = false } = params;
+  const {
+    conversationId,
+    sessionId: requestedSessionId,
+    baseState,
+    signal,
+    applyState,
+    cancelOnAbort = false,
+  } = params;
   const sessionId = requestedSessionId?.trim() || conversationId;
   let wake: (() => void) | null = null;
   const unsubscribe = gaBridgeClient.events().subscribe((event: GaBridgeEvent) => {
@@ -69,8 +76,7 @@ export async function observeGaChatTurn(params: ObserveGaChatTurnParams) {
   try {
     while (true) {
       if (signal.aborted) {
-        if (cancelOnAbort)
-          await gaBridgeClient.cancelSession(sessionId).catch(() => undefined);
+        if (cancelOnAbort) await gaBridgeClient.cancelSession(sessionId).catch(() => undefined);
         return "cancelled";
       }
       const snapshot = await gaBridgeClient.getSessionMessages(sessionId, 0, 10_000);
