@@ -365,6 +365,21 @@ export function useChatModelSelection(params: UseChatModelSelectionParams) {
     [currentConversationSessionId, gaModeActive, chatRuntimeReasoningParams, setSettings],
   );
 
+  /**
+   * Applies the authoritative session runtime returned by a GA control
+   * command (e.g. /effort) to the same state owner that backs the visible
+   * runtime controls. Guards against stale results from another
+   * conversation, so a late control reply cannot pollute the current page.
+   */
+  const applyGaSessionRuntime = useCallback(
+    (conversationId: string, runtime: GaSessionRuntime) => {
+      if (conversationId !== currentConversationIdRef.current) return;
+      gaSessionRuntimeRef.current = runtime;
+      setGaSessionRuntime(runtime);
+    },
+    [currentConversationIdRef],
+  );
+
   const handleSelectGaProfile = useCallback(
     (profileId: number) => {
       const conversationId = currentConversationIdRef.current;
@@ -389,5 +404,6 @@ export function useChatModelSelection(params: UseChatModelSelectionParams) {
     chatRuntimeThinkingAlwaysOn,
     chatRuntimeControlsForCurrentProvider,
     handleChatRuntimeControlsChange,
+    applyGaSessionRuntime,
   };
 }

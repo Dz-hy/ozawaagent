@@ -604,6 +604,7 @@ export function ChatPage(props: ChatPageProps) {
     chatRuntimeThinkingAlwaysOn,
     chatRuntimeControlsForCurrentProvider,
     handleChatRuntimeControlsChange,
+    applyGaSessionRuntime,
   } = useChatModelSelection({
     settings,
     setSettings,
@@ -1449,6 +1450,10 @@ export function ChatPage(props: ChatPageProps) {
     setErrorMessage,
     onGaControlResult: (control: GaCommandControlResult, conversationId: string) => {
       if (conversationId !== currentConversationIdRef.current) return;
+      // Apply the authoritative session runtime (e.g. after /effort) through
+      // the same state owner that backs the visible runtime controls, so the
+      // UI cannot diverge from the server-side session state.
+      applyGaSessionRuntime(conversationId, control.runtime);
       const llmNo = control.model?.llmNo;
       if (typeof llmNo === "number" && Number.isSafeInteger(llmNo) && llmNo >= 0) {
         setGaCurrentModelNo(llmNo);
