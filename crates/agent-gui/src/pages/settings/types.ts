@@ -16,6 +16,7 @@ export type SectionId =
   | "hooks"
   | "cron"
   | "remote"
+  | "services"
   | "about";
 
 export type SettingsPageProps = {

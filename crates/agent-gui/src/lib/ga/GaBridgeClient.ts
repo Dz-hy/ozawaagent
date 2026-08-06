@@ -11,6 +11,7 @@ import type {
   GaEnvelope,
   GaHooksSnapshot,
   GaKnowledgeCatalog,
+  GaMemoryImportResult,
   GaMessageDto,
   GaMessagesSnapshot,
   GaModelProfile,
@@ -20,6 +21,9 @@ import type {
   GaPromptAccepted,
   GaPromptRequest,
   GaRuntimeStartResponse,
+  GaRuntimeHealth,
+  GaRuntimeVersion,
+  GaServiceLogs,
   GaServicePanel,
   GaServiceState,
   GaSessionDto,
@@ -274,6 +278,21 @@ export class GaBridgeClient {
   }
   getServices(): Promise<GaServicePanel> {
     return this.request("/services/panel");
+  }
+  getServiceLogs(id: string, tail = 300): Promise<GaServiceLogs> {
+    return this.request(`/services/logs?id=${encodeURIComponent(id)}&tail=${tail}`);
+  }
+  getHealth(): Promise<GaRuntimeHealth> {
+    return this.request("/api/v1/health");
+  }
+  getVersion(): Promise<GaRuntimeVersion> {
+    return this.request("/api/v1/version");
+  }
+  importMemory(sourceDir: string): Promise<GaMemoryImportResult> {
+    return this.request("/memory/import", {
+      method: "POST",
+      body: JSON.stringify({ sourceDir }),
+    });
   }
   async setServiceRunning(id: string, running: boolean): Promise<GaServiceState> {
     const result = await this.request<{ ok: boolean; service: GaServiceState }>(

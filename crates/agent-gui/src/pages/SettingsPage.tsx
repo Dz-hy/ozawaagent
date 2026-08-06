@@ -9,6 +9,7 @@ import {
   Info,
   Key,
   Keyboard,
+  Server,
   Settings2,
   Wallet,
   Waypoints,
@@ -25,6 +26,7 @@ import { GaConductorSection } from "./settings/GaConductorSection";
 import { GaHooksSection } from "./settings/GaHooksSection";
 import { GaMemorySection } from "./settings/GaMemorySection";
 import { GaModelProfilesSection } from "./settings/GaModelProfilesSection";
+import { GaServicesSection } from "./settings/GaServicesSection";
 import { GaUsageSection } from "./settings/GaUsageSection";
 import { GlobalShortcutsSection } from "./settings/GlobalShortcutsSection";
 import { RemoteSection } from "./settings/RemoteSection";
@@ -110,6 +112,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "memory", icon: <Brain className="h-3.5 w-3.5" /> },
       { id: "usage", icon: <Wallet className="h-3.5 w-3.5" /> },
       { id: "conductor", icon: <Waypoints className="h-3.5 w-3.5" /> },
+      { id: "services", icon: <Server className="h-3.5 w-3.5" /> },
       { id: "systemTools", icon: <Wrench className="h-3.5 w-3.5" /> },
     ],
   },
@@ -158,6 +161,7 @@ export function SettingsPage(props: SettingsPageProps) {
     memory: t("settings.navMemory"),
     usage: t("settings.navUsage"),
     conductor: t("settings.navConductor"),
+    services: t("settings.navServices"),
     hooks: t("settings.navHooks"),
     cron: t("settings.navCron"),
     remote: t("settings.navRemote"),
@@ -215,6 +219,8 @@ export function SettingsPage(props: SettingsPageProps) {
         return <GaUsageSection />;
       case "conductor":
         return <GaConductorSection />;
+      case "services":
+        return <GaServicesSection />;
       case "about":
         return <AboutSection settings={settings} setSettings={setSettings} />;
       default: {

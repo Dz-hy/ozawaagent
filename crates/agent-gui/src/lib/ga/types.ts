@@ -260,8 +260,35 @@ export type GaServiceState = {
   status: "running" | "offline" | "error" | string;
   running: boolean;
   lastError?: string;
+  memMb?: number;
+  cpuPct?: number;
+  managed?: boolean;
+  pid?: number | null;
 };
 export type GaServicePanel = { services: GaServiceState[] };
+export type GaServiceLogs = {
+  ok?: boolean;
+  lines?: string[];
+  error?: string;
+};
+export type GaRuntimeHealth = {
+  status: string;
+  official_bridge?: string;
+};
+export type GaRuntimeVersion = {
+  adapter_version?: string;
+  api_version?: string;
+  ga_commit?: string;
+};
+export type GaMemoryImportResult = {
+  ok?: boolean;
+  error?: string;
+  memory_copied?: number;
+  responses_copied?: number;
+  responses_skipped?: number;
+  backup_dir?: string;
+  sessions_imported?: number;
+};
 export type GaConductorSubagent = {
   id: string;
   status: "running" | "stopped" | "unknown";
