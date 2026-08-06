@@ -1,7 +1,7 @@
 # LiveAgent × GenericAgent 二开主规划（已确认）
 
 - 项目模式：`GA-aee18f3a`
-- 目标代码：`C:\Users\DZHY\git-repository\LiveAgent-main`
+- 目标代码：`C:\Users\DZHY\git-repository\ozawaagent`
 - 开发态 GA：`D:\GenericAgent`
 - GA 勘察基线：`main@51f7692`（2026-08-06 起改为跟随官方最新，见 §3.1-26）
 - 目标平台：Windows 10/11 x64
