@@ -12,7 +12,6 @@ use uuid::Uuid;
 
 use crate::runtime::project_path::project_path_key as normalize_project_path_key;
 use crate::services::automation::AutomationScheduler;
-use crate::services::gateway::GatewayController;
 
 const DB_FILENAME: &str = "config.sqlite";
 const DEFAULT_PROJECT_DIRNAME: &str = "default-project";
@@ -154,7 +153,6 @@ include!("agents.rs");
 include!("system.rs");
 include!("mcp.rs");
 include!("memory_settings.rs");
-include!("gateway_sync.rs");
 include!("ssh/mod.rs");
 include!("commands.rs");
 include!("tests.rs");

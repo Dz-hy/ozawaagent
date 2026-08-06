@@ -88,7 +88,6 @@ macro_rules! app_invoke_handler {
             commands::settings::settings_save_agents,
             commands::settings::settings_apply_ssh_patch,
             commands::settings::settings_reset_ssh_known_host,
-            commands::settings::settings_save_remote,
             commands::settings::settings_save_memory,
             commands::app::app_runtime_platform,
             commands::app::app_set_close_window_behavior,
@@ -191,28 +190,7 @@ macro_rules! app_invoke_handler {
             commands::system::system_append_debug_jsonl,
             commands::system::system_begin_power_activity,
             commands::system::system_end_power_activity,
-            commands::gateway::gateway_status,
-            commands::gateway::gateway_nudge_connection,
-            commands::gateway::gateway_send_chat_event,
-            commands::gateway::gateway_chat_claim_next,
-            commands::gateway::gateway_chat_mark_started,
-            commands::gateway::gateway_chat_mark_queued_in_gui,
-            commands::gateway::gateway_chat_complete,
-            commands::gateway::gateway_chat_fail,
-            commands::gateway::gateway_chat_cancel_request,
-            commands::gateway::gateway_chat_heartbeat,
-            commands::gateway::gateway_chat_runtime_heartbeat,
-            commands::gateway::gateway_chat_release_lease,
-            commands::gateway::gateway_chat_queue_respond,
-            commands::gateway::gateway_publish_chat_queue_event,
-            commands::gateway::gateway_publish_chat_runtime_snapshot,
-            commands::gateway::gateway_publish_settings_sync,
-            commands::gateway::gateway_tunnel_state,
-            commands::gateway::gateway_tunnel_create,
-            commands::gateway::gateway_tunnel_update,
-            commands::gateway::gateway_tunnel_close,
-            commands::gateway::gateway_tunnel_check,
-            commands::gateway::workspace_watch_set,
+            commands::integration_commands::workspace_watch::workspace_watch_set,
             services::proxy::proxy_get_server_info,
         ]
     };
@@ -480,7 +458,6 @@ pub fn run() {
             let sftp_registry = Arc::clone(&sftp_registry);
             let managed_process_registry = Arc::clone(&managed_process_registry);
             let ga_runtime_supervisor = Arc::clone(&ga_runtime_supervisor);
-            let git_clone_task_registry = Arc::clone(&git_clone_task_registry);
             move |app| {
                 commands::history_db::initialize_history_db()?;
                 configure_system_tray(
@@ -501,41 +478,22 @@ pub fn run() {
                 terminal_registry.attach_app_handle(app.handle().clone());
                 ga_runtime_supervisor.attach_app(app.handle().clone());
                 sftp_registry.attach_app_handle(app.handle().clone());
-                let gateway_controller = Arc::new(services::gateway::GatewayController::new(
-                    app.handle().clone(),
-                    Arc::clone(&automation_store),
-                    Arc::clone(&memory_store),
-                    Arc::clone(&terminal_registry),
-                    Arc::clone(&sftp_registry),
-                    Arc::clone(&managed_process_registry),
-                    Arc::clone(&git_clone_task_registry),
-                ));
+                let workspace_watch_service = Arc::new(
+                    services::workspace_watch::WorkspaceWatchService::new(app.handle().clone()),
+                );
+                app.manage(Arc::clone(&workspace_watch_service));
                 managed_process_registry.set_notifier(
                     runtime::managed_process::ManagedProcessNotifier {
                         app_handle: app.handle().clone(),
-                        gateway: Arc::downgrade(&gateway_controller),
                     },
                 );
                 managed_process_registry.spawn_startup_reconcile();
                 managed_process_registry.spawn_monitor();
                 automation_store.set_notifier(services::automation::AutomationNotifier {
                     app_handle: app.handle().clone(),
-                    gateway: Arc::downgrade(&gateway_controller),
                     scheduler: Arc::downgrade(&automation_scheduler),
                 });
                 Arc::clone(&automation_scheduler).start();
-                app.manage(Arc::clone(&gateway_controller));
-                if let Err(error) = gateway_controller.start() {
-                    eprintln!("failed to start remote gateway controller: {error}");
-                }
-                tauri::async_runtime::spawn({
-                    let gateway_controller = Arc::clone(&gateway_controller);
-                    async move {
-                        if let Err(error) = gateway_controller.reload_from_db().await {
-                            eprintln!("failed to load remote gateway settings: {error}");
-                        }
-                    }
-                });
                 Ok(())
             }
         })
@@ -564,13 +522,7 @@ pub fn run() {
 
     app.run(move |_app, event| match event {
         tauri::RunEvent::Resumed => {
-            if let Some(gateway_controller) =
-                _app.try_state::<Arc<services::gateway::GatewayController>>()
-            {
-                if let Err(error) = gateway_controller.nudge_connection("app_resumed", true) {
-                    eprintln!("failed to nudge gateway connection after app resume: {error}");
-                }
-            }
+            // Remote gateway connection was removed; nothing to nudge.
         }
         #[cfg(target_os = "macos")]
         tauri::RunEvent::Reopen { .. } => {

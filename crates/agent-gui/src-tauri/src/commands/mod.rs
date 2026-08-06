@@ -25,8 +25,6 @@ pub use history_commands::chat_history;
 pub use history_commands::history_db;
 pub use history_commands::subagent_store;
 
-pub use integration_commands::gateway;
-
 pub use runtime_commands::process;
 pub use runtime_commands::sftp;
 pub use runtime_commands::terminal;

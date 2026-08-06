@@ -5,16 +5,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::{
     collections::HashMap,
-    sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use crate::{
     commands::{history_db, subagent_store},
-    services::{
-        gateway::{build_history_sync_delete, build_history_sync_upsert, GatewayController},
-        memory::{MemoryHistorySearchMatch, MemorySearchArgs},
-    },
+    services::memory::{MemoryHistorySearchMatch, MemorySearchArgs},
 };
 use uuid::Uuid;
 

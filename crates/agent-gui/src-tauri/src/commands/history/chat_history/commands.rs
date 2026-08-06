@@ -187,12 +187,8 @@ pub(crate) async fn chat_history_upsert_inner(
 #[tauri::command]
 pub async fn chat_history_upsert(
     input: ChatHistoryUpsertInput,
-    gateway_controller: tauri::State<'_, Arc<GatewayController>>,
 ) -> Result<ChatHistorySummary, String> {
     let summary = chat_history_upsert_inner(input).await?;
-    gateway_controller
-        .publish_history_sync(build_history_sync_upsert(&summary))
-        .await;
     Ok(summary)
 }
 
@@ -222,12 +218,8 @@ pub(crate) async fn chat_history_upsert_active_segment_inner(
 #[tauri::command]
 pub async fn chat_history_upsert_active_segment(
     input: ChatHistorySegmentMutationInput,
-    gateway_controller: tauri::State<'_, Arc<GatewayController>>,
 ) -> Result<ChatHistorySummary, String> {
     let summary = chat_history_upsert_active_segment_inner(input).await?;
-    gateway_controller
-        .publish_history_sync(build_history_sync_upsert(&summary))
-        .await;
     Ok(summary)
 }
 
@@ -258,12 +250,8 @@ pub(crate) async fn chat_history_append_segment_inner(
 #[tauri::command]
 pub async fn chat_history_append_segment(
     input: ChatHistorySegmentMutationInput,
-    gateway_controller: tauri::State<'_, Arc<GatewayController>>,
 ) -> Result<ChatHistorySummary, String> {
     let summary = chat_history_append_segment_inner(input).await?;
-    gateway_controller
-        .publish_history_sync(build_history_sync_upsert(&summary))
-        .await;
     Ok(summary)
 }
 
@@ -283,12 +271,8 @@ pub(crate) async fn chat_history_rename_inner(
 pub async fn chat_history_rename(
     id: String,
     title: String,
-    gateway_controller: tauri::State<'_, Arc<GatewayController>>,
 ) -> Result<ChatHistorySummary, String> {
     let summary = chat_history_rename_inner(id, title).await?;
-    gateway_controller
-        .publish_history_sync(build_history_sync_upsert(&summary))
-        .await;
     Ok(summary)
 }
 
@@ -308,12 +292,8 @@ pub(crate) async fn chat_history_set_pinned_inner(
 pub async fn chat_history_set_pinned(
     id: String,
     is_pinned: bool,
-    gateway_controller: tauri::State<'_, Arc<GatewayController>>,
 ) -> Result<ChatHistorySummary, String> {
     let summary = chat_history_set_pinned_inner(id, is_pinned).await?;
-    gateway_controller
-        .publish_history_sync(build_history_sync_upsert(&summary))
-        .await;
     Ok(summary)
 }
 
@@ -333,12 +313,8 @@ pub(crate) async fn chat_history_set_model_inner(
 pub async fn chat_history_set_model(
     id: String,
     selected_model_json: String,
-    gateway_controller: tauri::State<'_, Arc<GatewayController>>,
 ) -> Result<ChatHistorySummary, String> {
     let summary = chat_history_set_model_inner(id, selected_model_json).await?;
-    gateway_controller
-        .publish_history_sync(build_history_sync_upsert(&summary))
-        .await;
     Ok(summary)
 }
 
@@ -376,17 +352,8 @@ pub async fn chat_history_share_set(
     id: String,
     enabled: bool,
     redact_tool_content: Option<bool>,
-    gateway_controller: tauri::State<'_, Arc<GatewayController>>,
 ) -> Result<ChatHistoryShareStatus, String> {
     let status = chat_history_share_set_inner(id, enabled, redact_tool_content).await?;
-    match chat_history_get_summary_inner(status.conversation_id.clone()).await {
-        Ok(summary) => {
-            gateway_controller
-                .publish_history_sync(build_history_sync_upsert(&summary))
-                .await;
-        }
-        Err(error) => eprintln!("publish history share sync event failed: {error}"),
-    }
     Ok(status)
 }
 

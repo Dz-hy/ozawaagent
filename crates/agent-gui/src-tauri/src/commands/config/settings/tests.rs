@@ -81,7 +81,7 @@ mod tests {
     }
 
     #[test]
-    fn save_memory_persists_default_payload_and_sync_snapshot() {
+    fn save_memory_persists_default_payload() {
         let mut conn = open_memory_db();
         let payload = json!({
             "organizerModel": {
@@ -100,9 +100,6 @@ mod tests {
             load_memory(&conn).expect("load memory settings"),
             Some(payload.clone())
         );
-        let snapshot =
-            load_gateway_settings_sync_snapshot(&conn).expect("load gateway settings snapshot");
-        assert_eq!(snapshot["memory"], payload);
     }
 
     #[test]
@@ -305,37 +302,7 @@ mod tests {
     }
 
     #[test]
-    fn gateway_settings_snapshot_redacts_provider_api_keys() {
-        let mut conn = open_memory_db();
-        save_providers(
-            &mut conn,
-            json!([
-                {
-                    "id": "provider-a",
-                    "name": "A",
-                    "apiKey": "secret-key",
-                    "apiKeyConfigured": false
-                },
-                {
-                    "id": "provider-b",
-                    "name": "B",
-                    "apiKey": "",
-                    "apiKeyConfigured": true
-                }
-            ]),
-        )
-        .expect("save providers");
-
-        let snapshot =
-            load_gateway_settings_sync_snapshot(&conn).expect("load gateway settings snapshot");
-        assert_eq!(snapshot["customProviders"][0]["apiKey"], Value::Null);
-        assert_eq!(snapshot["customProviders"][0]["apiKeyConfigured"], true);
-        assert_eq!(snapshot["customProviders"][1]["apiKey"], Value::Null);
-        assert_eq!(snapshot["customProviders"][1]["apiKeyConfigured"], true);
-    }
-
-    #[test]
-    fn save_ssh_persists_hosts_and_redacts_sync_snapshot() {
+    fn save_ssh_persists_hosts_and_redacts() {
         let mut conn = open_memory_db();
         save_ssh(
             &mut conn,
@@ -488,53 +455,6 @@ mod tests {
             }))
         );
 
-        let snapshot =
-            load_gateway_settings_sync_snapshot(&conn).expect("load gateway settings snapshot");
-        assert_eq!(snapshot["ssh"]["hosts"][0]["password"], Value::Null);
-        assert_eq!(snapshot["ssh"]["hosts"][0]["privateKey"], Value::Null);
-        assert_eq!(
-            snapshot["ssh"]["hosts"][0]["privateKeyPassphrase"],
-            Value::Null
-        );
-        assert_eq!(snapshot["ssh"]["hosts"][0]["passwordConfigured"], true);
-        assert_eq!(snapshot["ssh"]["hosts"][0]["privateKeyConfigured"], true);
-        assert_eq!(
-            snapshot["ssh"]["hosts"][0]["privateKeyPassphraseConfigured"],
-            true
-        );
-        assert_eq!(
-            snapshot["ssh"]["hosts"][0]["proxy"]["password"],
-            Value::Null
-        );
-        assert_eq!(
-            snapshot["ssh"]["hosts"][0]["proxy"]["passwordConfigured"],
-            true
-        );
-        assert_eq!(snapshot["ssh"]["hosts"][1]["password"], Value::Null);
-        assert_eq!(snapshot["ssh"]["hosts"][1]["privateKey"], Value::Null);
-        assert_eq!(
-            snapshot["ssh"]["hosts"][1]["privateKeyPassphrase"],
-            Value::Null
-        );
-        assert_eq!(snapshot["ssh"]["hosts"][1]["passwordConfigured"], true);
-        assert_eq!(
-            snapshot["ssh"]["hosts"][1]["privateKeyPassphraseConfigured"],
-            false
-        );
-        assert_eq!(
-            snapshot["ssh"]["hosts"][1]["proxy"]["password"],
-            Value::Null
-        );
-        assert_eq!(
-            snapshot["ssh"]["hosts"][1]["proxy"]["passwordConfigured"],
-            false
-        );
-        assert_eq!(
-            snapshot["ssh"]["projectHostAssociations"],
-            json!({
-                "/repo/project": ["prod", "staging"]
-            })
-        );
     }
 
     #[test]
@@ -583,16 +503,6 @@ mod tests {
         assert_eq!(host["privateKeyPassphrase"], "");
         assert_eq!(host["privateKeyPassphraseConfigured"], false);
         assert_eq!(host["proxy"]["passwordConfigured"], true);
-
-        let snapshot =
-            load_gateway_settings_sync_snapshot(&conn).expect("load gateway settings snapshot");
-        assert_eq!(snapshot["ssh"]["hosts"][0]["password"], Value::Null);
-        assert_eq!(snapshot["ssh"]["hosts"][0]["passwordConfigured"], false);
-        assert_eq!(snapshot["ssh"]["hosts"][0]["privateKeyConfigured"], false);
-        assert_eq!(
-            snapshot["ssh"]["hosts"][0]["privateKeyPassphraseConfigured"],
-            false
-        );
     }
 
     #[test]

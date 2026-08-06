@@ -62,12 +62,7 @@ pub(crate) async fn chat_history_delete_inner(id: String) -> Result<(), String> 
 #[tauri::command]
 pub async fn chat_history_delete(
     id: String,
-    gateway_controller: tauri::State<'_, Arc<GatewayController>>,
 ) -> Result<(), String> {
-    let conversation_id = id.trim().to_string();
     chat_history_delete_inner(id).await?;
-    gateway_controller
-        .publish_history_sync(build_history_sync_delete(conversation_id))
-        .await;
     Ok(())
 }

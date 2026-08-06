@@ -58,20 +58,6 @@ pub async fn settings_save_mcp(payload: Value) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn settings_save_remote(
-    payload: Value,
-    gateway_controller: tauri::State<'_, Arc<GatewayController>>,
-) -> Result<(), String> {
-    let normalized = tauri::async_runtime::spawn_blocking(move || {
-        let mut conn = open_db()?;
-        save_remote(&mut conn, payload)
-    })
-    .await
-    .map_err(|e| format!("settings_save_remote join 失败：{e}"))??;
-    gateway_controller.apply_config(normalized)
-}
-
-#[tauri::command]
 pub async fn settings_save_memory(payload: Value) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let mut conn = open_db()?;
