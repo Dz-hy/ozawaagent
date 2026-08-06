@@ -95,3 +95,23 @@ Python 40/2skip · 前端 899 · frontend build · cargo check/test/fmt · compi
 1. HTTP 级 proxy 全契约复现（完整 manager stub 五 CRUD）
 2. ContextVar → 子线程 project_id 传递实证
 3. 当前工作树 NSIS/MSI 真实安装态核验（按用户要求未构建）
+3. 当前工作树 NSIS/MSI 真实安装态核验（按用户要求未构建）
+
+---
+
+## 十、P1 修复闭环验证（2026-08-06 复核）
+
+复核结论：**P1×6 全部闭环**。修复由 `83bba75`（runtime 硬化）、`131f66c`（bridge 测试补全）、`d58a9f0`（P2-B）、`f289a31`（前端 quality）及 `83b11fb`（本轮验收测试）落地；本复核逐行核验接线与测试覆盖，未再改动产品代码。
+
+| ID | 修复落点（ga_bridge_adapter.py / 前端） | 测试覆盖 |
+|----|------|------|
+| P1-A | `_private_save_mykey_text_atomic`(720) 临时文件+完整验证+`os.replace` 原子替换+失败回滚；`_private_profile_idempotent`(758) create 去重；接线 update(2202)/create(2283)/delete(2236) | atomic 回滚+语法拒绝（已有）；**新增** create 幂等（`test_create_profile_retry_same_payload_is_idempotent`） |
+| P1-B | `_safe_profile_proxy` 白名单重建 + 空 proxy=保留现值/显式清除；apibase 同策略 | proxy/apibase 脱敏矩阵、display shape 保留、空 proxy 清除（131f66c 已有） |
+| P1-C | `_private_remap_session_llm_no`(824) 会话+agent 双索引重映射并持久化；delete handler(2245) 接线 | 全局默认重映射（已有）；**新增** 会话级重映射（`test_private_remap_session_llm_no_remaps_sessions_across_deleted_index`） |
+| P1-D | `ChatPage.tsx:1456-1465` `onGaControlResult` 会话校验→`applyGaSessionRuntime`；`useChatModelSelection.ts:376-383` ref+state 原子应用（唯一状态所有者） | ga-commands/ga-bridge-client 命令契约（已有）；消费层为 UI 行为，由门禁+人工验收覆盖 |
+| P1-E | `_private_persist_session_checked`(860) 写后回读校验+失败抛错；接线 session PATCH、/effort(2050-2062)、create_session(1925) | `test_session_runtime_get_patch_persists_and_updates_live_backend`、wrapper persist 快照（已有） |
+| P1-F | `_private_clean_mixins`(789) 全 mixin 通道+名字/整数双匹配+幂等 best-effort；delete handler(2244) 接线 | `test_private_clean_mixins_removes_name_and_index_refs_across_channels`（已有） |
+
+**验收门禁（本轮实测）**：runtime pytest 61 passed / 2 skipped；前端 899 pass / 0 fail；`tsc --noEmit` 0 err；biome lint 0 err。报告八回归用例 1-5、8-9 由上述自动化覆盖；6/7/10（控件即时刷新、null 应用、命令后合并）属 UI 行为，需 Phase 9 品牌安装验收时人工复核。
+
+**遗留未做**（报告九原三项维持不变；另：前端消费层无自动化单测，列为已知覆盖边界）。
