@@ -336,6 +336,24 @@ export function sortWorkspaceProjectsByActivity(
     .map(({ project }) => project);
 }
 
+export function resolveGitWorkdir(params: {
+  isAgentMode: boolean;
+  activeWorkspaceProjectPath: string;
+  displayedConversationWorkdir: string;
+  missingWorkspaceProjectPathKeys: ReadonlySet<string>;
+}) {
+  if (!params.isAgentMode) {
+    return params.displayedConversationWorkdir.trim();
+  }
+
+  const activePath = params.activeWorkspaceProjectPath.trim();
+  const pathKey = workspaceProjectPathKey(activePath);
+  if (!activePath || !pathKey || params.missingWorkspaceProjectPathKeys.has(pathKey)) {
+    return "";
+  }
+  return activePath;
+}
+
 export function findWorkspaceProject(
   projects: readonly WorkspaceProject[],
   projectId: string | undefined,

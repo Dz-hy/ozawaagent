@@ -57,3 +57,8 @@ crates/agent-gui/src-tauri/ga-runtime/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# Internal planning/worklog docs (kept local only, not for public repo)
+docs/phase0/
+docs/project/
+docs/worklog/
