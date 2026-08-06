@@ -2178,3 +2178,59 @@ def test_private_clean_mixins_removes_name_and_index_refs_across_channels(tmp_pa
     assert values["mixin_a"]["llm_nos"] == ["0", "other"]
     assert values["mixin_b"]["llm_nos"] == ["2"]
     assert values["plain"]["llm_nos"] == ["native_oai_config"]  # non-mixin untouched
+
+
+@pytest.mark.asyncio
+async def test_create_profile_retry_same_payload_is_idempotent(private_model_client):
+    """P1-A: a retried create with identical model/apibase/name must return the
+    existing entry instead of appending a duplicate profile."""
+    client, manager = private_model_client
+    body = {
+        "protocol": "claude", "name": "Retry Claude", "model": "retry-claude",
+        "apibase": "https://retry-claude.example/v1", "api_key": "retry-secret-key",
+    }
+    first = await client.post("/api/v1/model-profiles", headers=AUTH, json=body)
+    assert first.status == 201
+    first_id = (await first.json())["payload"]["profile"]["id"]
+
+    second = await client.post("/api/v1/model-profiles", headers=AUTH, json=body)
+    assert second.status == 201
+    second_id = (await second.json())["payload"]["profile"]["id"]
+    assert second_id == first_id
+
+    profiles = manager.list_model_profiles()
+    assert len(profiles) == 2  # initial + exactly one created entry
+    text = manager.path.read_text(encoding="utf-8")
+    assert text.count("'model': 'retry-claude'") == 1
+
+    # An intentionally different name must still create a new entry.
+    renamed = await client.post("/api/v1/model-profiles", headers=AUTH, json={
+        **body, "name": "Retry Claude II",
+    })
+    assert renamed.status == 201
+    assert len(manager.list_model_profiles()) == 3
+
+
+def test_private_remap_session_llm_no_remaps_sessions_across_deleted_index(tmp_path):
+    """P1-C: deleting a profile must remap session llm_no references (and agent
+    llm_no) instead of leaving out-of-range indexes until restart."""
+    manager = private_model_manager(tmp_path)
+    persisted = []
+    sessions = {}
+    for sid, llm_no in (("s-a", 0), ("s-b", 1), ("s-c", 2), ("s-d", 3), ("s-e", 7)):
+        sessions[sid] = SimpleNamespace(id=sid, llm_no=llm_no,
+                                        agent=SimpleNamespace(llm_no=llm_no))
+    manager.sessions = sessions
+    manager._persist_session = lambda session: persisted.append(session.id)
+
+    adapter._private_remap_session_llm_no(manager, deleted_id=1, count_before=4)
+
+    assert sessions["s-a"].llm_no == 0      # before deleted id: unchanged
+    assert sessions["s-b"].llm_no == 1      # deleted id -> fallback (min(1, 2) = 1)
+    assert sessions["s-c"].llm_no == 1      # after deleted id: shifted down
+    assert sessions["s-d"].llm_no == 2
+    assert sessions["s-e"].llm_no == 6      # out-of-range index shifted too
+    assert sessions["s-c"].agent.llm_no == 1
+    assert sessions["s-d"].agent.llm_no == 2
+    assert sessions["s-e"].agent.llm_no == 6
+    assert persisted == ["s-c", "s-d", "s-e"]  # only changed sessions persisted
