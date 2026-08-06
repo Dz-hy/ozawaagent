@@ -216,7 +216,8 @@ export function KnowledgeHubPage(props: { sidebarOpen: boolean; onOpenSidebar: (
 
             <p className="text-center text-xs text-muted-foreground">
               Read-only metadata from GenericAgent. File paths and knowledge content are never
-              exposed here.
+              exposed here. Skills and SOPs are discovered by the GA kernel on every request;
+              placing files in the GA skills directory takes effect on next refresh.
             </p>
           </div>
         ) : null}
