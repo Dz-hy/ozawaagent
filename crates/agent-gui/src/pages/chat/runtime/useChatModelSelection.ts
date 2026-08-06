@@ -310,7 +310,9 @@ export function useChatModelSelection(params: UseChatModelSelectionParams) {
         reasoning: gaSessionRuntime
           ? gaReasoningToUi(gaSessionRuntime.reasoning_effort, gaDefaultReasoning)
           : gaDefaultReasoning,
-        thinkingEnabled: gaSessionRuntime ? gaDefaultThinkingEnabled : gaDefaultThinkingEnabled,
+        // gaDefaultThinkingEnabled already folds the session runtime's
+        // authoritative thinking_type, so no extra branching is needed.
+        thinkingEnabled: gaDefaultThinkingEnabled,
       };
     }
     return normalizeChatRuntimeControlsForProvider(

@@ -619,12 +619,17 @@ export function ChatPage(props: ChatPageProps) {
     onSelectGaProfile: (profileId) => {
       const sessionId = currentConversationSessionId.trim();
       if (!sessionId) return;
+      const conversationId = currentConversationIdRef.current;
       void gaBridgeClient
         .setSessionModel(sessionId, profileId)
         .then((result) => {
+          // Late replies from a previous conversation must not overwrite the
+          // model indicator of the conversation the user has switched to.
+          if (currentConversationIdRef.current !== conversationId) return;
           setGaCurrentModelNo(result.llmNo);
         })
         .catch((error) => {
+          if (currentConversationIdRef.current !== conversationId) return;
           setErrorMessage(error instanceof Error ? error.message : String(error));
         });
     },
