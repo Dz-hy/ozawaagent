@@ -1638,8 +1638,14 @@ async def read_official_token_json(official_module: Any, handler_name: str, requ
     return body
 
 
-def _side_question_text(session: Any, question: str) -> str:
-    """Ask one bounded side question without mutating the live backend history."""
+async def _side_question_text(session: Any, question: str) -> str:
+    """Ask one bounded side question without mutating the live backend history.
+
+    Synchronous backends stream ``raw_ask`` as an iterator; asynchronous
+    backends may return an awaitable (a coroutine or an async generator).
+    Both are awaited/collected here so a healthy async backend is served
+    instead of failing with a misleading 503.
+    """
     if not question.strip():
         raise ValueError("side question is required")
     agent = getattr(session, "agent", None)
@@ -1657,16 +1663,26 @@ def _side_question_text(session: Any, question: str) -> str:
     wire = make_messages(messages) if callable(make_messages) else messages
     result = raw_ask(wire)
     if inspect.isawaitable(result):
-        raise RuntimeError("async side questions are unavailable")
+        result = await result
+    limit = MAX_COMMAND_ARGUMENT_CHARS * 4
     chunks: list[str] = []
-    for chunk in result:
-        if isinstance(chunk, str):
-            chunks.append(chunk)
-        elif chunk is not None:
-            chunks.append(str(chunk))
-        if sum(len(value) for value in chunks) >= MAX_COMMAND_ARGUMENT_CHARS * 4:
-            break
-    return "".join(chunks)[: MAX_COMMAND_ARGUMENT_CHARS * 4].strip()
+    if hasattr(result, "__aiter__"):
+        async for chunk in result:
+            if isinstance(chunk, str):
+                chunks.append(chunk)
+            elif chunk is not None:
+                chunks.append(str(chunk))
+            if sum(len(value) for value in chunks) >= limit:
+                break
+    else:
+        for chunk in result:
+            if isinstance(chunk, str):
+                chunks.append(chunk)
+            elif chunk is not None:
+                chunks.append(str(chunk))
+            if sum(len(value) for value in chunks) >= limit:
+                break
+    return "".join(chunks)[:MAX_COMMAND_ARGUMENT_CHARS * 4].strip()
 
 
 def _safe_token_usage_payload(document: Any) -> dict[str, Any]:
@@ -2547,7 +2563,7 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
                 }, 200, request.headers.get("X-Request-Id", ""))
             if command_id == "btw":
                 try:
-                    text = _side_question_text(session, args_text)
+                    text = await _side_question_text(session, args_text)
                 except ValueError as error:
                     return _json("error", {"code": "invalid_command_input", "message": str(error)}, 400,
                                  request.headers.get("X-Request-Id", ""))

@@ -736,6 +736,41 @@ async def test_runtime_commands_register_workspace_btw_cost_and_execute_read_onl
 
 
 @pytest.mark.asyncio
+async def test_btw_serves_async_backend_raw_ask(runtime_command_client):
+    client, _manager, session = runtime_command_client
+    backend = session.agent.llmclient.backend
+    backend.history = [{"role": "user", "content": [{"type": "text", "text": "main"}]}]
+
+    async def async_generator_raw_ask(wire):
+        async def stream():
+            for part in ("async ", "side ", "answer"):
+                yield part
+        return stream()
+
+    backend.raw_ask = async_generator_raw_ask
+    btw = await client.post(
+        "/api/v1/commands/btw/execute", headers=AUTH,
+        json={"args_text": "what changed?", "session_id": session.id},
+    )
+    assert btw.status == 200
+    btw_result = (await btw.json())["payload"]["result"]
+    assert btw_result == {"type": "control", "handled": True, "text": "async side answer"}
+    assert backend.history == [{"role": "user", "content": [{"type": "text", "text": "main"}]}]
+
+    async def coroutine_raw_ask(wire):
+        return ["direct ", "answer"]
+
+    backend.raw_ask = coroutine_raw_ask
+    direct = await client.post(
+        "/api/v1/commands/btw/execute", headers=AUTH,
+        json={"args_text": "again?", "session_id": session.id},
+    )
+    assert direct.status == 200
+    direct_result = (await direct.json())["payload"]["result"]
+    assert direct_result == {"type": "control", "handled": True, "text": "direct answer"}
+
+
+@pytest.mark.asyncio
 async def test_btw_and_cost_require_a_session(runtime_command_client):
     client, _manager, _session = runtime_command_client
     for command_id in ("btw", "cost"):
