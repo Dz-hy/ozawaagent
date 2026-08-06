@@ -1,0 +1,36 @@
+"""LiveAgent Python Command Plugin \u6837\u4f8b\uff08Phase 4.12 \u7269\u8bc1\uff09\u3002
+
+\u5951\u7ea6\uff08\u7531 ga_bridge_adapter.load_command_plugins \u5f3a\u5236\uff09\uff1a
+- \u6a21\u5757\u5bfc\u51fa COMMANDS \u5143\u7ec4\uff1b
+- \u6bcf\u4e2a\u547d\u4ee4 dict \u81f3\u5c11\u542b id\uff08\u4e0d\u5e26\u524d\u5bfc\u659c\u6760\u7684\u5c0f\u5199\u6807\u8bc6\uff09\u4e0e\u53ef\u8c03\u7528 prompt_for\uff1b
+- prompt_for(slash_name, args_text) -> str | None\uff0c\u4e0e GenericAgent slash \u547d\u4ee4\u5951\u7ea6\u4e00\u81f4\uff1b
+- \u8fd4\u56de None \u8868\u793a\u8be5\u53c2\u6570\u7ec4\u5408\u4e0d\u53ef\u7528\uff08\u6267\u884c\u65f6\u843d\u5230 command_execution_failed\uff09\u3002
+
+\u63d2\u4ef6\u5185\u4efb\u4f55\u4f9d\u8d56\u90fd\u5fc5\u987b\u968f\u547d\u4ee4\u6587\u4ef6\u4e00\u8d77\u88ab\u6253\u5305\uff08stager \u4f1a\u590d\u5236\u672c\u76ee\u5f55\u5168\u90e8 .py\uff09\u3002
+"""
+
+
+def _today_prompt(slash_name: str, args_text: str) -> str:
+    return "\u8bf7\u544a\u8bc9\u6211\u4eca\u5929\u7684\u65e5\u671f\uff0c\u7136\u540e\u57fa\u4e8e\u5f53\u524d\u65f6\u95f4\u7ed9\u51fa\u4eca\u65e5\u4efb\u52a1\u89c4\u5212\u5efa\u8bae\u3002"
+
+
+def _echo_prompt(slash_name: str, args_text: str) -> str:
+    return f"\u63d2\u4ef6\u547d\u4ee4 /{slash_name} \u6536\u5230\u53c2\u6570\uff1a{args_text}\u3002\u8bf7\u539f\u6837\u56de\u663e\u3002"
+
+
+COMMANDS = (
+    {
+        "id": "today",
+        "title": "/today",
+        "description": "\u83b7\u53d6\u4eca\u5929\u7684\u65e5\u671f\u5e76\u751f\u6210\u5f53\u65e5\u89c4\u5212\u63d0\u793a\u8bcd\u3002",
+        "arg_hint": "",
+        "prompt_for": _today_prompt,
+    },
+    {
+        "id": "echo",
+        "title": "/echo",
+        "description": "\u56de\u663e\u53c2\u6570\uff0c\u7528\u4e8e\u9a8c\u8bc1\u63d2\u4ef6\u547d\u4ee4\u6267\u884c\u94fe\u8def\u3002",
+        "arg_hint": "[\u6587\u672c]",
+        "prompt_for": _echo_prompt,
+    },
+)

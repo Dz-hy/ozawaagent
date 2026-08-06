@@ -205,6 +205,17 @@ def stage(
     output.mkdir(parents=True)
     _copy_runtime_files(ga_repo, commit, output)
     (output / "ga_bridge_adapter.py").write_bytes(adapter_bytes)
+    sidecar_files: list[str] = []
+    for sidecar_dir, suffixes in (("command_packs", (".json",)), ("command_plugins", (".py",))):
+        source_dir = liveagent_root / "runtime" / "ga" / sidecar_dir
+        if not source_dir.is_dir():
+            continue
+        for path in sorted(source_dir.iterdir()):
+            if not path.is_file() or path.is_symlink() or path.suffix not in suffixes:
+                continue
+            relative = f"{sidecar_dir}/{path.name}"
+            (output / relative).write_bytes(path.read_bytes())
+            sidecar_files.append(relative)
     manifest_doc["ga_commit"] = commit
     manifest_doc["official_bridge"]["sha256"] = bridge_sha256
     manifest_doc.setdefault("staging", {})

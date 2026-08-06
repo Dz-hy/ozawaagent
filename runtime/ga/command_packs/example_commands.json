@@ -1,0 +1,21 @@
+{
+  "schema": "ga.command_pack.v1",
+  "pack_id": "example",
+  "description": "LiveAgent 声明式 Command Pack 样例：新增命令无需修改 React，adapter 扫描本目录后自动出现在 / 面板并可执行。",
+  "commands": [
+    {
+      "id": "brief",
+      "title": "/brief",
+      "description": "生成项目简报提示词，按 {args} 指定的主题概括目标、进展与下一步。",
+      "arg_hint": "<主题>",
+      "prompt_template": "请为「{args}」生成一份项目简报：目标、当前进展、阻塞问题、下一步行动，用中文输出。"
+    },
+    {
+      "id": "standup",
+      "title": "/standup",
+      "description": "生成站会汇报模板提示词。",
+      "arg_hint": "",
+      "prompt_template": "请按站会模板汇报：昨天完成、今天计划、阻塞问题。"
+    }
+  ]
+}

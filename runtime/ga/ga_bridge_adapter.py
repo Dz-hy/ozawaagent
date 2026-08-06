@@ -1116,6 +1116,160 @@ CORE_RUNTIME_COMMANDS: tuple[dict[str, Any], ...] = (
 )
 
 
+COMMAND_PACK_SCHEMA = "ga.command_pack.v1"
+COMMAND_PACK_DIR = "command_packs"
+COMMAND_PLUGIN_DIR = "command_plugins"
+COMMAND_ID_PATTERN = re.compile(r"[a-z][a-z0-9_-]*")
+COMMAND_ARGS_PLACEHOLDER = "{args}"
+
+
+def _extension_command_metadata(command_id: str, *, title: str, description: str,
+                                arg_hint: str, owner: str, plugin_version: str,
+                                requires_capabilities: tuple[str, ...] = ()) -> dict[str, Any]:
+    """Serializable metadata for adapter-owned commands (same shape as core commands)."""
+    return {
+        "id": command_id,
+        "name": "/" + command_id,
+        "aliases": [],
+        "title": title or ("/" + command_id),
+        "description": description,
+        "arg_hint": arg_hint,
+        "argument_schema": {"type": "object", "properties": {
+            "args_text": {"type": "string", "maxLength": MAX_COMMAND_ARGUMENT_CHARS}},
+                            "additionalProperties": False},
+        "owner": owner,
+        "kind": "prompt",
+        "api_version": COMMAND_API_VERSION,
+        "plugin_version": plugin_version,
+        "requires_capabilities": list(requires_capabilities),
+        "permissions": [],
+    }
+
+
+def load_command_packs(root: Path) -> list[dict[str, Any]]:
+    """Load declarative Command Packs from <root>/command_packs/*.json.
+
+    A pack is a JSON document with schema ``ga.command_pack.v1``; each command
+    carries a ``prompt_template`` that may contain exactly one ``{args}``
+    placeholder.  Packs prove that new commands appear in the UI panel and
+    execute without touching React.
+    """
+    pack_dir = root / COMMAND_PACK_DIR
+    commands: list[dict[str, Any]] = []
+    if not pack_dir.is_dir():
+        return commands
+    for path in sorted(pack_dir.glob("*.json")):
+        if path.is_symlink():
+            continue
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            continue
+        if document.get("schema") != COMMAND_PACK_SCHEMA or not isinstance(document.get("commands"), list):
+            continue
+        pack_id = document.get("pack_id")
+        if not isinstance(pack_id, str) or not COMMAND_ID_PATTERN.fullmatch(pack_id):
+            continue
+        for raw in document["commands"]:
+            if not isinstance(raw, dict):
+                continue
+            command_id = raw.get("id")
+            template = raw.get("prompt_template")
+            if not isinstance(command_id, str) or not COMMAND_ID_PATTERN.fullmatch(command_id):
+                continue
+            if not isinstance(template, str) or not template.strip():
+                continue
+            # Only the {args} placeholder is allowed; anything else may be a
+            # format-string injection or a template that the adapter cannot honor.
+            if COMMAND_ARGS_PLACEHOLDER in template and template.count("{") != 1:
+                continue
+            title = raw.get("title")
+            description = raw.get("description")
+            arg_hint = raw.get("arg_hint")
+            capabilities = raw.get("requires_capabilities")
+            command = _extension_command_metadata(
+                command_id,
+                title=title if isinstance(title, str) and title.strip() else "",
+                description=description if isinstance(description, str) else "",
+                arg_hint=arg_hint if isinstance(arg_hint, str) else "",
+                owner=f"pack:{pack_id}",
+                plugin_version=pack_id,
+                requires_capabilities=(tuple(value for value in capabilities if isinstance(value, str))
+                                       if isinstance(capabilities, list) else ()),
+            )
+            command["prompt_template"] = template
+            commands.append(command)
+    return commands
+
+
+def load_command_plugins(root: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Load Python Command Plugins from <root>/command_plugins/*.py.
+
+    Each module must export a ``COMMANDS`` tuple of dicts; every command needs
+    ``id`` (slash id without the leading slash) and a callable ``prompt_for``
+    following the GenericAgent slash command contract:
+    ``prompt_for(slash_name, args_text) -> str | None``.
+    """
+    plugin_dir = root / COMMAND_PLUGIN_DIR
+    handlers: dict[str, Any] = {}
+    commands: list[dict[str, Any]] = []
+    if not plugin_dir.is_dir():
+        return handlers, commands
+    for path in sorted(plugin_dir.glob("*.py")):
+        if path.is_symlink():
+            continue
+        module_name = "liveagent_command_plugin_" + hashlib.sha256(path.name.encode("utf-8")).hexdigest()[:12]
+        try:
+            module = load_module_from_path(module_name, path)
+            entries = getattr(module, "COMMANDS", ())
+        except Exception:
+            continue
+        if not isinstance(entries, (list, tuple)):
+            continue
+        for raw in entries:
+            if not isinstance(raw, dict):
+                continue
+            command_id = raw.get("id")
+            prompt_for = raw.get("prompt_for")
+            if not isinstance(command_id, str) or not COMMAND_ID_PATTERN.fullmatch(command_id):
+                continue
+            if not callable(prompt_for):
+                continue
+            title = raw.get("title")
+            description = raw.get("description")
+            arg_hint = raw.get("arg_hint")
+            capabilities = raw.get("requires_capabilities")
+            command = _extension_command_metadata(
+                command_id,
+                title=title if isinstance(title, str) and title.strip() else "",
+                description=description if isinstance(description, str) else "",
+                arg_hint=arg_hint if isinstance(arg_hint, str) else "",
+                owner=f"plugin:{path.stem}",
+                plugin_version=path.stem,
+                requires_capabilities=(tuple(value for value in capabilities if isinstance(value, str))
+                                       if isinstance(capabilities, list) else ()),
+            )
+            command["plugin"] = f"{path.stem}:{command_id}"
+            commands.append(command)
+            handlers[command_id] = {"kind": "plugin", "prompt_for": prompt_for}
+    return handlers, commands
+
+
+def load_command_extensions(root: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Discover pack and plugin commands; return (extension handlers, command list)."""
+    pack_commands = load_command_packs(root)
+    plugin_handlers, plugin_commands = load_command_plugins(root)
+    extensions: dict[str, Any] = {}
+    for command in pack_commands:
+        extensions[command["id"]] = {
+            "kind": "pack",
+            "template": command["prompt_template"],
+            "requires_args": COMMAND_ARGS_PLACEHOLDER in command["prompt_template"],
+        }
+    extensions.update(plugin_handlers)
+    return extensions, pack_commands + plugin_commands
+
+
 def load_command_registry(root: Path) -> tuple[Any, list[dict[str, Any]]]:
     """Reflect GA-owned slash metadata without copying command logic into the adapter."""
     path = root / "frontends" / "slash_cmds.py"
@@ -1161,6 +1315,11 @@ def load_command_registry(root: Path) -> tuple[Any, list[dict[str, Any]]]:
         if runtime_command["id"] not in seen:
             commands.append(dict(runtime_command))
             seen.add(runtime_command["id"])
+    extensions, extension_commands = load_command_extensions(root)
+    for command in extension_commands:
+        if command["id"] not in seen:
+            commands.append(command)
+            seen.add(command["id"])
     return module, commands
 
 
@@ -1933,6 +2092,7 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
         command_id = request.match_info["command_id"]
         try:
             module, commands = load_command_registry(ga_root)
+            command_extensions, _ = load_command_extensions(ga_root)
         except Exception:
             return command_registry_error(request)
         command = next((item for item in commands if item["id"] == command_id), None)
@@ -2084,7 +2244,23 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
                 "result": {"type": "control", "handled": True, "runtime": _session_runtime(session)},
             }, 200, request.headers.get("X-Request-Id", ""))
         try:
-            prompt = module.prompt_for(command["name"], args_text)
+            template = command.get("prompt_template")
+            plugin_ref = command.get("plugin")
+            if isinstance(template, str):
+                if COMMAND_ARGS_PLACEHOLDER in template:
+                    prompt = template.replace(COMMAND_ARGS_PLACEHOLDER, args_text)
+                elif args_text:
+                    return _json("error", {"code": "invalid_command_input",
+                                           "message": "Command does not accept arguments"}, 400,
+                                 request.headers.get("X-Request-Id", ""))
+                else:
+                    prompt = template
+            elif isinstance(plugin_ref, str):
+                extension = command_extensions.get(command_id)
+                prompt_for = extension.get("prompt_for") if isinstance(extension, dict) else None
+                prompt = prompt_for(command["name"], args_text) if callable(prompt_for) else None
+            else:
+                prompt = module.prompt_for(command["name"], args_text)
         except Exception:
             prompt = None
         if not isinstance(prompt, str) or not prompt.strip():

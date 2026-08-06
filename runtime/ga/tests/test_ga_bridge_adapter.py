@@ -1560,3 +1560,148 @@ async def test_token_usage_contract_failures_are_redacted():
     assert "token_usage_unavailable" in encoded
     assert "token-history.json" not in encoded
     assert "secret" not in encoded
+
+@pytest_asyncio.fixture
+async def extension_command_client(tmp_path):
+    frontends = tmp_path / "frontends"
+    frontends.mkdir()
+    (frontends / "slash_cmds.py").write_text(
+        "PALETTE_ENTRIES = [('/goal', '<objective>', 'Run a goal')]\n"
+        "def prompt_for(cmd, args_text):\n"
+        "    return f'GOAL:{args_text}' if cmd == '/goal' else None\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "command_packs").mkdir()
+    (tmp_path / "command_packs" / "example_commands.json").write_text(
+        json.dumps({
+            "schema": "ga.command_pack.v1",
+            "pack_id": "example",
+            "commands": [
+                {"id": "brief", "title": "/brief", "description": "brief it",
+                 "arg_hint": "<topic>",
+                 "prompt_template": "BRIEF:{args}"},
+                {"id": "standup", "title": "/standup", "description": "standup",
+                 "arg_hint": "", "prompt_template": "STANDUP"},
+            ],
+        }),
+        encoding="utf-8",
+    )
+    (tmp_path / "command_plugins").mkdir()
+    (tmp_path / "command_plugins" / "example_plugin.py").write_text(
+        "def _echo(cmd, args_text):\n"
+        "    return f'ECHO:{args_text}'\n"
+        "COMMANDS = (\n"
+        "    {'id': 'echo', 'title': '/echo', 'description': 'echo it',\n"
+        "     'arg_hint': '[text]', 'prompt_for': _echo},\n"
+        ")\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "command_plugins" / "broken_plugin.py").write_text(
+        "this is not python !!!\n",
+        encoding="utf-8",
+    )
+    manager = ProjectManager()
+    session = manager.create_session()
+    manager.make_agent(session)
+    official = fake_official_module()
+    official.manager = manager
+    app = adapter.create_app(
+        official_module=official,
+        token=TOKEN,
+        allowed_origins=(ORIGIN,),
+        manifest=adapter.load_manifest(),
+        ga_root=tmp_path,
+    )
+    async with TestClient(TestServer(app)) as test_client:
+        yield test_client
+
+
+@pytest.mark.asyncio
+async def test_command_pack_and_plugin_commands_are_discovered(extension_command_client):
+    listed = await extension_command_client.get("/api/v1/commands", headers=AUTH)
+    assert listed.status == 200
+    commands = (await listed.json())["payload"]["commands"]
+    by_id = {command["id"]: command for command in commands}
+    assert by_id["brief"]["owner"] == "pack:example"
+    assert by_id["brief"]["kind"] == "prompt"
+    assert by_id["brief"]["prompt_template"] == "BRIEF:{args}"
+    assert by_id["standup"]["prompt_template"] == "STANDUP"
+    assert by_id["echo"]["owner"] == "plugin:example_plugin"
+    assert by_id["echo"]["plugin"] == "example_plugin:echo"
+    # Broken plugin module must be skipped without breaking discovery.
+    assert "broken_plugin" not in {command["owner"] for command in commands}
+
+
+@pytest.mark.asyncio
+async def test_command_pack_prompt_execution_and_argument_guard(extension_command_client):
+    executed = await extension_command_client.post(
+        "/api/v1/commands/brief/execute", headers=AUTH, json={"args_text": "ai agent"})
+    assert executed.status == 200
+    result = (await executed.json())["payload"]["result"]
+    assert result["type"] == "prompt"
+    assert result["prompt"] == "BRIEF:ai agent"
+
+    no_args = await extension_command_client.post(
+        "/api/v1/commands/standup/execute", headers=AUTH, json={"args_text": ""})
+    assert no_args.status == 200
+    assert (await no_args.json())["payload"]["result"]["prompt"] == "STANDUP"
+
+    rejected = await extension_command_client.post(
+        "/api/v1/commands/standup/execute", headers=AUTH, json={"args_text": "unexpected"})
+    assert rejected.status == 400
+    assert (await rejected.json())["payload"]["code"] == "invalid_command_input"
+
+
+@pytest.mark.asyncio
+async def test_command_plugin_prompt_execution(extension_command_client):
+    executed = await extension_command_client.post(
+        "/api/v1/commands/echo/execute", headers=AUTH, json={"args_text": "hello"})
+    assert executed.status == 200
+    result = (await executed.json())["payload"]["result"]
+    assert result["type"] == "prompt"
+    assert result["prompt"] == "ECHO:hello"
+
+
+@pytest.mark.asyncio
+async def test_command_pack_malformed_documents_are_ignored(tmp_path):
+    frontends = tmp_path / "frontends"
+    frontends.mkdir()
+    (frontends / "slash_cmds.py").write_text(
+        "PALETTE_ENTRIES = []\n"
+        "def prompt_for(cmd, args_text):\n"
+        "    return None\n",
+        encoding="utf-8",
+    )
+    pack_dir = tmp_path / "command_packs"
+    pack_dir.mkdir()
+    (pack_dir / "not_json.json").write_text("{broken", encoding="utf-8")
+    (pack_dir / "wrong_schema.json").write_text(
+        json.dumps({"schema": "other.v1", "commands": [
+            {"id": "ghost", "prompt_template": "GHOST"}]}),
+        encoding="utf-8",
+    )
+    (pack_dir / "bad_template.json").write_text(
+        json.dumps({"schema": "ga.command_pack.v1", "pack_id": "bad",
+                    "commands": [
+                        {"id": "multi", "prompt_template": "{a} and {args}"},
+                        {"id": "empty", "prompt_template": "  "},
+                    ]}),
+        encoding="utf-8",
+    )
+    manager = ProjectManager()
+    official = fake_official_module()
+    official.manager = manager
+    app = adapter.create_app(
+        official_module=official,
+        token=TOKEN,
+        allowed_origins=(ORIGIN,),
+        manifest=adapter.load_manifest(),
+        ga_root=tmp_path,
+    )
+    async with TestClient(TestServer(app)) as client:
+        listed = await client.get("/api/v1/commands", headers=AUTH)
+        commands = (await listed.json())["payload"]["commands"]
+    ids = {command["id"] for command in commands}
+    assert "ghost" not in ids
+    assert "multi" not in ids
+    assert "empty" not in ids
