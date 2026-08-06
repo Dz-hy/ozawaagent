@@ -106,6 +106,14 @@ export type GaCommandDto = {
   plugin_version: string;
   argument_schema: Record<string, unknown>;
   permissions: string[];
+  aliases?: string[];
+  kind?: "control" | "prompt" | string;
+  requires_capabilities?: string[];
+};
+export type GaBridgeCapabilities = {
+  capabilities: string[];
+  events: string[];
+  unknown_events_preserved?: boolean;
 };
 export type GaCommandPromptResult = { type: "prompt"; prompt: string };
 export type GaCommandControlResult = {

@@ -13,6 +13,7 @@ export type SectionId =
   | "memory"
   | "usage"
   | "conductor"
+  | "capabilities"
   | "hooks"
   | "cron"
   | "remote"

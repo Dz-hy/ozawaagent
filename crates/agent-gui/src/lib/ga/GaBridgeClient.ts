@@ -4,6 +4,7 @@ import type {
   GaAutomationInput,
   GaAutomationRun,
   GaAutomationsSnapshot,
+  GaBridgeCapabilities,
   GaBridgeEvent,
   GaCommandDto,
   GaCommandResult,
@@ -190,6 +191,9 @@ export class GaBridgeClient {
   async listCommands(): Promise<GaCommandDto[]> {
     const result = await this.request<{ commands: GaCommandDto[] }>("/api/v1/commands");
     return result.commands;
+  }
+  getCapabilities(): Promise<GaBridgeCapabilities> {
+    return this.request("/api/v1/capabilities");
   }
   executeCommand(id: string, argsText = "", sessionId?: string): Promise<GaCommandResult> {
     const body: { args_text: string; session_id?: string } = { args_text: argsText };
