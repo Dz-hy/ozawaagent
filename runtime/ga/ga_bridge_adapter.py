@@ -396,6 +396,27 @@ def _safe_profile_string(value: Any, key: str) -> str:
     return value[:MODEL_PROFILE_LIMITS.get(key, 2048)]
 
 
+def _safe_endpoint_shape(value: str) -> str:
+    """Rebuild scheme://host[:port] only, dropping credentials, paths, queries
+    and fragments. IPv6 hosts are re-bracketed so the display value is a
+    parseable endpoint; an unparseable input yields an empty string instead of
+    ever falling back to the original (possibly secret-bearing) value."""
+    from urllib.parse import urlsplit
+    try:
+        parsed = urlsplit(value)
+    except (ValueError, TypeError):
+        return ""
+    host = parsed.hostname or ""
+    if not host:
+        return ""
+    scheme = (parsed.scheme or "http").lower()
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    if parsed.port is not None:
+        host = f"{host}:{parsed.port}"
+    return f"{scheme}://{host}"
+
+
 def _safe_profile_proxy(value: Any) -> tuple[str, bool]:
     if not isinstance(value, str):
         return "", False
@@ -405,18 +426,7 @@ def _safe_profile_proxy(value: Any) -> tuple[str, bool]:
     # A proxy may contain credentials or sensitive path/query data. Expose only
     # its scheme://host:port endpoint shape; an update with an equal display
     # value (or the legacy [REDACTED] marker) preserves the stored value.
-    try:
-        from urllib.parse import urlsplit
-        parsed = urlsplit(proxy)
-        host = parsed.hostname or ""
-        if not host:
-            return "", True
-        scheme = (parsed.scheme or "http").lower()
-        if parsed.port is not None:
-            host = f"{host}:{parsed.port}"
-        return f"{scheme}://{host}", True
-    except (ValueError, TypeError):
-        return "", True
+    return _safe_endpoint_shape(proxy), True
 
 
 def _safe_profile_apibase(value: Any) -> str:
@@ -427,18 +437,7 @@ def _safe_profile_apibase(value: Any) -> str:
         return ""
     # API base URLs may embed credentials or per-deployment paths; expose only
     # the scheme://host:port endpoint shape for read-back and UI display.
-    try:
-        from urllib.parse import urlsplit
-        parsed = urlsplit(apibase)
-        host = parsed.hostname or ""
-        if not host:
-            return ""
-        scheme = (parsed.scheme or "http").lower()
-        if parsed.port is not None:
-            host = f"{host}:{parsed.port}"
-        return f"{scheme}://{host}"
-    except (ValueError, TypeError):
-        return ""
+    return _safe_endpoint_shape(apibase)
 
 
 def _safe_profile_advanced(value: dict[str, Any], result: dict[str, Any], *, defaults: bool = False) -> None:

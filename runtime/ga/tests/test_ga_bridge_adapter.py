@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import tempfile
 import threading
 from types import SimpleNamespace
 
@@ -162,6 +163,16 @@ def private_model_manager(tmp_path):
                     configs.append((var_name, config))
             return configs
 
+        def _profile_keys(self):
+            return [var_name for var_name, _ in self._configs()]
+
+        def _mykey_vars(self):
+            keys, values = [], {}
+            for var_name, config in self._configs():
+                keys.append(var_name)
+                values[var_name] = config
+            return keys, values
+
         def list_model_profiles(self):
             profiles = []
             for profile_id, (var_name, config) in enumerate(self._configs()):
@@ -244,6 +255,12 @@ def private_model_manager(tmp_path):
         def _save_mykey_text(self, text):
             self.path.write_text(text, encoding="utf-8")
             return self.list_model_profiles()
+
+        def _invalidate_mykey_cache(self):
+            return None
+
+        def _reload_live_agents(self):
+            return None
 
         def delete_model_profile(self, profile_id):
             profiles = self.list_model_profiles()
@@ -1203,6 +1220,7 @@ class ProjectManager:
         self.sessions = {}
         self.persisted = []
         self.config = {"llmNo": 0}
+        self._session_dir = Path(tempfile.mkdtemp(prefix="ga-session-test-"))
         self.model_profiles = [
             {"id": 0, "name": "Primary", "model": "model-a"},
             {"id": 1, "name": "Fallback", "model": "model-b"},
@@ -1210,6 +1228,12 @@ class ProjectManager:
 
     def _persist_session(self, session):
         self.persisted.append(session)
+
+    def _session_file(self, sid):
+        session = self.sessions[sid]
+        path = self._session_dir / f"{sid}.json"
+        path.write_text(json.dumps(self._session_dict(session)), encoding="utf-8")
+        return path
 
     def create_session(self, cwd=None):
         session = ProjectSession(cwd=cwd or "C:\\ga")
@@ -1956,3 +1980,166 @@ async def test_morphling_classify_endpoint(mcp_client):
     empty = await mcp_client.post(
         "/api/v1/morphling/classify", headers=AUTH, json={"text": "  "})
     assert empty.status == 400
+
+
+# ---------------------------------------------------------------------------
+# P1-B / P2-A boundary matrix: profile proxy & apibase redaction
+# ---------------------------------------------------------------------------
+
+
+def test_safe_profile_proxy_redaction_matrix():
+    cases = [
+        # (input, expected_shape, expected_configured)
+        ("http://user:pass@proxy.example:8080", "http://proxy.example:8080", True),
+        ("http://user%40x:pass%20word@proxy.example:8080/base?api_key=SECRET#FRAG",
+         "http://proxy.example:8080", True),
+        ("http://[::1]:8080", "http://[::1]:8080", True),
+        ("https://[2001:db8::1]", "https://[2001:db8::1]", True),
+        ("socks5://user:pass@127.0.0.1:1080", "socks5://127.0.0.1:1080", True),
+        ("http://proxy.example", "http://proxy.example", True),
+        ("not a url", "", True),          # unparseable: never fall back to the raw value
+        ("://broken", "", True),
+        ("", "", False),
+        (None, "", False),
+        (123, "", False),
+    ]
+    for raw, expected_shape, expected_configured in cases:
+        shape, configured = adapter._safe_profile_proxy(raw)
+        assert shape == expected_shape, f"{raw!r}: shape {shape!r} != {expected_shape!r}"
+        assert configured is expected_configured, f"{raw!r}: configured {configured}"
+
+
+def test_safe_profile_apibase_redaction_matrix():
+    cases = [
+        ("https://api.example/v1", "https://api.example"),
+        ("http://user:pass@api.example:8443/private?token=SECRET#x", "http://api.example:8443"),
+        ("http://[::1]:8443/v1", "http://[::1]:8443"),
+        ("not a url", ""),
+        ("", ""),
+        (None, ""),
+    ]
+    for raw, expected in cases:
+        shape = adapter._safe_profile_apibase(raw)
+        assert shape == expected, f"{raw!r}: {shape!r} != {expected!r}"
+
+
+@pytest.mark.asyncio
+async def test_model_profile_patch_preserves_stored_proxy_and_apibase_on_display_shape_submit(private_model_client):
+    client, manager = private_model_client
+    patched = await client.patch("/api/v1/model-profiles/0", headers=AUTH, json={
+        "name": "Renamed",
+        "proxy": "http://proxy.example:8080",          # redacted display shape
+        "apibase": "https://private.example",          # redacted display shape
+    })
+    assert patched.status == 200
+    body = await patched.json()
+    profile = body["payload"]["profile"]
+    encoded = json.dumps(body)
+    assert "initial-user" not in encoded and "initial-pass" not in encoded
+    assert profile["proxy_configured"] is True
+    # Disk keeps the original credential-bearing values; only the UI sees shapes.
+    raw = manager.path.read_text(encoding="utf-8")
+    assert "initial-user:initial-pass@proxy.example:8080" in raw
+    assert "https://private.example/v1" in raw
+    assert "Renamed" in raw
+
+
+@pytest.mark.asyncio
+async def test_model_profile_patch_empty_proxy_clears_configured_proxy(private_model_client):
+    client, manager = private_model_client
+    patched = await client.patch("/api/v1/model-profiles/0", headers=AUTH, json={
+        "proxy": "",
+    })
+    assert patched.status == 200
+    profile = (await patched.json())["payload"]["profile"]
+    assert not profile.get("proxy_configured")
+    raw = manager.path.read_text(encoding="utf-8")
+    assert "initial-pass" not in raw
+    assert "proxy.example" not in raw
+
+
+def test_private_save_mykey_text_atomic_rolls_back_on_activation_failure(tmp_path, monkeypatch):
+    manager = private_model_manager(tmp_path)
+    original = manager.path.read_text(encoding="utf-8")
+
+    def boom():
+        raise RuntimeError("injected activation failure")
+
+    monkeypatch.setattr(manager, "_invalidate_mykey_cache", lambda: None, raising=False)
+    monkeypatch.setattr(manager, "_reload_live_agents", boom, raising=False)
+    with pytest.raises(RuntimeError, match="injected activation failure"):
+        adapter._private_save_mykey_text_atomic(manager, "native_oai_config = {'model': 'new'}\n")
+    # The file must be byte-identical to the pre-write state after rollback.
+    assert manager.path.read_text(encoding="utf-8") == original
+
+
+def test_private_save_mykey_text_atomic_rejects_invalid_syntax(tmp_path):
+    manager = private_model_manager(tmp_path)
+    original = manager.path.read_text(encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid mykey"):
+        adapter._private_save_mykey_text_atomic(manager, "this is not python =")
+    assert manager.path.read_text(encoding="utf-8") == original
+
+
+def test_private_clean_mixins_removes_name_and_index_refs_across_channels(tmp_path):
+    class MixinManager:
+        def __init__(self):
+            self.path = tmp_path / "mykey.py"
+            self.path.write_text(
+                "mixin_a = {'llm_nos': ['native_oai_config', 0, 'other']}\n"
+                "mixin_b = {'llm_nos': [1, 'native_oai_config', 2]}\n"
+                "plain = {'llm_nos': ['native_oai_config']}\n",
+                encoding="utf-8",
+            )
+            self.reload_calls = 0
+
+        def _mykey_file(self):
+            return self.path
+
+        def _mykey_vars(self):
+            keys, values = [], {}
+            for line in self.path.read_text(encoding="utf-8").splitlines():
+                left, _, raw = line.partition("=")
+                left = left.strip()
+                if not left.isidentifier():
+                    continue
+                try:
+                    parsed = ast.literal_eval(raw.strip())
+                except (SyntaxError, ValueError):
+                    continue
+                keys.append(left)
+                values[left] = parsed
+            return keys, values
+
+        def _find_var_block_span(self, text, var_name):
+            return var_name in text
+
+        def _patch_var_block(self, text, var_name, config=None):
+            lines = []
+            for line in text.splitlines():
+                left, separator, _ = line.partition("=")
+                if separator and left.strip() == var_name:
+                    if config is not None:
+                        lines.append(f"{var_name} = {config!r}")
+                    continue
+                lines.append(line)
+            return "\n".join(lines).rstrip() + "\n"
+
+        def _invalidate_mykey_cache(self):
+            return None
+
+        def _reload_live_agents(self):
+            self.reload_calls += 1
+
+        def list_model_profiles(self):
+            return []
+
+    manager = MixinManager()
+    adapter._private_clean_mixins(manager, profile_id=1, name="native_oai_config")
+    raw = manager.path.read_text(encoding="utf-8")
+    assert "'0', 'other'" in raw or "0" in raw.replace("'", "").replace(" ", "")  # mixin_a keeps 0 and other
+    assert manager.reload_calls >= 1  # persistence pass ran
+    keys, values = manager._mykey_vars()
+    assert values["mixin_a"]["llm_nos"] == ["0", "other"]
+    assert values["mixin_b"]["llm_nos"] == ["2"]
+    assert values["plain"]["llm_nos"] == ["native_oai_config"]  # non-mixin untouched
