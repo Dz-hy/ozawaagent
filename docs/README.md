@@ -1,10 +1,10 @@
-# LiveAgent 架构文档
+# OzawaAgent 架构文档
 
-本文档树用于从当前代码实现出发，系统梳理 LiveAgent 的桌面 GUI、Tauri 后端、Gateway 服务与浏览器 WebUI。这里的 `docs/` 定位为全局架构索引；仓库已有的 `doc/` 仍保留为历史方案、专项设计与实验文档，不在本次整理中迁移或改名。
+本文档树用于从当前代码实现出发，系统梳理 OzawaAgent 的桌面 GUI、Tauri 后端、Gateway 服务与浏览器 WebUI。这里的 `docs/` 定位为全局架构索引；仓库已有的 `doc/` 仍保留为历史方案、专项设计与实验文档，不在本次整理中迁移或改名。
 
 ## 项目一句话
 
-LiveAgent 是一个以桌面端为本地执行核心的 Agent 应用：GUI 负责用户体验与本地工具执行，Tauri/Rust 负责系统能力与持久化，Go Gateway 负责远程连接与协议中继，WebUI 通过 Gateway 操作同一个本地 Agent 会话。
+OzawaAgent 是一个以桌面端为本地执行核心的 Agent 应用：GUI 负责用户体验与本地工具执行，Tauri/Rust 负责系统能力与持久化，Go Gateway 负责远程连接与协议中继，WebUI 通过 Gateway 操作同一个本地 Agent 会话。
 
 ## 文档目录
 
