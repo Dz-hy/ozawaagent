@@ -214,6 +214,7 @@ def stage(
             if not path.is_file() or path.is_symlink() or path.suffix not in suffixes:
                 continue
             relative = f"{sidecar_dir}/{path.name}"
+            (output / sidecar_dir).mkdir(parents=True, exist_ok=True)
             (output / relative).write_bytes(path.read_bytes())
             sidecar_files.append(relative)
     manifest_doc["ga_commit"] = commit
@@ -224,6 +225,7 @@ def stage(
         "files": list(GA_RUNTIME_FILES),
         "excluded": sorted(EXCLUDED_NAMES),
         "official_bridge_sha256": bridge_sha256,
+        "liveagent_sidecar": sidecar_files,
     })
     (output / "runtime_manifest.json").write_text(
         json.dumps(manifest_doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
