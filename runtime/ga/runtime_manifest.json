@@ -1,34 +1,34 @@
 {
-  "schema_version": 1,
-  "ga_commit": "51f769295b3f20c9be62edc658b4462dae97525a",
-  "official_bridge": {
-    "path": "frontends/desktop_bridge.py",
-    "sha256": "d2a0c66fc88618ef23f323685e152077a046f02dd1c9f73f1b0db1ee0313512b"
-  },
-  "capabilities": [
-    "sessions",
-    "history",
-    "model_profiles",
-    "token_usage",
-    "services",
-    "command_registry",
-    "automation_registry",
-    "hooks_observability",
-    "conductor_snapshot",
-    "http_commands",
-    "websocket_events"
-  ],
-  "events": [
-    "session.state_changed",
-    "turn.started",
-    "assistant.delta",
-    "assistant.final",
-    "reasoning.delta",
-    "tool.started",
-    "tool.progress",
-    "tool.completed",
-    "tool.failed",
-    "ask_user.requested",
-    "ask_user.resolved"
-  ]
+ "schema_version": 1,
+ "ga_commit": "7083b9377eb4c4d6657f9dc61b80296cbcd2143a",
+ "official_bridge": {
+  "path": "frontends/desktop_bridge.py",
+  "sha256": "94df8539dfa96b68c7bc29f01ba89f954c4803fe36db0e6390f53097d7b1336f"
+ },
+ "capabilities": [
+  "sessions",
+  "history",
+  "model_profiles",
+  "token_usage",
+  "services",
+  "command_registry",
+  "automation_registry",
+  "hooks_observability",
+  "conductor_snapshot",
+  "http_commands",
+  "websocket_events"
+ ],
+ "events": [
+  "session.state_changed",
+  "turn.started",
+  "assistant.delta",
+  "assistant.final",
+  "reasoning.delta",
+  "tool.started",
+  "tool.progress",
+  "tool.completed",
+  "tool.failed",
+  "ask_user.requested",
+  "ask_user.resolved"
+ ]
 }

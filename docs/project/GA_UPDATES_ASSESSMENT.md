@@ -42,3 +42,14 @@
 3. 跑 adapter 契约测试（`runtime/ga/tests`）+ 核心冒烟
 4. 通过后更新 `runtime_manifest.json` 的 ga_commit 并提交
 5. 发布打包前锁定该 commit 做最终回归（产物延后至 Phase 6/9 后，§3.1-24）
+## 2026-08-06 复核（force-push 事件，第二轮跟随）
+
+**事件**：官方 `main` 被 force-push 改写。旧 main 顶 `d69ec88`（该线独有 1154 提交，含 adapter 曾锁定的 `51f7692`、release desktop portable v0.1.8、`277c485` quick-access、`d69ec88` trim factor）→ 新 main 顶 `7083b93`（hub/p2p/phone pairing 线）。本地 `D:\GenericAgent` HEAD=`7083b93` 恰为新 main 顶，`behind=0`，无需 merge；本地 3 补丁（llmcore/mykey_template/.gitignore）在，无冲突。
+
+**影响与动作**：
+- adapter 锁定 commit `51f7692` 已不在官方历史（dropped）→ `runtime_manifest.json` 更新：`ga_commit=7083b9377eb4c4d6657f9dc61b80296cbcd2143a`、`official_bridge.sha256=94df8539...`（新线 bridge，2210 行，相对 51f7692 版仅新增 `/subscription-portal` GET/POST 路由与 `start_subscription_portal`；adapter 复用官方 `create_app` → 新端点透明继承且受 token 保护，`capabilities` 不声明 = 前端不暴露，保守正确）
+- 验证：临时组装副本 `--check` → `compatible`✅；`runtime/ga/tests` pytest 61 passed / 2 skipped✅（契约无回归）
+- 发布态副本 `crates/agent-gui/src-tauri/ga-runtime/`（gitignore 排除、release CI 组装）同步刷新 29 个同名文件（bridge/adapter/llmcore/agentmain 等）+ 新 manifest，`--check` → `compatible`✅
+- 新 main 线独有 hub/p2p、desktop pet v2、im plugins 等新功能；上文可利用点除 `277c485`/`51f7692`（dropped）外均在新线
+
+**遗留提示**：开发态若将 `--ga-root` 直指 `D:\GenericAgent`，因其根目录无 `runtime_manifest.json`（manifest 是 stager 组装物）会启动失败；是否在 `D:\GenericAgent` 根放置 manifest 由用户定夺，Phase 9 打包流程统一处理。
