@@ -162,7 +162,7 @@ export function buildTrayMenuModel(input: BuildTrayMenuModelInput): TrayMenuMode
         : t("tray.gatewayDisconnected", locale);
 
   const tooltipParts = [
-    "LiveAgent",
+    "OzawaAgent",
     runningCount > 0 ? withCount(t("tray.tooltipRunning", locale), runningCount) : null,
     gatewayStatusText,
   ].filter((part): part is string => Boolean(part));

@@ -1,4 +1,4 @@
-"""LiveAgent Python Command Plugin \u6837\u4f8b\uff08Phase 4.12 \u7269\u8bc1\uff09\u3002
+"""OzawaAgent Python Command Plugin \u6837\u4f8b\uff08Phase 4.12 \u7269\u8bc1\uff09\u3002
 
 \u5951\u7ea6\uff08\u7531 ga_bridge_adapter.load_command_plugins \u5f3a\u5236\uff09\uff1a
 - \u6a21\u5757\u5bfc\u51fa COMMANDS \u5143\u7ec4\uff1b

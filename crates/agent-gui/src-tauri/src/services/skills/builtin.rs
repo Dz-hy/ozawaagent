@@ -132,7 +132,7 @@ pub(crate) fn ensure_not_builtin_skill_management_target(
     let is_protected = !target.exists() || builtin_skill_owns_target(&target, builtin)?;
     if is_protected {
         return Err(format!(
-            "SkillsManager action={action} cannot modify built-in Skill \"{name}\". Built-in Skills are managed by LiveAgent; create or update a separate user Skill instead."
+            "SkillsManager action={action} cannot modify built-in Skill \"{name}\". Built-in Skills are managed by OzawaAgent; create or update a separate user Skill instead."
         ));
     }
     Ok(())

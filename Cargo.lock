@@ -3182,58 +3182,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92daf443525c4cce67b150400bc2316076100ce0b3686209eb8cf3c31612e6f0"
 
 [[package]]
-name = "liveagent"
-version = "0.0.0-dev"
-dependencies = [
- "axum",
- "base64 0.22.1",
- "chardetng",
- "chrono",
- "dirs",
- "encoding_rs",
- "futures-util",
- "globset",
- "ignore",
- "leveldb-core",
- "lopdf",
- "notify",
- "objc2-app-kit 0.3.2",
- "percent-encoding",
- "portable-pty",
- "prost",
- "prost-build",
- "quick-xml",
- "regex",
- "reqwest",
- "rfd",
- "rusqlite",
- "russh",
- "russh-sftp",
- "rustls",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "tauri",
- "tauri-build",
- "tauri-plugin-global-shortcut",
- "tauri-plugin-mcp-bridge",
- "tauri-plugin-opener",
- "tauri-plugin-window-state",
- "tempfile",
- "thiserror 2.0.19",
- "tokio",
- "tokio-cron-scheduler",
- "tokio-stream",
- "tokio-tungstenite 0.29.0",
- "toml 0.9.12+spec-1.1.0",
- "uuid",
- "wait-timeout",
- "walkdir",
- "windows-sys 0.61.2",
- "zip",
-]
-
-[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4021,6 +3969,58 @@ checksum = "9aa2b01e1d916879f73a53d01d1d6cee68adbb31d6d9177a8cfce093cced1d50"
 dependencies = [
  "futures-core",
  "pin-project-lite",
+]
+
+[[package]]
+name = "ozawaagent"
+version = "0.0.0-dev"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "chardetng",
+ "chrono",
+ "dirs",
+ "encoding_rs",
+ "futures-util",
+ "globset",
+ "ignore",
+ "leveldb-core",
+ "lopdf",
+ "notify",
+ "objc2-app-kit 0.3.2",
+ "percent-encoding",
+ "portable-pty",
+ "prost",
+ "prost-build",
+ "quick-xml",
+ "regex",
+ "reqwest",
+ "rfd",
+ "rusqlite",
+ "russh",
+ "russh-sftp",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-global-shortcut",
+ "tauri-plugin-mcp-bridge",
+ "tauri-plugin-opener",
+ "tauri-plugin-window-state",
+ "tempfile",
+ "thiserror 2.0.19",
+ "tokio",
+ "tokio-cron-scheduler",
+ "tokio-stream",
+ "tokio-tungstenite 0.29.0",
+ "toml 0.9.12+spec-1.1.0",
+ "uuid",
+ "wait-timeout",
+ "walkdir",
+ "windows-sys 0.61.2",
+ "zip",
 ]
 
 [[package]]

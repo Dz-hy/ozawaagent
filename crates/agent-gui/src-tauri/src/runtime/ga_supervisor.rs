@@ -514,7 +514,7 @@ fn resolve_application_adapter(resource_root: Option<&Path>) -> Result<PathBuf, 
         }
     }
 
-    Err("LiveAgent GA bridge adapter was not found in the application runtime".into())
+    Err("OzawaAgent GA bridge adapter was not found in the application runtime".into())
 }
 
 fn bridge_allowed_origins(origin: &str) -> String {

@@ -91,7 +91,7 @@ pub struct TrayMenuLabels {
 #[serde(rename_all = "camelCase", default)]
 pub struct TrayMenuModel {
     pub labels: TrayMenuLabels,
-    /// 状态行后缀（如「远程已连接」）；None 时只显示 `LiveAgent <version>`。
+    /// 状态行后缀（如「远程已连接」）；None 时只显示 `OzawaAgent <version>`。
     pub status_suffix: Option<String>,
     pub recent: Vec<TrayMenuEntry>,
     /// 最近对话被截断时在子菜单尾部追加「查看全部…」。
@@ -443,7 +443,7 @@ pub fn apply_tray_menu(
         .map_err(err)?;
 
     // 托盘图标附属状态。
-    let tooltip = model.tooltip.as_deref().unwrap_or("LiveAgent");
+    let tooltip = model.tooltip.as_deref().unwrap_or("OzawaAgent");
     if let Err(error) = handles.tray_icon.set_tooltip(Some(tooltip)) {
         // Linux 不支持 tooltip；仅记录不失败。
         eprintln!("failed to set tray tooltip: {error}");
@@ -459,7 +459,7 @@ pub fn apply_tray_menu(
 }
 
 fn compose_status_line(app_version: &str, status_suffix: Option<&str>) -> String {
-    let base = format!("LiveAgent {app_version}");
+    let base = format!("OzawaAgent {app_version}");
     match status_suffix {
         Some(suffix) if !suffix.trim().is_empty() => format!("{base} · {}", suffix.trim()),
         _ => base,
@@ -660,7 +660,7 @@ mod tests {
             "theme": "dark",
             "gatewayEnabled": true,
             "newChatAccelerator": "Ctrl+Shift+KeyN",
-            "tooltip": "LiveAgent · 空闲",
+            "tooltip": "OzawaAgent · 空闲",
             "badgeText": null
         }))
         .expect("model should deserialize");
@@ -685,11 +685,11 @@ mod tests {
 
     #[test]
     fn compose_status_line_appends_suffix_only_when_non_empty() {
-        assert_eq!(compose_status_line("1.3.0", None), "LiveAgent 1.3.0");
-        assert_eq!(compose_status_line("1.3.0", Some("  ")), "LiveAgent 1.3.0");
+        assert_eq!(compose_status_line("1.3.0", None), "OzawaAgent 1.3.0");
+        assert_eq!(compose_status_line("1.3.0", Some("  ")), "OzawaAgent 1.3.0");
         assert_eq!(
             compose_status_line("1.3.0", Some("远程已连接")),
-            "LiveAgent 1.3.0 · 远程已连接"
+            "OzawaAgent 1.3.0 · 远程已连接"
         );
     }
 }

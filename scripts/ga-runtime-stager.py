@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage the pinned GenericAgent runtime for LiveAgent's Tauri bundle.
+"""Stage the pinned GenericAgent runtime for OzawaAgent's Tauri bundle.
 
 The staged tree is intentionally a read-only *source* tree.  The bridge copies
 it to a writable per-user runtime before importing GenericAgent, so installed
@@ -153,7 +153,7 @@ def _source_file(root: Path, value: Path) -> Path:
     candidate = value if value.is_absolute() else root / value
     candidate = candidate.resolve()
     if candidate != root and root not in candidate.parents:
-        raise ValueError(f"source file is outside LiveAgent root: {candidate}")
+        raise ValueError(f"source file is outside OzawaAgent root: {candidate}")
     if not candidate.is_file():
         raise FileNotFoundError(f"LiveAgent source file is missing: {candidate}")
     return candidate
@@ -184,7 +184,7 @@ def stage(
     if output == ga_repo or ga_repo in output.parents:
         raise ValueError("staging output must not be inside the GenericAgent checkout")
     if any(output == source or output in source.parents for source in protected_sources):
-        raise ValueError("staging output would remove a LiveAgent source file")
+        raise ValueError("staging output would remove an OzawaAgent source file")
 
     # Read all mutable-source inputs before replacing an existing staging tree.
     adapter_bytes = adapter_src.read_bytes()
@@ -194,11 +194,11 @@ def stage(
     expected_bridge_sha256 = manifest_doc.get("official_bridge", {}).get("sha256")
     if expected_bridge_sha256 and bridge_sha256 != expected_bridge_sha256:
         raise RuntimeError(
-            "GenericAgent bridge hash differs from the pinned LiveAgent manifest: "
+            "GenericAgent bridge hash differs from the pinned OzawaAgent manifest: "
             f"expected {expected_bridge_sha256}, got {bridge_sha256}"
         )
     if manifest_doc.get("official_bridge", {}).get("path") != "frontends/desktop_bridge.py":
-        raise RuntimeError("LiveAgent manifest has an unexpected official bridge path")
+        raise RuntimeError("OzawaAgent manifest has an unexpected official bridge path")
 
     if output.exists():
         shutil.rmtree(output)
@@ -240,7 +240,7 @@ def main(argv: list[str] | None = None) -> int:
         "--liveagent-root",
         type=Path,
         default=Path(__file__).resolve().parents[1],
-        help="LiveAgent checkout containing runtime/ga (default: repository root)",
+        help="OzawaAgent checkout containing runtime/ga (default: repository root)",
     )
     parser.add_argument(
         "--commit",

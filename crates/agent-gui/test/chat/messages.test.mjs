@@ -229,7 +229,7 @@ test("UI message builder preserves provider hosted search blocks", () => {
           id: "search-1",
           provider: "codex",
           status: "completed",
-          queries: ["LiveAgent web search"],
+          queries: ["OzawaAgent web search"],
           sources: [
             {
               url: "https://example.com/result",
@@ -261,7 +261,7 @@ test("UI message builder preserves provider hosted search blocks", () => {
       id: "search-1",
       provider: "codex",
       status: "completed",
-      queries: ["LiveAgent web search"],
+      queries: ["OzawaAgent web search"],
       sources: [
         {
           url: "https://example.com/result",
@@ -279,7 +279,7 @@ test("UI message builder hides provider-native web_search tool traces when hoste
     type: "toolCall",
     id: "dsml-tool-call-search-1",
     name: "web_search",
-    arguments: { query: "LiveAgent DeepSeek search" },
+    arguments: { query: "OzawaAgent DeepSeek search" },
   };
   const messages = [
     { role: "user", content: "search", timestamp: 1 },
@@ -292,7 +292,7 @@ test("UI message builder hides provider-native web_search tool traces when hoste
           id: "search-1",
           provider: "claude_code",
           status: "completed",
-          queries: ["LiveAgent DeepSeek search"],
+          queries: ["OzawaAgent DeepSeek search"],
           sources: [{ url: "https://example.com/result", title: "Result" }],
         },
         webSearchCall,

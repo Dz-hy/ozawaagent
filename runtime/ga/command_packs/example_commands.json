@@ -1,7 +1,7 @@
 {
   "schema": "ga.command_pack.v1",
   "pack_id": "example",
-  "description": "LiveAgent 声明式 Command Pack 样例：新增命令无需修改 React，adapter 扫描本目录后自动出现在 / 面板并可执行。",
+  "description": "OzawaAgent 声明式 Command Pack 样例：新增命令无需修改 React，adapter 扫描本目录后自动出现在 / 面板并可执行。",
   "commands": [
     {
       "id": "brief",

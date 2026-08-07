@@ -930,7 +930,7 @@ fn cleanup_worktree_target_blocking(
     };
     if !is_liveagent_subagent_worktree(&worktree_root) {
         item.error = Some(format!(
-            "refusing to cleanup non-LiveAgent subagent worktree: {}",
+            "refusing to cleanup non-OzawaAgent subagent worktree: {}",
             display_path(&worktree_root)
         ));
         return item;
@@ -1204,7 +1204,7 @@ mod tests {
             root,
             &["config", "user.email", "liveagent-test@example.com"],
         )?;
-        git(root, &["config", "user.name", "LiveAgent Test"])?;
+        git(root, &["config", "user.name", "OzawaAgent Test"])?;
         fs::write(root.join("README.md"), "base\n")
             .map_err(|err| format!("failed to write README: {err}"))?;
         git(root, &["add", "README.md"])?;

@@ -212,7 +212,7 @@ fn toggle_main_window(app: &tauri::AppHandle) {
         if visible && focused {
             let _ = window.hide();
         } else if let Err(error) = show_main_window(app) {
-            eprintln!("failed to show LiveAgent window from global shortcut: {error}");
+            eprintln!("failed to show OzawaAgent window from global shortcut: {error}");
         }
     }
 }
@@ -226,7 +226,7 @@ fn toggle_main_window_pin(app: &tauri::AppHandle) {
                 pin_state.0.store(next, Ordering::SeqCst);
                 if next {
                     if let Err(error) = show_main_window(app) {
-                        eprintln!("failed to show LiveAgent window when pinning: {error}");
+                        eprintln!("failed to show OzawaAgent window when pinning: {error}");
                     }
                 }
                 let _ = app.emit("global-shortcut:pin-changed", next);
@@ -235,7 +235,7 @@ fn toggle_main_window_pin(app: &tauri::AppHandle) {
                     handles.set_pin_checked(next);
                 }
             }
-            Err(error) => eprintln!("failed to toggle LiveAgent window pin: {error}"),
+            Err(error) => eprintln!("failed to toggle OzawaAgent window pin: {error}"),
         }
     }
 }
@@ -331,7 +331,7 @@ fn forward_app_action(
 ) {
     if show_window {
         if let Err(error) = show_main_window(app) {
-            eprintln!("failed to show LiveAgent window for action {action}: {error}");
+            eprintln!("failed to show OzawaAgent window for action {action}: {error}");
         }
     }
     if let Err(error) = app.emit(APP_ACTION_EVENT, AppActionEvent { action, id, value }) {
@@ -343,7 +343,7 @@ fn dispatch_app_action(app: &tauri::AppHandle, action: AppAction) {
     match action {
         AppAction::Summon => {
             if let Err(error) = show_main_window(app) {
-                eprintln!("failed to show LiveAgent window: {error}");
+                eprintln!("failed to show OzawaAgent window: {error}");
             }
         }
         AppAction::ToggleWindow => toggle_main_window(app),
@@ -409,10 +409,10 @@ fn dispatch_app_action(app: &tauri::AppHandle, action: AppAction) {
                         .opener()
                         .open_path(dir.to_string_lossy().to_string(), None::<&str>)
                     {
-                        eprintln!("failed to open LiveAgent data directory: {error}");
+                        eprintln!("failed to open OzawaAgent data directory: {error}");
                     }
                 }
-                Err(error) => eprintln!("failed to resolve LiveAgent data directory: {error}"),
+                Err(error) => eprintln!("failed to resolve OzawaAgent data directory: {error}"),
             }
         }
         AppAction::Quit => {
@@ -451,7 +451,7 @@ fn request_app_exit(
     let running_count = terminal_registry.running_session_count();
     if running_count > 0 {
         if let Err(error) = show_main_window(app) {
-            eprintln!("failed to show LiveAgent window before terminal exit confirm: {error}");
+            eprintln!("failed to show OzawaAgent window before terminal exit confirm: {error}");
         }
         if let Err(error) = app.emit(
             TERMINAL_EXIT_REQUESTED_EVENT,
@@ -471,7 +471,7 @@ fn configure_system_tray(app: &tauri::App) -> tauri::Result<()> {
     let menu = skeleton.menu.clone();
 
     let mut tray_builder = TrayIconBuilder::new()
-        .tooltip("LiveAgent")
+        .tooltip("OzawaAgent")
         .menu(&menu)
         .show_menu_on_left_click(TRAY_SHOW_MENU_ON_LEFT_CLICK)
         .on_menu_event(|app, event| {
@@ -485,7 +485,7 @@ fn configure_system_tray(app: &tauri::App) -> tauri::Result<()> {
                 ..
             } => {
                 if let Err(error) = show_main_window(tray.app_handle()) {
-                    eprintln!("failed to show LiveAgent window from tray double-click: {error}");
+                    eprintln!("failed to show OzawaAgent window from tray double-click: {error}");
                 }
             }
             TrayIconEvent::Click {
@@ -497,7 +497,7 @@ fn configure_system_tray(app: &tauri::App) -> tauri::Result<()> {
                 // 其他平台左键弹菜单（TRAY_SHOW_MENU_ON_LEFT_CLICK）。
                 if cfg!(target_os = "windows") {
                     if let Err(error) = show_main_window(tray.app_handle()) {
-                        eprintln!("failed to show LiveAgent window from tray click: {error}");
+                        eprintln!("failed to show OzawaAgent window from tray click: {error}");
                     }
                 }
             }
@@ -554,13 +554,13 @@ pub fn run() {
     }
     let automation_store = Arc::new(
         services::automation::AutomationStore::open()
-            .expect("failed to initialize LiveAgent automation store"),
+            .expect("failed to initialize OzawaAgent automation store"),
     );
     let automation_scheduler = Arc::new(services::automation::AutomationScheduler::new(
         Arc::clone(&automation_store),
     ));
     let memory_store = Arc::new(
-        services::memory::MemoryStore::open().expect("failed to initialize LiveAgent memory store"),
+        services::memory::MemoryStore::open().expect("failed to initialize OzawaAgent memory store"),
     );
     let power_activity = Arc::new(services::power_activity::PowerActivityManager::default());
     let managed_process_registry =
@@ -661,7 +661,7 @@ pub fn run() {
                     if commands::app::is_close_window_exit(&close_window_behavior) {
                         request_app_exit(window.app_handle(), &allow_exit, &terminal_registry);
                     } else if let Err(error) = window.hide() {
-                        eprintln!("failed to hide LiveAgent window on close: {error}");
+                        eprintln!("failed to hide OzawaAgent window on close: {error}");
                     }
                 }
             }
@@ -677,7 +677,7 @@ pub fn run() {
         #[cfg(target_os = "macos")]
         tauri::RunEvent::Reopen { .. } => {
             if let Err(error) = show_main_window(_app) {
-                eprintln!("failed to show LiveAgent window from dock reopen: {error}");
+                eprintln!("failed to show OzawaAgent window from dock reopen: {error}");
             }
         }
         tauri::RunEvent::ExitRequested { api, .. } => {
@@ -686,7 +686,7 @@ pub fn run() {
                 if running_count > 0 {
                     if let Err(error) = show_main_window(_app) {
                         eprintln!(
-                            "failed to show LiveAgent window before terminal exit confirm: {error}"
+                            "failed to show OzawaAgent window before terminal exit confirm: {error}"
                         );
                     }
                     if let Err(error) = _app.emit(

@@ -3433,7 +3433,7 @@ mod tests {
         let temp = tempfile::tempdir().expect("temp repo");
         run_temp_git(temp.path(), &["init"]);
         run_temp_git(temp.path(), &["config", "core.autocrlf", "false"]);
-        run_temp_git(temp.path(), &["config", "user.name", "LiveAgent Test"]);
+        run_temp_git(temp.path(), &["config", "user.name", "OzawaAgent Test"]);
         run_temp_git(temp.path(), &["config", "user.email", "test@example.com"]);
         fs::write(temp.path().join("README.md"), "initial\n").expect("write readme");
         run_temp_git(temp.path(), &["add", "README.md"]);
@@ -3516,7 +3516,7 @@ mod tests {
         let initialized = git_init_sync(
             workdir.clone(),
             "trunk".to_string(),
-            Some("LiveAgent Test".to_string()),
+            Some("OzawaAgent Test".to_string()),
             Some("test@example.com".to_string()),
         )
         .expect("init repo");
@@ -3528,7 +3528,7 @@ mod tests {
             git_success(&workdir, &["config", "--get", "user.name"]).expect("user.name");
         let user_email =
             git_success(&workdir, &["config", "--get", "user.email"]).expect("user.email");
-        assert_eq!(user_name.stdout, "LiveAgent Test");
+        assert_eq!(user_name.stdout, "OzawaAgent Test");
         assert_eq!(user_email.stdout, "test@example.com");
 
         let duplicate = git_init_sync(workdir, "main".to_string(), None, None)

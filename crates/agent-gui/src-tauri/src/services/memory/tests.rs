@@ -608,7 +608,7 @@ mod tests {
                 workdir: Some(workdir_text.clone()),
                 memory_type: "project".to_string(),
                 description: "项目目标".to_string(),
-                body: "当前项目是 LiveAgent。".to_string(),
+                body: "当前项目是 OzawaAgent。".to_string(),
                 actor: None,
                 conversation_id: None,
                 model: None,

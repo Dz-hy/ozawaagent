@@ -166,13 +166,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          dmg_path="$(find "target/${{ matrix.target }}/release/bundle/dmg" -maxdepth 1 -name 'LiveAgent_*.dmg' -print -quit)"
+          dmg_path="$(find "target/${{ matrix.target }}/release/bundle/dmg" -maxdepth 1 -name 'OzawaAgent_*.dmg' -print -quit)"
           test -n "$dmg_path"
-          cp "$dmg_path" "dist/LiveAgent-${LIVEAGENT_RELEASE_TAG}-macOS-${{ matrix.suffix }}.dmg"
+          cp "$dmg_path" "dist/OzawaAgent-${LIVEAGENT_RELEASE_TAG}-macOS-${{ matrix.suffix }}.dmg"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: liveagent-macos-${{ matrix.suffix }}
+          name: ozawaagent-macos-${{ matrix.suffix }}
           path: dist/*
           if-no-files-found: error
 
@@ -257,22 +257,22 @@ jobs:
           mkdir -p dist
           msi_path="$(find target crates/agent-gui/src-tauri/target -type f -name '*.msi' -path '*bundle*' -print -quit 2>/dev/null || true)"
           exe_path="$(find target crates/agent-gui/src-tauri/target -type f -name '*.exe' -path '*bundle*' -print -quit 2>/dev/null || true)"
-          portable_exe_path="$(find target crates/agent-gui/src-tauri/target -type f -name 'liveagent.exe' -path '*/release/*' ! -path '*bundle*' -print -quit 2>/dev/null || true)"
+          portable_exe_path="$(find target crates/agent-gui/src-tauri/target -type f -name 'ozawaagent.exe' -path '*/release/*' ! -path '*bundle*' -print -quit 2>/dev/null || true)"
           test -n "$msi_path"
           test -n "$exe_path"
           test -n "$portable_exe_path"
-          cp "$msi_path" "dist/LiveAgent-${LIVEAGENT_RELEASE_TAG}-Windows-x64.msi"
-          cp "$exe_path" "dist/LiveAgent-${LIVEAGENT_RELEASE_TAG}-Windows-x64-Setup.exe"
-          mkdir -p dist/portable/LiveAgent
-          cp "$portable_exe_path" dist/portable/LiveAgent/LiveAgent.exe
-          portable_zip="dist/LiveAgent-${LIVEAGENT_RELEASE_TAG}-Windows-x64-portable.zip"
-          powershell -NoProfile -Command "Compress-Archive -Path 'dist/portable/LiveAgent/*' -DestinationPath '$portable_zip' -Force"
+          cp "$msi_path" "dist/OzawaAgent-${LIVEAGENT_RELEASE_TAG}-Windows-x64.msi"
+          cp "$exe_path" "dist/OzawaAgent-${LIVEAGENT_RELEASE_TAG}-Windows-x64-Setup.exe"
+          mkdir -p dist/portable/OzawaAgent
+          cp "$portable_exe_path" dist/portable/OzawaAgent/OzawaAgent.exe
+          portable_zip="dist/OzawaAgent-${LIVEAGENT_RELEASE_TAG}-Windows-x64-portable.zip"
+          powershell -NoProfile -Command "Compress-Archive -Path 'dist/portable/OzawaAgent/*' -DestinationPath '$portable_zip' -Force"
           rm -rf dist/portable
           test "$(find dist -type f | wc -l)" -gt 0
 
       - uses: actions/upload-artifact@v7
         with:
-          name: liveagent-windows-x64
+          name: ozawaagent-windows-x64
           path: dist/*
           if-no-files-found: error
 
@@ -378,13 +378,13 @@ jobs:
           test -n "$appimage_path"
           test -n "$deb_path"
           test -n "$rpm_path"
-          cp "$appimage_path" "dist/LiveAgent-${LIVEAGENT_RELEASE_TAG}-Linux-x86_64.AppImage"
-          cp "$deb_path" "dist/LiveAgent-${LIVEAGENT_RELEASE_TAG}-Linux-x86_64.deb"
-          cp "$rpm_path" "dist/LiveAgent-${LIVEAGENT_RELEASE_TAG}-Linux-x86_64.rpm"
+          cp "$appimage_path" "dist/OzawaAgent-${LIVEAGENT_RELEASE_TAG}-Linux-x86_64.AppImage"
+          cp "$deb_path" "dist/OzawaAgent-${LIVEAGENT_RELEASE_TAG}-Linux-x86_64.deb"
+          cp "$rpm_path" "dist/OzawaAgent-${LIVEAGENT_RELEASE_TAG}-Linux-x86_64.rpm"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: liveagent-linux-x64
+          name: ozawaagent-linux-x64
           path: dist/*
           if-no-files-found: error
 
@@ -423,24 +423,24 @@ jobs:
           set -euo pipefail
           is_prerelease="$LIVEAGENT_IS_PRERELEASE"
 
-          github_notes_path="$RUNNER_TEMP/liveagent-github-release-notes.md"
-          notes_path="$RUNNER_TEMP/liveagent-release-notes.md"
+          github_notes_path="$RUNNER_TEMP/ozawaagent-github-release-notes.md"
+          notes_path="$RUNNER_TEMP/ozawaagent-release-notes.md"
           if ! gh api "repos/$GH_REPO/releases/generate-notes" \
             -f tag_name="$RELEASE_TAG" \
             --jq ".body" > "$github_notes_path"; then
-            printf 'LiveAgent %s\n' "$RELEASE_TAG" > "$github_notes_path"
+            printf 'OzawaAgent %s\n' "$RELEASE_TAG" > "$github_notes_path"
           fi
           if [ ! -s "$github_notes_path" ]; then
-            printf 'LiveAgent %s\n' "$RELEASE_TAG" > "$github_notes_path"
+            printf 'OzawaAgent %s\n' "$RELEASE_TAG" > "$github_notes_path"
           fi
 
           node scripts/release/create-ai-release-notes.mjs "$RELEASE_TAG" "$notes_path" "$github_notes_path"
           if [ ! -s "$notes_path" ]; then
-            printf 'LiveAgent %s\n' "$RELEASE_TAG" > "$notes_path"
+            printf 'OzawaAgent %s\n' "$RELEASE_TAG" > "$notes_path"
           fi
 
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            edit_args=(--title "LiveAgent $RELEASE_TAG" --notes-file "$notes_path")
+            edit_args=(--title "OzawaAgent $RELEASE_TAG" --notes-file "$notes_path")
             if [ "$is_prerelease" = true ]; then
               edit_args+=(--prerelease)
             else
@@ -448,7 +448,7 @@ jobs:
             fi
             gh release edit "$RELEASE_TAG" "${edit_args[@]}"
           else
-            create_args=(--verify-tag --title "LiveAgent $RELEASE_TAG" --notes-file "$notes_path")
+            create_args=(--verify-tag --title "OzawaAgent $RELEASE_TAG" --notes-file "$notes_path")
             if [ "$is_prerelease" = true ]; then
               create_args+=(--prerelease)
             fi

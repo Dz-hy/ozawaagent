@@ -3,7 +3,7 @@
   "app": {
     "windows": [
       {
-        "title": "LiveAgent",
+        "title": "OzawaAgent",
         "width": 1400,
         "height": 800,
         "minWidth": 1200,

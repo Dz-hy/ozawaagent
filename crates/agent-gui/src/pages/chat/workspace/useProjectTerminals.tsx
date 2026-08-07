@@ -112,7 +112,7 @@ export function useProjectTerminals(params: UseProjectTerminalsParams) {
         await invoke("app_confirmed_exit");
       } catch (error) {
         if (!cancelled) {
-          setErrorMessage(asErrorMessage(error, "退出 LiveAgent 失败"));
+          setErrorMessage(asErrorMessage(error, "退出 OzawaAgent 失败"));
         }
       }
     })

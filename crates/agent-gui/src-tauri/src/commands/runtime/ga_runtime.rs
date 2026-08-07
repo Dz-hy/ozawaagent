@@ -34,7 +34,7 @@ pub fn ga_runtime_start(
         Some(
             app.path()
                 .app_data_dir()
-                .map_err(|e| format!("Cannot resolve LiveAgent data directory: {e}"))?
+                .map_err(|e| format!("Cannot resolve OzawaAgent data directory: {e}"))?
                 .join("ga-runtime"),
         )
     } else {
