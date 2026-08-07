@@ -89,8 +89,6 @@ import { terminalSessionBelongsToProject } from "../lib/terminal/sessionStore";
 import { tauriTerminalClient } from "../lib/terminal/tauriTerminalClient";
 import { cancelPendingAskUserQuestionsForConversation } from "../lib/tools/askUserQuestionTools";
 import { disposeTodoToolState } from "../lib/tools/todoTools";
-import type { LocalTunnelClient } from "../lib/tunnels/constants";
-import { createTauriTunnelClient } from "../lib/tunnels/tauriTunnelClient";
 import { tauriWorkspaceActivityClient } from "../lib/workspace-activity/tauriWorkspaceActivityClient";
 import { resolveGitWorkdir } from "../lib/workspaceProjects";
 import {
@@ -256,7 +254,6 @@ export function ChatPage(props: ChatPageProps) {
     handleSelectWorkspaceProject,
     handleNewConversationForProject,
     handleBrowseWorkspaceProjectInFileTree,
-    ensureTunnelToolTab,
     ensureSshTunnelToolTab,
     handleBrowseWorkspaceProjectInSystemFileManager,
     handleOpenCreateWorkspaceProject,
@@ -286,7 +283,6 @@ export function ChatPage(props: ChatPageProps) {
     prepareComposerForConversationChangeActionRef,
   });
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const tauriTunnelClient = useMemo<LocalTunnelClient>(() => createTauriTunnelClient(), []);
 
   // The only page-level subscription to the sidebar list: ChatPage's own
   // render needs (draft detection, pending-item effect, workspace root).
@@ -658,10 +654,6 @@ export function ChatPage(props: ChatPageProps) {
     : !terminalProjectPath
       ? "Select a project to use project tools."
       : undefined;
-  const tunnelEnabled = settings.remote.enableWebTunnels === true;
-  const tunnelDisabledMessage = !settings.remote.enableWebTunnels
-    ? t("projectTools.tunnelWebDisabled")
-    : undefined;
   // RightDockPanel is memo'd: every callback handed to it must be stable or
   // the memo boundary is void (see the panel-side context useMemo).
   const handleRightDockWidthChange = useCallback(
@@ -966,7 +958,6 @@ export function ChatPage(props: ChatPageProps) {
     sendActionRef,
   });
 
-
   const deleteConversationLocalCaches = useCallback(
     (conversationId: string) => {
       const key = conversationId.trim();
@@ -1203,7 +1194,6 @@ export function ChatPage(props: ChatPageProps) {
     [],
   );
 
-
   useEffect(() => {
     currentConversationIdRef.current = currentConversationId;
     // Per-conversation pending uploads are restored inside usePendingUploads
@@ -1347,7 +1337,6 @@ export function ChatPage(props: ChatPageProps) {
     setContext(currentRequestContext);
   }, [currentRequestContext, setContext]);
 
-
   const { send } = useSendChatTurn({
     settings,
     setSettings,
@@ -1400,7 +1389,6 @@ export function ChatPage(props: ChatPageProps) {
     refreshSkills,
     selectedSkillNames,
     activeAgentPrompt,
-    ensureTunnelToolTab,
     ensureSshTunnelToolTab,
     persistConversation,
     pruneIdleConversationCaches,
@@ -1490,12 +1478,9 @@ export function ChatPage(props: ChatPageProps) {
   // Called by the sidebar container after the store confirmed a deletion:
   // evict local caches, replace the visible conversation when it was the
   // deleted one, and drop the row from the shared-history list.
-  const handleConversationDeleted = useCallback(
-    (id: string) => {
-      cleanupDeletedConversationActionRef.current(id);
-    },
-    [],
-  );
+  const handleConversationDeleted = useCallback((id: string) => {
+    cleanupDeletedConversationActionRef.current(id);
+  }, []);
 
   const handleSend = useCallback(() => {
     const conversationId = currentConversationIdRef.current.trim();
@@ -1846,10 +1831,6 @@ export function ChatPage(props: ChatPageProps) {
         client={tauriTerminalClient}
         gitClient={tauriGitClient}
         gitWriteEnabled
-        tunnelClient={isAgentMode ? tauriTunnelClient : null}
-        tunnelEnabled={tunnelEnabled}
-        tunnelDisabledMessage={tunnelDisabledMessage}
-        tunnelPublicBaseUrl={settings.remote.gatewayUrl.trim()}
         workspaceActivityClient={tauriWorkspaceActivityClient}
         onWidthChange={handleRightDockWidthChange}
         onProjectStateChange={handleRightDockProjectStateChange}

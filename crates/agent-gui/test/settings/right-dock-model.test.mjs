@@ -225,9 +225,9 @@ test("right dock merge prefers the higher stateVersion regardless of writerId", 
     current,
     rightDockSyncPayload({
       "/workspace/app": {
-        activeTabId: RIGHT_DOCK_TAB_IDS.tunnel,
-        tabOrder: [RIGHT_DOCK_TAB_IDS.tunnel],
-        tools: { tunnel: { openedAt: 2 } },
+        activeTabId: RIGHT_DOCK_TAB_IDS.fileTree,
+        tabOrder: [RIGHT_DOCK_TAB_IDS.fileTree],
+        tools: { fileTree: { openedAt: 2 } },
         openVersion: 2,
         stateVersion: 6,
         writerId: "writer-aaa",
@@ -237,8 +237,8 @@ test("right dock merge prefers the higher stateVersion regardless of writerId", 
   );
 
   const project = merged.customSettings.rightDock.projects["/workspace/app"];
-  assert.equal(project.activeTabId, RIGHT_DOCK_TAB_IDS.tunnel);
-  assert.deepEqual(Object.keys(project.tools), ["tunnel"]);
+  assert.equal(project.activeTabId, RIGHT_DOCK_TAB_IDS.fileTree);
+  assert.deepEqual(Object.keys(project.tools), ["fileTree"]);
   assert.equal(project.writerId, "writer-aaa");
   assert.equal(project.stateVersion, 6);
   assert.equal(project.openVersion, 4);

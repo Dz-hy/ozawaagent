@@ -315,17 +315,6 @@ export function useWorkspaceProjects(params: UseWorkspaceProjectsParams) {
     [activateWorkspaceProject, checkWorkspaceProjectDirectory, setSettings],
   );
 
-  const ensureTunnelToolTab = useCallback(
-    (projectPathKey?: string) => {
-      const targetProjectPathKey =
-        workspaceProjectPathKey(projectPathKey) ||
-        workspaceProjectPathKey(activeWorkspaceProjectPath);
-      if (!targetProjectPathKey) return;
-      setSettings((prev) => openRightDockSingletonTab(prev, targetProjectPathKey, "tunnel"));
-    },
-    [activeWorkspaceProjectPath, setSettings],
-  );
-
   const ensureSshTunnelToolTab = useCallback(
     (projectPathKey?: string) => {
       const targetProjectPathKey =
@@ -550,7 +539,6 @@ export function useWorkspaceProjects(params: UseWorkspaceProjectsParams) {
     handleSelectWorkspaceProject,
     handleNewConversationForProject,
     handleBrowseWorkspaceProjectInFileTree,
-    ensureTunnelToolTab,
     ensureSshTunnelToolTab,
     handleBrowseWorkspaceProjectInSystemFileManager,
     handleOpenCreateWorkspaceProject,

@@ -27,7 +27,6 @@ export const DEFAULT_TERMINAL_COLS = 80;
 export const DEFAULT_TERMINAL_ROWS = 24;
 export const FILE_TREE_TAB_ID = RIGHT_DOCK_SINGLETON_TAB_IDS.fileTree;
 export const GIT_REVIEW_TAB_ID = RIGHT_DOCK_SINGLETON_TAB_IDS.gitReview;
-export const TUNNEL_TAB_ID = RIGHT_DOCK_SINGLETON_TAB_IDS.tunnel;
 export const SSH_TUNNEL_TAB_ID = RIGHT_DOCK_SINGLETON_TAB_IDS.sshTunnel;
 // Derived tab: exists while the managed-process store has records; never
 // persisted into right-dock settings.
@@ -115,19 +114,13 @@ export function orderRightDockVisibleTabs(
   return ordered;
 }
 
-export function rightDockTabRequiresProject(kind: RightDockSingletonTabKind) {
-  return kind !== "tunnel";
-}
-
 export function getRightDockVisibleTabs(options: {
   backgroundTasksVisible: boolean;
   localSessions: TerminalSession[];
   projectPathKey: string;
   projectState: RightDockProjectState;
-  tunnelAvailable: boolean;
 }) {
-  const { backgroundTasksVisible, localSessions, projectPathKey, projectState, tunnelAvailable } =
-    options;
+  const { backgroundTasksVisible, localSessions, projectPathKey, projectState } = options;
   const nextTabs: RightDockVisibleTab[] = localSessions.map((session) => ({
     id: session.id,
     kind: "terminal",
@@ -135,8 +128,7 @@ export function getRightDockVisibleTabs(options: {
   }));
   for (const kind of RIGHT_DOCK_SINGLETON_TAB_KINDS) {
     if (!projectState.tools[kind]) continue;
-    if (kind === "tunnel" && !tunnelAvailable) continue;
-    if (rightDockTabRequiresProject(kind) && !projectPathKey) continue;
+    if (!projectPathKey) continue;
     nextTabs.push({ id: rightDockSingletonTabId(kind), kind });
   }
   if (backgroundTasksVisible) {

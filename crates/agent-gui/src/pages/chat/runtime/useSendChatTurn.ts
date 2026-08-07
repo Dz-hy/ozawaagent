@@ -105,7 +105,6 @@ type UseSendChatTurnParams = {
   refreshSkills: () => Promise<{ skills: SkillSummary[]; rootDir: string } | null>;
   selectedSkillNames: string[];
   activeAgentPrompt: string;
-  ensureTunnelToolTab: (projectPathKey?: string) => void;
   ensureSshTunnelToolTab: (projectPathKey?: string) => void;
   persistConversation: (params: PersistConversationParams) => Promise<boolean>;
   pruneIdleConversationCaches: (extraKeepIds?: Iterable<string>) => void;

@@ -729,8 +729,8 @@ test("gateway settings sync payload redacts provider api keys", () => {
         width: 612,
         projects: {
           "/workspace/a": {
-            activeTabId: RIGHT_DOCK_TAB_IDS.tunnel,
-            tabOrder: [RIGHT_DOCK_TAB_IDS.tunnel, RIGHT_DOCK_TAB_IDS.fileTree],
+            activeTabId: RIGHT_DOCK_TAB_IDS.fileTree,
+            tabOrder: [RIGHT_DOCK_TAB_IDS.fileTree],
             tabs: {
               [RIGHT_DOCK_TAB_IDS.fileTree]: {
                 id: RIGHT_DOCK_TAB_IDS.fileTree,
@@ -743,12 +743,6 @@ test("gateway settings sync payload redacts provider api keys", () => {
                   expandedPaths: ["", "src", "src/../bad", "src"],
                   revision: 3,
                 },
-              },
-              [RIGHT_DOCK_TAB_IDS.tunnel]: {
-                id: RIGHT_DOCK_TAB_IDS.tunnel,
-                kind: "tunnel",
-                projectPathKey: "/workspace/a",
-                createdAt: 2,
               },
             },
             openVersion: 3,
@@ -789,8 +783,8 @@ test("gateway settings sync payload redacts provider api keys", () => {
     width: 612,
     projects: {
       "/workspace/a": {
-        activeTabId: RIGHT_DOCK_TAB_IDS.tunnel,
-        tabOrder: [RIGHT_DOCK_TAB_IDS.tunnel, RIGHT_DOCK_TAB_IDS.fileTree],
+        activeTabId: RIGHT_DOCK_TAB_IDS.fileTree,
+        tabOrder: [RIGHT_DOCK_TAB_IDS.fileTree],
         tools: {
           fileTree: {
             openedAt: 1,
@@ -801,9 +795,6 @@ test("gateway settings sync payload redacts provider api keys", () => {
               showHidden: false,
               revision: 3,
             },
-          },
-          tunnel: {
-            openedAt: 2,
           },
         },
         openVersion: 3,
@@ -1452,12 +1443,12 @@ test("gateway settings sync uses right dock tombstones for deleted projects", ()
         rightDock: {
           projects: {
             "/workspace/deleted": {
-              activeTabId: RIGHT_DOCK_TAB_IDS.tunnel,
-              tabOrder: [RIGHT_DOCK_TAB_IDS.tunnel],
+              activeTabId: RIGHT_DOCK_TAB_IDS.fileTree,
+              tabOrder: [RIGHT_DOCK_TAB_IDS.fileTree],
               tabs: {
-                [RIGHT_DOCK_TAB_IDS.tunnel]: {
-                  id: RIGHT_DOCK_TAB_IDS.tunnel,
-                  kind: "tunnel",
+                [RIGHT_DOCK_TAB_IDS.fileTree]: {
+                  id: RIGHT_DOCK_TAB_IDS.fileTree,
+                  kind: "fileTree",
                   projectPathKey: "/workspace/deleted",
                   createdAt: 1,
                 },
@@ -1477,12 +1468,12 @@ test("gateway settings sync uses right dock tombstones for deleted projects", ()
       rightDock: {
         projects: {
           "/workspace/deleted": {
-            activeTabId: RIGHT_DOCK_TAB_IDS.tunnel,
-            tabOrder: [RIGHT_DOCK_TAB_IDS.tunnel],
+            activeTabId: RIGHT_DOCK_TAB_IDS.fileTree,
+            tabOrder: [RIGHT_DOCK_TAB_IDS.fileTree],
             tabs: {
-              [RIGHT_DOCK_TAB_IDS.tunnel]: {
-                id: RIGHT_DOCK_TAB_IDS.tunnel,
-                kind: "tunnel",
+              [RIGHT_DOCK_TAB_IDS.fileTree]: {
+                id: RIGHT_DOCK_TAB_IDS.fileTree,
+                kind: "fileTree",
                 projectPathKey: "/workspace/deleted",
                 createdAt: 1,
               },

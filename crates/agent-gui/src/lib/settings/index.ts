@@ -78,7 +78,7 @@ export type ChatSidebarSettings = {
   recentCollapsed: boolean;
 };
 
-export const RIGHT_DOCK_TOOL_KINDS = ["fileTree", "gitReview", "tunnel", "sshTunnel"] as const;
+export const RIGHT_DOCK_TOOL_KINDS = ["fileTree", "gitReview", "sshTunnel"] as const;
 
 export type RightDockToolKind = (typeof RIGHT_DOCK_TOOL_KINDS)[number];
 
@@ -1817,7 +1817,6 @@ export function normalizeMemorySettings(
 export const RIGHT_DOCK_SINGLETON_TAB_IDS = {
   fileTree: "tool:fileTree",
   gitReview: "tool:gitReview",
-  tunnel: "tool:tunnel",
   sshTunnel: "tool:sshTunnel",
 } as const satisfies Record<RightDockToolKind, string>;
 
