@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+// NOTE: 高级记忆能力（organize 整理 / search 搜索 / quota 配额 / merge 合并）
+// 在桌面版 GUI 尚未接线（原入口随 gateway/WebUI 移除）。保留待接线，勿当垃圾删。
+// 若未来确认不实现，可先按 cargo check 清单逐棵删，再移除此 allow。
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fs::{self, File},

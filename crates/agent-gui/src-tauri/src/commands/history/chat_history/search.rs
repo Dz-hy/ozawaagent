@@ -590,10 +590,12 @@ fn search_chat_history_fts_with_refresh(
     Ok(matches)
 }
 
+#[allow(dead_code)] // 待 memory 同步接线
 fn should_include_history_for_memory_search(args: &MemorySearchArgs) -> bool {
     args.include_history.unwrap_or(false)
 }
 
+#[allow(dead_code)] // 待 memory 同步接线
 pub(crate) fn search_chat_history_for_memory_sync(
     args: &MemorySearchArgs,
 ) -> Result<Vec<MemoryHistorySearchMatch>, String> {
