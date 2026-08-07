@@ -2770,46 +2770,61 @@ pub struct OpenWorkspacePathResponse {
 }
 
 #[cfg(target_os = "macos")]
-fn spawn_workspace_open_command(target: &Path, kind: &str, mode: &str) -> Result<(), String> {
+fn workspace_open_command(target: &Path, mode: &str) -> Command {
     let mut command = Command::new("open");
-    if mode == "reveal" && kind == "file" {
+    if mode == "reveal" {
         command.arg("-R");
     }
     command.arg(target);
     command
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn spawn_workspace_open_command(target: &Path, mode: &str) -> Result<(), String> {
+    workspace_open_command(target, mode)
         .spawn()
         .map(|_| ())
         .map_err(|e| format!("Failed to open path with macOS open: {e}"))
 }
 
 #[cfg(target_os = "windows")]
-fn spawn_workspace_open_command(target: &Path, kind: &str, mode: &str) -> Result<(), String> {
+fn workspace_open_command(target: &Path, mode: &str) -> Command {
     let mut command = Command::new("explorer.exe");
-    if mode == "reveal" && kind == "file" {
+    if mode == "reveal" {
         command.arg(format!("/select,{}", target.display()));
     } else {
         command.arg(target);
     }
     command
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn spawn_workspace_open_command(target: &Path, mode: &str) -> Result<(), String> {
+    workspace_open_command(target, mode)
         .spawn()
         .map(|_| ())
         .map_err(|e| format!("Failed to open path with Windows Explorer: {e}"))
 }
 
 #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
-fn spawn_workspace_open_command(target: &Path, kind: &str, mode: &str) -> Result<(), String> {
-    let open_target = if mode == "reveal" && kind == "file" {
+fn workspace_open_command(target: &Path, mode: &str) -> Command {
+    let open_target = if mode == "reveal" {
         target.parent().unwrap_or(target)
     } else {
         target
     };
-    Command::new("xdg-open")
-        .arg(open_target)
+    let mut command = Command::new("xdg-open");
+    command.arg(open_target);
+    command
+}
+
+#[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+pub(crate) fn spawn_workspace_open_command(target: &Path, mode: &str) -> Result<(), String> {
+    workspace_open_command(target, mode)
         .spawn()
         .map(|_| ())
         .map_err(|e| format!("Failed to open path with xdg-open: {e}"))
 }
-
 pub(crate) fn fs_open_workspace_path_sync(
     workdir: String,
     path: String,
@@ -2853,7 +2868,7 @@ fn fs_open_workspace_path_impl(
         }
     };
 
-    spawn_workspace_open_command(&target, kind, normalized_mode).map_err(FsError::Other)?;
+    spawn_workspace_open_command(&target, normalized_mode).map_err(FsError::Other)?;
 
     Ok(OpenWorkspacePathResponse {
         path: logical_path,
