@@ -41,7 +41,6 @@ import {
   PinOff,
   Plus,
   Settings,
-  Share2,
   Trash2,
   Wrench,
   X,
@@ -118,10 +117,6 @@ type ChatHistorySidebarProps = {
   onCommitRename: () => void;
   onCancelRename: () => void;
   onSetPinned: (id: string, isPinned: boolean) => void;
-  canShareConversations: boolean;
-  sharedConversationCount: number;
-  onShareConversation: (item: SidebarConversation) => void;
-  onOpenSharedConversations: () => void;
   onDeleteConversation: (id: string) => void;
   onDeleteConversations: (
     ids: readonly string[],
@@ -172,7 +167,6 @@ const HistoryRow = memo(function HistoryRow(props: {
   isRunning: boolean;
   isBusy: boolean;
   isDeleteDisabled: boolean;
-  canShareConversation: boolean;
   isRenaming: boolean;
   isPendingDelete: boolean;
   isSelectionMode: boolean;
@@ -185,7 +179,6 @@ const HistoryRow = memo(function HistoryRow(props: {
   onCommitRename: () => void;
   onCancelRename: () => void;
   onSetPinned: (id: string, isPinned: boolean) => void;
-  onShareConversation: (item: SidebarConversation) => void;
   onDeleteConversation: (id: string) => void;
   onSetPendingDelete: (id: string | null) => void;
   onSelectForBulk: (id: string, modifiers: { shiftKey: boolean; toggleKey: boolean }) => void;
@@ -197,7 +190,6 @@ const HistoryRow = memo(function HistoryRow(props: {
     isRunning,
     isBusy,
     isDeleteDisabled,
-    canShareConversation,
     isRenaming,
     isPendingDelete,
     isSelectionMode,
@@ -210,7 +202,6 @@ const HistoryRow = memo(function HistoryRow(props: {
     onCommitRename,
     onCancelRename,
     onSetPinned,
-    onShareConversation,
     onDeleteConversation,
     onSetPendingDelete,
     onSelectForBulk,
@@ -257,9 +248,6 @@ const HistoryRow = memo(function HistoryRow(props: {
     onSetPinned(item.id, item.isPinned !== true);
   }, [item.id, item.isPinned, onSetPinned]);
 
-  const handleShare = useCallback(() => {
-    onShareConversation(item);
-  }, [item, onShareConversation]);
 
   const handleConfirmDelete = useCallback(() => {
     onSetPendingDelete(null);
@@ -458,12 +446,6 @@ const HistoryRow = memo(function HistoryRow(props: {
                 sideOffset={8}
                 className="sidebar-context-menu min-w-[10rem] rounded-xl border-border/60 bg-background/95 backdrop-blur-xl"
               >
-                {canShareConversation && !item.isPending ? (
-                  <DropdownMenuItem onSelect={handleShare} className="gap-2">
-                    <Share2 className="h-3.5 w-3.5" />
-                    {t("chat.conversationShare")}
-                  </DropdownMenuItem>
-                ) : null}
                 <DropdownMenuItem
                   disabled={isRunning || isBusy}
                   onSelect={handleEnterSelectionMode}
@@ -1063,10 +1045,6 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
     onCommitRename,
     onCancelRename,
     onSetPinned,
-    canShareConversations,
-    sharedConversationCount,
-    onShareConversation,
-    onOpenSharedConversations,
     onDeleteConversation,
     onDeleteConversations,
     onLoadMore,
@@ -1132,8 +1110,6 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
   const handleCommitRename = useStableEvent(onCommitRename);
   const handleCancelRename = useStableEvent(onCancelRename);
   const handleSetPinned = useStableEvent(onSetPinned);
-  const handleShareConversation = useStableEvent(onShareConversation);
-  const handleOpenSharedConversations = useStableEvent(onOpenSharedConversations);
   const handleDeleteConversation = useStableEvent(onDeleteConversation);
   const handleDeleteConversations = useStableEvent(onDeleteConversations);
   const handleSelectProject = useStableEvent((project: WorkspaceProject) => {
@@ -1638,7 +1614,6 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
         isRunning={runningConversationIds.has(item.id)}
         isBusy={busyConversationIds.has(item.id)}
         isDeleteDisabled={runningConversationIds.has(item.id)}
-        canShareConversation={canShareConversations}
         isRenaming={renamingId === item.id}
         isPendingDelete={pendingDeleteId === item.id}
         isSelectionMode={selectionMode}
@@ -1651,7 +1626,6 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
         onCommitRename={handleCommitRename}
         onCancelRename={handleCancelRename}
         onSetPinned={handleSetPinned}
-        onShareConversation={handleShareConversation}
         onDeleteConversation={handleDeleteConversation}
         onSetPendingDelete={setPendingDeleteId}
         onSelectForBulk={handleSelectForBulk}
@@ -1668,10 +1642,8 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
       handleRenameDraftChange,
       handleSelectConversation,
       handleSetPinned,
-      handleShareConversation,
       handleStartRenaming,
       isBulkDeleting,
-      canShareConversations,
       enterSelectionMode,
       pendingDeleteId,
       renameDraft,
@@ -2058,25 +2030,6 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
                       aria-label={t("chat.conversationBulkSelect")}
                     >
                       <ListChecks className="h-3.5 w-3.5" />
-                    </Button>
-                  ) : null}
-                  {canShareConversations ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={handleOpenSharedConversations}
-                      className={PROJECT_ICON_BUTTON_CLASS}
-                      title={t("chat.manageSharedConversations").replace(
-                        "{count}",
-                        String(sharedConversationCount),
-                      )}
-                      aria-label={t("chat.manageSharedConversations").replace(
-                        "{count}",
-                        String(sharedConversationCount),
-                      )}
-                    >
-                      <Share2 className="h-3.5 w-3.5" />
                     </Button>
                   ) : null}
                 </>

@@ -13,13 +13,11 @@ import {
   type ChangedFilesActions,
   ChangedFilesActionsProvider,
 } from "../components/chat/ChangedFilesCard";
-import { HistoryShareModal } from "../components/chat/HistoryShareModal";
 import type {
   MentionComposerCommand,
   MentionComposerHandle,
 } from "../components/chat/MentionComposer";
 import { NotifyToast } from "../components/chat/NotifyToast";
-import { SharedHistoryManagerModal } from "../components/chat/SharedHistoryManagerModal";
 import { PanelRightClose, PanelRightOpen } from "../components/icons";
 import { MacOsTitleBarToggle } from "../components/MacOsTitleBarSpacer";
 import type {
@@ -39,7 +37,6 @@ import {
   createConversationStateFromContext,
   type RenderTimelineItem,
 } from "../lib/chat/conversation/conversationState";
-import type { ChatHistorySummary } from "../lib/chat/history/chatHistory";
 import type { CodeMentionReference } from "../lib/chat/messages/mentionReferences";
 import {
   buildFallbackConversationTitle,
@@ -100,7 +97,6 @@ import {
   ChatComposerBar,
   ChatHeader,
   ChatTranscript,
-  type EnsureGatewayBridgeConversationReadyOptions,
   MAX_UPLOAD_FILES,
   pruneIdleConversationRuntimeCaches,
   type SendChatAction,
@@ -109,8 +105,6 @@ import {
   useChatSkills,
   useConversationHistoryActions,
   useEditResend,
-  useGatewayBridgeBatcher,
-  useGatewayBridgeListeners,
   useLiveTranscriptController,
   usePendingUploads,
 } from "./chat";
@@ -118,11 +112,7 @@ import { appendManagedSkillSelections } from "./chat/chatPageUtils";
 import { ChatFileDropOverlay } from "./chat/components/ChatFileDropOverlay";
 import { WorkspaceOverlayHost } from "./chat/components/WorkspaceOverlayHost";
 import { useComposerDraftCache } from "./chat/composer/useComposerDraftCache";
-import { useGatewayBridgeReadiness } from "./chat/gateway/useGatewayBridgeReadiness";
-import { useGatewayRuntimeSnapshots } from "./chat/gateway/useGatewayRuntimeSnapshots";
-import { useGatewayStatus } from "./chat/gateway/useGatewayStatus";
 import { useBranchConversation } from "./chat/history/useBranchConversation";
-import { useSharedHistory } from "./chat/history/useSharedHistory";
 import { useNotifyToasts } from "./chat/hooks/useNotifyToasts";
 import { useTauriFileDrop } from "./chat/hooks/useTauriFileDrop";
 import {
@@ -296,9 +286,6 @@ export function ChatPage(props: ChatPageProps) {
     prepareComposerForConversationChangeActionRef,
   });
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const { remoteRuntimeStatus, setRemoteRuntimeStatus } = useGatewayStatus({
-    remote: settings.remote,
-  });
   const tauriTunnelClient = useMemo<LocalTunnelClient>(() => createTauriTunnelClient(), []);
 
   // The only page-level subscription to the sidebar list: ChatPage's own
@@ -310,39 +297,6 @@ export function ChatPage(props: ChatPageProps) {
     selectRunningConversationIds,
   );
   const recoveredGaTurnControllersRef = useRef(new Map<string, AbortController>());
-  const {
-    canShareHistory,
-    shareConversation,
-    shareStatus,
-    shareLoading,
-    shareUpdating,
-    shareError,
-    sharedManagerOpen,
-    setSharedManagerOpen,
-    sharedManagerStatuses,
-    sharedManagerLoadingIds,
-    sharedManagerUpdatingIds,
-    sharedManagerErrors,
-    sharedManagerGatewayUrlLoading,
-    sharedManagerShareOrigin,
-    sharedHistoryItems,
-    removeSharedHistoryItems,
-    handleLoadSharedHistoryStatus,
-    handleOpenShareModal,
-    handleCloseShareModal,
-    handleToggleHistoryShare,
-    handleSetShareRedactToolContent,
-    handleRefreshSharedHistoryStatuses,
-    handleOpenSharedHistoryManager,
-    handleDisableSharedHistory,
-    handleSetSharedHistoryRedactToolContent,
-  } = useSharedHistory({
-    remoteSettings: settings.remote,
-    remoteRuntimeStatus,
-    setRemoteRuntimeStatus,
-    sidebarStore,
-    setErrorMessage,
-  });
 
   const { availableSkills, skillsRootDir, refreshSkills } = useChatSkills({
     skillsEnabled,
@@ -500,7 +454,6 @@ export function ChatPage(props: ChatPageProps) {
   const previousHistoryScopeKeyRef = useRef(historyScopeKey);
   const currentConversationHistoryUpdatedAtRef = useRef<number | null>(null);
   const locallySyncedHistoryUpdatedAtRef = useRef(new Map<string, number>());
-  const gatewayBridgeHistorySummaryRef = useRef(new Map<string, ChatHistorySummary>());
   const openInitialActionRef = useRef<(id: string) => Promise<"cache-hit" | "painted">>(
     async () => "painted",
   );
@@ -520,9 +473,6 @@ export function ChatPage(props: ChatPageProps) {
     [],
   );
   const sendActionRef = useRef<SendChatAction>(async () => false);
-  const ensureGatewayBridgeConversationReadyRef = useRef<
-    (id: string, options?: EnsureGatewayBridgeConversationReadyOptions) => Promise<string>
-  >(async (id) => id.trim());
   const stopSendingActionRef = useRef<() => void>(() => undefined);
   const hydratingConversationIdRef = useRef<string | null>(hydratingConversationId);
   const hydrationFailedConversationIdRef = useRef<string | null>(hydrationFailedConversationId);
@@ -554,8 +504,6 @@ export function ChatPage(props: ChatPageProps) {
   } = useLiveTranscriptController({
     currentConversationId,
   });
-  const { queueGatewayBridgeEventForRequest, flushGatewayBridgeEventsForRequest } =
-    useGatewayBridgeBatcher();
   const {
     currentConversationIdRef,
     conversationRuntimeCacheRef,
@@ -991,8 +939,6 @@ export function ChatPage(props: ChatPageProps) {
     queuedChatTurnEditSlotRef,
     setQueuedChatTurnsState,
     queuedChatTurnsForCurrentConversation,
-    publishChatQueueSnapshots,
-    collectChatQueueSnapshotConversationIds,
     stopSending,
     enqueueCurrentComposerTurn,
     requestQueuedChatTurnProcessing,
@@ -1000,8 +946,6 @@ export function ChatPage(props: ChatPageProps) {
     moveQueuedTurnUp,
     editQueuedTurn,
     removeQueuedTurn,
-    shouldQueueGatewayChatRequest,
-    enqueueGatewayChatRequest,
   } = useChatTurnQueue({
     settings,
     currentConversationId,
@@ -1022,20 +966,6 @@ export function ChatPage(props: ChatPageProps) {
     sendActionRef,
   });
 
-  const {
-    activeGatewayRuntimeRunsRef,
-    queueGatewayRuntimeSnapshot,
-    queueGatewayRuntimeSnapshotForRun,
-    registerActiveGatewayRuntimeRun,
-    finishActiveGatewayRuntimeRun,
-  } = useGatewayRuntimeSnapshots({
-    canShareHistory,
-    remoteRuntimeStatus,
-    currentConversationIdRef,
-    queuedChatTurnsRef,
-    publishChatQueueSnapshots,
-    collectChatQueueSnapshotConversationIds,
-  });
 
   const deleteConversationLocalCaches = useCallback(
     (conversationId: string) => {
@@ -1043,7 +973,6 @@ export function ChatPage(props: ChatPageProps) {
       if (!key) return;
       deleteCachedComposerDraftState(key);
       locallySyncedHistoryUpdatedAtRef.current.delete(key);
-      gatewayBridgeHistorySummaryRef.current.delete(key);
       setPendingUploadsForConversation(key, []);
       deleteConversationArtifacts(key);
       setQueuedChatTurnsState((current) => removeQueuedChatTurnsForConversation(current, key));
@@ -1170,6 +1099,8 @@ export function ChatPage(props: ChatPageProps) {
     sidebarStore,
   ]);
 
+  const removeSharedHistoryItems = useCallback((_ids: Iterable<string>) => {}, []);
+
   const {
     handleRemoveWorkspaceProject,
     handleArchiveWorkspaceProject,
@@ -1188,6 +1119,7 @@ export function ChatPage(props: ChatPageProps) {
     setActiveWorkspaceProjectId,
     setProjectRenamingId,
     setProjectRenameDraft,
+    removeSharedHistoryItems,
     isConversationRunning,
     currentConversationIdRef,
     conversationRuntimeCacheRef,
@@ -1197,7 +1129,6 @@ export function ChatPage(props: ChatPageProps) {
     disposeSubagentsForConversation: (conversationId) => {
       subagentStoresRef.current.dispose(conversationId);
     },
-    removeSharedHistoryItems,
     terminalProjectPathKey,
     setTerminalSessions,
     setRightDockOpen,
@@ -1272,25 +1203,6 @@ export function ChatPage(props: ChatPageProps) {
     [],
   );
 
-  const { ensureGatewayBridgeConversationReady } = useGatewayBridgeReadiness({
-    settings,
-    conversationState,
-    currentConversationIdRef,
-    conversationRuntimeCacheRef,
-    persistedConversationStateRef,
-    buildRuntimeEntryFromVisibleState,
-    syncVisibleConversationRuntime,
-    isConversationRunning,
-    sidebarStore,
-    gatewayBridgeHistorySummaryRef,
-    hydratingConversationIdRef,
-    hydrationFailedConversationIdRef,
-    setHydratingConversationId,
-    setHydrationFailedConversationId,
-    subagentStoresRef,
-  });
-
-  ensureGatewayBridgeConversationReadyRef.current = ensureGatewayBridgeConversationReady;
 
   useEffect(() => {
     currentConversationIdRef.current = currentConversationId;
@@ -1435,17 +1347,6 @@ export function ChatPage(props: ChatPageProps) {
     setContext(currentRequestContext);
   }, [currentRequestContext, setContext]);
 
-  useGatewayBridgeListeners({
-    currentConversationIdRef,
-    conversationRuntimeCacheRef,
-    ensureGatewayBridgeConversationReadyRef,
-    sendActionRef,
-    queueGatewayBridgeEventForRequest,
-    shouldQueueGatewayChatRequest,
-    enqueueGatewayChatRequest,
-    isConversationRunning,
-    getConversationAbortController,
-  });
 
   const { send } = useSendChatTurn({
     settings,
@@ -1494,14 +1395,6 @@ export function ChatPage(props: ChatPageProps) {
     batchLiveRoundsUpdate,
     updateToolStatus,
     updateRetryAttempts,
-    queueGatewayBridgeEventForRequest,
-    flushGatewayBridgeEventsForRequest,
-    activeGatewayRuntimeRunsRef,
-    queueGatewayRuntimeSnapshot,
-    queueGatewayRuntimeSnapshotForRun,
-    registerActiveGatewayRuntimeRun,
-    finishActiveGatewayRuntimeRun,
-    gatewayBridgeHistorySummaryRef,
     availableSkills,
     skillsRootDir,
     refreshSkills,
@@ -1600,9 +1493,8 @@ export function ChatPage(props: ChatPageProps) {
   const handleConversationDeleted = useCallback(
     (id: string) => {
       cleanupDeletedConversationActionRef.current(id);
-      removeSharedHistoryItems([id]);
     },
-    [removeSharedHistoryItems],
+    [],
   );
 
   const handleSend = useCallback(() => {
@@ -1752,10 +1644,6 @@ export function ChatPage(props: ChatPageProps) {
             handleSelectConversation(id);
           }}
           onConversationDeleted={handleConversationDeleted}
-          canShareConversations={canShareHistory}
-          sharedConversationCount={sharedHistoryItems.length}
-          onShareConversation={handleOpenShareModal}
-          onOpenSharedConversations={handleOpenSharedHistoryManager}
           onCloseSidebar={handleCloseSidebar}
           onOpenSettings={() => onOpenSettings()}
           onOpenKnowledgeHub={() => {
@@ -1775,38 +1663,6 @@ export function ChatPage(props: ChatPageProps) {
           />
         ) : null}
         <WorkspaceCloneTaskOverlay onOpenWorkspace={handleOpenClonedWorkspace} />
-
-        {shareConversation ? (
-          <HistoryShareModal
-            conversation={shareConversation}
-            share={shareStatus}
-            isLoading={shareLoading}
-            isUpdating={shareUpdating}
-            errorMessage={shareError}
-            shareOrigin={sharedManagerShareOrigin}
-            shareOriginLoading={sharedManagerGatewayUrlLoading}
-            onToggle={handleToggleHistoryShare}
-            onRedactToolContentChange={handleSetShareRedactToolContent}
-            onClose={handleCloseShareModal}
-          />
-        ) : null}
-
-        {sharedManagerOpen ? (
-          <SharedHistoryManagerModal
-            conversations={sharedHistoryItems}
-            statuses={sharedManagerStatuses}
-            loadingIds={sharedManagerLoadingIds}
-            updatingIds={sharedManagerUpdatingIds}
-            errors={sharedManagerErrors}
-            shareOrigin={sharedManagerShareOrigin}
-            shareOriginLoading={sharedManagerGatewayUrlLoading}
-            onRefresh={handleRefreshSharedHistoryStatuses}
-            onLoadStatus={handleLoadSharedHistoryStatus}
-            onDisableShare={handleDisableSharedHistory}
-            onSetRedactToolContent={handleSetSharedHistoryRedactToolContent}
-            onClose={() => setSharedManagerOpen(false)}
-          />
-        ) : null}
 
         {confirmDialog}
 

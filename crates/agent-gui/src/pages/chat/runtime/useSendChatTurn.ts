@@ -5,8 +5,6 @@ import type {
   MentionComposerHandle,
 } from "../../../components/chat/MentionComposer";
 import type { HistoryMessageRef } from "../../../lib/chat/conversation/conversationState";
-import { createGatewayBridgeEventController } from "../../../lib/chat/conversation/run";
-import type { ChatHistorySummary } from "../../../lib/chat/history/chatHistory";
 import {
   mergePendingUploadedFiles,
   type PendingUploadedFile,
@@ -30,10 +28,6 @@ import {
   buildTextFromComposerDraft,
   importPastedTextsAsFiles,
 } from "../composer/composerDraftText";
-import type { ActiveGatewayBridgeRequest } from "../gateway/gatewayBridgeTypes";
-import { createLocalGatewayChatRunId } from "../gateway/gatewayRuntimeStatusModel";
-import type { useGatewayBridgeBatcher } from "../gateway/useGatewayBridgeBatcher";
-import type { useGatewayRuntimeSnapshots } from "../gateway/useGatewayRuntimeSnapshots";
 import type { PersistConversationParams } from "../history/useConversationHistoryActions";
 import type { useChatPageRuntimeStore } from "../hooks/useChatPageRuntimeStore";
 import type { useLiveTranscriptController } from "../hooks/useLiveTranscriptController";
@@ -45,8 +39,21 @@ import { runGaChatTurn } from "./runGaChatTurn";
 
 type LiveTranscriptController = ReturnType<typeof useLiveTranscriptController>;
 type ChatPageRuntimeStore = ReturnType<typeof useChatPageRuntimeStore>;
-type GatewayBridgeBatcher = ReturnType<typeof useGatewayBridgeBatcher>;
-type GatewayRuntimeSnapshots = ReturnType<typeof useGatewayRuntimeSnapshots>;
+
+export type SendChatAction = (overrides?: {
+  textOverride?: string;
+  composerDraftOverride?: MentionComposerDraft;
+  uploadedFilesOverride?: PendingUploadedFile[];
+  conversationIdOverride?: string;
+  executionModeOverride?: ExecutionMode;
+  workdirOverride?: string;
+  selectedSystemToolIdsOverride?: SystemToolId[];
+  runtimeControlsOverride?: ChatRuntimeControls;
+  preserveComposerOnStart?: boolean;
+  beforeRuntimeStart?: () => Promise<void>;
+  afterInitialHistoryPersist?: () => Promise<void>;
+  editResendBaseMessageRef?: HistoryMessageRef;
+}) => Promise<boolean>;
 
 type TitleJobRefValue = {
   conversationId: string;
@@ -93,14 +100,6 @@ type UseSendChatTurnParams = {
   batchLiveRoundsUpdate: LiveTranscriptController["batchLiveRoundsUpdate"];
   updateToolStatus: LiveTranscriptController["updateToolStatus"];
   updateRetryAttempts: LiveTranscriptController["updateRetryAttempts"];
-  queueGatewayBridgeEventForRequest: GatewayBridgeBatcher["queueGatewayBridgeEventForRequest"];
-  flushGatewayBridgeEventsForRequest: GatewayBridgeBatcher["flushGatewayBridgeEventsForRequest"];
-  activeGatewayRuntimeRunsRef: GatewayRuntimeSnapshots["activeGatewayRuntimeRunsRef"];
-  queueGatewayRuntimeSnapshot: GatewayRuntimeSnapshots["queueGatewayRuntimeSnapshot"];
-  queueGatewayRuntimeSnapshotForRun: GatewayRuntimeSnapshots["queueGatewayRuntimeSnapshotForRun"];
-  registerActiveGatewayRuntimeRun: GatewayRuntimeSnapshots["registerActiveGatewayRuntimeRun"];
-  finishActiveGatewayRuntimeRun: GatewayRuntimeSnapshots["finishActiveGatewayRuntimeRun"];
-  gatewayBridgeHistorySummaryRef: MutableRefObject<Map<string, ChatHistorySummary>>;
   availableSkills: SkillSummary[];
   skillsRootDir: string;
   refreshSkills: () => Promise<{ skills: SkillSummary[]; rootDir: string } | null>;
@@ -113,12 +112,6 @@ type UseSendChatTurnParams = {
   requestQueuedChatTurnProcessing: (conversationId: string) => void;
 };
 
-/**
- * The chat send pipeline: resolves queue/gateway/composer overrides, imports
- * large pastes, opens the bridge event stream, and delegates the complete turn
- * to GenericAgent. The closure is recreated per render so it reads current
- * settings while GenericAgent remains the sole owner of chat semantics.
- */
 export function useSendChatTurn(params: UseSendChatTurnParams) {
   const {
     settings,
@@ -144,9 +137,6 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
     setPendingUploadsForConversation,
     getConversationLiveTranscriptStore,
     appendDraftAssistantText,
-    queueGatewayBridgeEventForRequest,
-    flushGatewayBridgeEventsForRequest,
-    queueGatewayRuntimeSnapshot,
     requestQueuedChatTurnProcessing,
   } = params;
 
@@ -159,7 +149,6 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
     workdirOverride?: string;
     selectedSystemToolIdsOverride?: SystemToolId[];
     runtimeControlsOverride?: ChatRuntimeControls;
-    gatewayBridgeRequestOverride?: ActiveGatewayBridgeRequest | null;
     preserveComposerOnStart?: boolean;
     beforeRuntimeStart?: () => Promise<void>;
     afterInitialHistoryPersist?: () => Promise<void>;
@@ -177,40 +166,13 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
         ? buildRuntimeEntryFromVisibleState()
         : null);
 
-    const gatewayBridgeRequest = overrides?.gatewayBridgeRequestOverride ?? null;
     const effectiveExecutionMode =
-      overrides?.executionModeOverride ??
-      gatewayBridgeRequest?.executionModeOverride ??
-      settings.system.executionMode;
+      overrides?.executionModeOverride ?? settings.system.executionMode;
     const effectiveIsAgentMode = isAgentExecutionMode(effectiveExecutionMode);
     const effectiveWorkdir = (
       overrides?.workdirOverride ??
-      gatewayBridgeRequest?.workdirOverride ??
       (effectiveIsAgentMode ? (runtimeEntry?.workdir ?? settings.system.workdir) : "")
     ).trim();
-    const hasRemoteGatewayTarget =
-      settings.remote.enabled &&
-      settings.remote.gatewayUrl.trim() !== "" &&
-      settings.remote.token.trim() !== "";
-    const mirrorsLocalRunToGateway = !gatewayBridgeRequest && hasRemoteGatewayTarget;
-    const gatewayBridgeRequestId =
-      gatewayBridgeRequest?.requestId ?? createLocalGatewayChatRunId(conversationId);
-    const gatewayBridgeWorkerId =
-      gatewayBridgeRequest?.workerId ?? (mirrorsLocalRunToGateway ? "gui-live" : undefined);
-    const gatewayBridgeEvents = createGatewayBridgeEventController({
-      conversationId,
-      requestId: gatewayBridgeRequestId,
-      workerId: gatewayBridgeWorkerId,
-      enabled: Boolean(gatewayBridgeRequest) || hasRemoteGatewayTarget,
-      sendEvent: (requestId, event, options) => {
-        const result = queueGatewayBridgeEventForRequest(requestId, event, options);
-        void queueGatewayRuntimeSnapshot(conversationId);
-        return result;
-      },
-      flushEvents: flushGatewayBridgeEventsForRequest,
-      resolveErrorConversationId: () =>
-        gatewayBridgeRequest?.conversationId ?? currentConversationIdRef.current,
-    });
     const setConversationErrorState = (message: string | null) => {
       updateConversationRuntimeEntry(conversationId, (prev) => ({
         ...prev,
@@ -219,7 +181,6 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
     };
     if (!runtimeEntry) {
       const message = `Conversation runtime not found: ${conversationId}`;
-      gatewayBridgeEvents.emitError(message, conversationId);
       throw new Error(message);
     }
     const modelMode = runtimeEntry.modelMode ?? (runtimeEntry.selectedModel ? "legacy" : "ga");
@@ -233,11 +194,6 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
     const legacyProvider = legacySelection?.provider;
 
     if (runtimeEntry.isSending) {
-      if (gatewayBridgeRequest) {
-        const message = "Conversation is already sending.";
-        gatewayBridgeEvents.emitError(message, conversationId);
-        await gatewayBridgeEvents.close();
-      }
       return false;
     }
     if (isImportingPastedTextRef.current && typeof overrides?.textOverride !== "string") {
@@ -246,13 +202,11 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
     if (hydratingConversationIdRef.current === conversationId) {
       const message = "当前会话仍在补全完整历史，请稍候。";
       setConversationErrorState(message);
-      gatewayBridgeEvents.emitError(message, conversationId);
       return false;
     }
     if (hydrationFailedConversationIdRef.current === conversationId) {
       const message = "当前会话完整历史加载失败，请重新打开该会话后再继续。";
       setConversationErrorState(message);
-      gatewayBridgeEvents.emitError(message, conversationId);
       return false;
     }
     if (runtimeEntry.compactionStatus.phase !== "idle") {
@@ -298,8 +252,6 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
         const message = asErrorMessage(error, "大段粘贴内容导入附件失败");
         setConversationErrorState(message);
         setErrorMessage(message);
-        gatewayBridgeEvents.emitError(message, conversationId);
-        await gatewayBridgeEvents.close();
         return false;
       } finally {
         isImportingPastedTextRef.current = false;
@@ -327,8 +279,6 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
         const message = asErrorMessage(error, "GenericAgent command failed");
         setConversationErrorState(message);
         setErrorMessage(message);
-        gatewayBridgeEvents.emitError(message, conversationId);
-        await gatewayBridgeEvents.close();
         return false;
       }
     }

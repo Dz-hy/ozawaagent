@@ -1,9 +1,4 @@
 import type { AppSettings, ProviderId, SelectedModel } from "../../../lib/settings";
-import {
-  type GatewaySelectedModelEvent,
-  normalizeGatewayProviderType,
-} from "../gateway/gatewayBridgeTypes";
-
 export type EffectiveChatModelSelection = {
   selectedModel: SelectedModel;
   provider: AppSettings["customProviders"][number];
@@ -28,9 +23,8 @@ export function resolvePersistedConversationModelSelection(params: {
 export function resolveEffectiveChatModelSelection(params: {
   settings: AppSettings;
   conversationSelectedModel?: SelectedModel;
-  gatewaySelectedModel?: GatewaySelectedModelEvent;
 }): EffectiveChatModelSelection {
-  const { settings, conversationSelectedModel, gatewaySelectedModel } = params;
+  const { settings, conversationSelectedModel } = params;
   const resolveLocalSelection = (): EffectiveChatModelSelection => {
     const activeSelectedModel = resolveActiveModelSelection(settings, conversationSelectedModel);
     if (!activeSelectedModel) {
@@ -54,39 +48,5 @@ export function resolveEffectiveChatModelSelection(params: {
     };
   };
 
-  if (!gatewaySelectedModel) {
-    return resolveLocalSelection();
+  return resolveLocalSelection();
   }
-
-  const customProviderId = gatewaySelectedModel.customProviderId.trim();
-  const model = gatewaySelectedModel.model.trim();
-  const providerType = normalizeGatewayProviderType(gatewaySelectedModel.providerType);
-  if (!customProviderId || !model || !providerType) {
-    throw new Error("远程请求携带的模型配置无效，请在 WebUI 重新选择模型后重试。");
-  }
-
-  const provider = settings.customProviders.find((item) => item.id === customProviderId);
-  if (!provider) {
-    throw new Error(
-      "远程请求所选模型对应的供应商不存在，请同步桌面端设置后在 WebUI 重新选择模型。",
-    );
-  }
-  if (provider.type !== providerType) {
-    throw new Error(
-      "远程请求所选模型的供应商类型与桌面端配置不一致，请同步桌面端设置后在 WebUI 重新选择模型。",
-    );
-  }
-  if (!provider.activeModels.includes(model)) {
-    throw new Error("远程请求所选模型未在桌面端启用，请同步桌面端设置后在 WebUI 重新选择模型。");
-  }
-
-  return {
-    selectedModel: {
-      customProviderId: provider.id,
-      model,
-    },
-    provider,
-    providerId: provider.type,
-    model,
-  };
-}

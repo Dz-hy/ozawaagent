@@ -18,7 +18,6 @@ export type SectionId =
   | "hooks"
   | "cron"
   | "commandPacks"
-  | "remote"
   | "services"
   | "about";
 

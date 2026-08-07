@@ -63,10 +63,6 @@ type ChatSidebarContainerProps = {
   // Invoked after the store confirmed a deletion; ChatPage cleans artifacts
   // and replaces the current conversation when needed.
   onConversationDeleted: (id: string) => void;
-  canShareConversations: boolean;
-  sharedConversationCount: number;
-  onShareConversation: (item: SidebarConversation) => void;
-  onOpenSharedConversations: () => void;
   onCloseSidebar: () => void;
   onOpenSettings: () => void;
   onOpenKnowledgeHub: () => void;
@@ -276,10 +272,6 @@ export function ChatSidebarContainer(props: ChatSidebarContainerProps) {
       onCommitRename={handleCommitRename}
       onCancelRename={handleCancelRename}
       onSetPinned={handleSetPinned}
-      canShareConversations={props.canShareConversations}
-      sharedConversationCount={props.sharedConversationCount}
-      onShareConversation={props.onShareConversation}
-      onOpenSharedConversations={props.onOpenSharedConversations}
       onDeleteConversation={handleDeleteConversation}
       onDeleteConversations={handleDeleteConversations}
       onLoadMore={handleLoadMore}

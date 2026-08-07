@@ -4,7 +4,6 @@ import {
   BookOpen,
   Brain,
   Clock3,
-  Cloud,
   Cpu,
   FileText,
   Info,
@@ -35,7 +34,6 @@ import { GaModelProfilesSection } from "./settings/GaModelProfilesSection";
 import { GaServicesSection } from "./settings/GaServicesSection";
 import { GaUsageSection } from "./settings/GaUsageSection";
 import { GlobalShortcutsSection } from "./settings/GlobalShortcutsSection";
-import { RemoteSection } from "./settings/RemoteSection";
 import { SshSection } from "./settings/SshSection";
 import { SystemSettingsForm } from "./settings/SystemSettingsForm";
 import { SystemToolsSection } from "./settings/SystemToolsSection";
@@ -136,7 +134,6 @@ const NAV_GROUPS: NavGroup[] = [
     labelKey: "settings.groupConnectivity",
     items: [
       { id: "ssh", icon: <Key className="h-3.5 w-3.5" /> },
-      { id: "remote", icon: <Cloud className="h-3.5 w-3.5" /> },
     ],
   },
   {
@@ -176,7 +173,6 @@ export function SettingsPage(props: SettingsPageProps) {
     hooks: t("settings.navHooks"),
     cron: t("settings.navCron"),
     commandPacks: t("settings.navCommandPacks"),
-    remote: t("settings.navRemote"),
     about: t("settings.navAbout"),
   };
 
@@ -225,8 +221,6 @@ export function SettingsPage(props: SettingsPageProps) {
         return <AgentsSection settings={settings} setSettings={setSettings} />;
       case "ssh":
         return <SshSection settings={settings} setSettings={setSettings} saveState={saveState} />;
-      case "remote":
-        return <RemoteSection settings={settings} setSettings={setSettings} />;
       case "memory":
         return <GaMemorySection />;
       case "usage":
