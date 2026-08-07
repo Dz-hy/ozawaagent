@@ -132,6 +132,16 @@ export function useChatTurnQueue(params: UseChatTurnQueueParams) {
   function stopSending() {
     const conversationId = currentConversationIdRef.current.trim();
     if (!conversationId) return;
+    const nextQueuedTurn = queuedChatTurnsRef.current.find(
+      (item) => item.conversationId === conversationId,
+    );
+    if (nextQueuedTurn) {
+      // Composer Stop is stop-and-continue when this conversation already
+      // has queued work; runQueuedTurnNow records the resume intent before
+      // aborting the current run.
+      runQueuedTurnNow(nextQueuedTurn.id);
+      return;
+    }
     if (!stopConversation(conversationId)) {
       requestQueuedChatTurnProcessing(conversationId);
     }
