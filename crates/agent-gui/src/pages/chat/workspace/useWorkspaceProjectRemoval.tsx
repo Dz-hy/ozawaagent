@@ -46,7 +46,6 @@ type UseWorkspaceProjectRemovalParams = {
   locallySyncedHistoryUpdatedAtRef: MutableRefObject<Map<string, number>>;
   deleteConversationLocalCaches: (conversationId: string) => void;
   disposeSubagentsForConversation: (conversationId: string) => void;
-  removeSharedHistoryItems: (ids: Iterable<string>) => void;
   terminalProjectPathKey: string;
   setTerminalSessions: Dispatch<SetStateAction<TerminalSession[]>>;
   setRightDockOpen: Dispatch<SetStateAction<boolean>>;
@@ -82,7 +81,6 @@ export function useWorkspaceProjectRemoval(params: UseWorkspaceProjectRemovalPar
     locallySyncedHistoryUpdatedAtRef,
     deleteConversationLocalCaches,
     disposeSubagentsForConversation,
-    removeSharedHistoryItems,
     terminalProjectPathKey,
     setTerminalSessions,
     setRightDockOpen,
@@ -228,7 +226,6 @@ export function useWorkspaceProjectRemoval(params: UseWorkspaceProjectRemovalPar
             for (const conversationId of deletedConversationIds) {
               sidebarStore.removeLocal(conversationId);
             }
-            removeSharedHistoryItems(deletedConversationIds);
             for (const conversationId of deletedConversationIds) {
               persistedConversationStateRef.current.delete(conversationId);
               conversationRuntimeCacheRef.current.delete(conversationId);

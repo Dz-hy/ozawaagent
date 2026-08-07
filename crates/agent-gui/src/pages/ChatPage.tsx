@@ -126,8 +126,6 @@ import { useProjectTerminals } from "./chat/workspace/useProjectTerminals";
 import { useWorkspaceOverlays } from "./chat/workspace/useWorkspaceOverlays";
 import { useWorkspaceProjectRemoval } from "./chat/workspace/useWorkspaceProjectRemoval";
 import { useWorkspaceProjects } from "./chat/workspace/useWorkspaceProjects";
-import { WorkspaceCloneModal } from "./chat/workspace/WorkspaceCloneModal";
-import { WorkspaceCloneTaskOverlay } from "./chat/workspace/WorkspaceCloneTaskOverlay";
 import { KnowledgeHubPage } from "./knowledge-hub/KnowledgeHubPage";
 import type { SectionId } from "./settings/types";
 
@@ -256,13 +254,7 @@ export function ChatPage(props: ChatPageProps) {
     handleBrowseWorkspaceProjectInFileTree,
     ensureSshTunnelToolTab,
     handleBrowseWorkspaceProjectInSystemFileManager,
-    handleOpenCreateWorkspaceProject,
-    workspaceCreateModalOpen,
-    setWorkspaceCreateModalOpen,
     handleOpenWorkspaceFolder,
-    handleCloneWorkspaceProject,
-    handleOpenClonedWorkspace,
-    handleLoadWorkspaceRemoteBranches,
     handleStartRenamingWorkspaceProject,
     handleCommitWorkspaceProjectRename,
     handleCancelWorkspaceProjectRename,
@@ -1090,8 +1082,6 @@ export function ChatPage(props: ChatPageProps) {
     sidebarStore,
   ]);
 
-  const removeSharedHistoryItems = useCallback((_ids: Iterable<string>) => {}, []);
-
   const {
     handleRemoveWorkspaceProject,
     handleArchiveWorkspaceProject,
@@ -1110,7 +1100,6 @@ export function ChatPage(props: ChatPageProps) {
     setActiveWorkspaceProjectId,
     setProjectRenamingId,
     setProjectRenameDraft,
-    removeSharedHistoryItems,
     isConversationRunning,
     currentConversationIdRef,
     conversationRuntimeCacheRef,
@@ -1603,7 +1592,7 @@ export function ChatPage(props: ChatPageProps) {
           recentCollapsed={settings.customSettings.chatSidebar.recentCollapsed}
           onProjectsCollapsedChange={handleSidebarProjectsCollapsedChange}
           onRecentCollapsedChange={handleSidebarRecentCollapsedChange}
-          onCreateProject={handleOpenCreateWorkspaceProject}
+          onCreateProject={handleOpenWorkspaceFolder}
           onSelectProject={handleSelectWorkspaceProject}
           onNewConversationForProject={handleNewConversationForProject}
           onBrowseProjectInFileTree={handleBrowseWorkspaceProjectInFileTree}
@@ -1637,17 +1626,6 @@ export function ChatPage(props: ChatPageProps) {
             setActiveView("knowledge-hub");
           }}
         />
-
-        {workspaceCreateModalOpen ? (
-          <WorkspaceCloneModal
-            initialParent={activeWorkspaceProjectPath || workdir}
-            onOpenFolder={handleOpenWorkspaceFolder}
-            onClone={handleCloneWorkspaceProject}
-            onClose={() => setWorkspaceCreateModalOpen(false)}
-            onLoadBranches={handleLoadWorkspaceRemoteBranches}
-          />
-        ) : null}
-        <WorkspaceCloneTaskOverlay onOpenWorkspace={handleOpenClonedWorkspace} />
 
         {confirmDialog}
 

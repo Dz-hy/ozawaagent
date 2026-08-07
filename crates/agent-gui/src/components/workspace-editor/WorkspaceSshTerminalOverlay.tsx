@@ -155,7 +155,7 @@ export function WorkspaceSshTerminalOverlay(props: WorkspaceSshTerminalOverlayPr
         // latest settings on every attempt — nothing else to do here.
       } else if (message.includes("keyboard-interactive")) {
         // Tabs are keyed by session id, so a close-and-recreate flow would
-        // tear this tab down; point at the tunnel panel instead.
+        // tear this tab down; point at the SSH tunnel panel instead.
         setError(t("workspaceSshTerminal.reconnectKbiHint"));
       } else {
         setError(message);
