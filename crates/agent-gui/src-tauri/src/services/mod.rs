@@ -6,4 +6,5 @@ pub mod provider_models;
 pub mod proxy;
 pub mod skills;
 pub mod system_proxy;
+pub mod tray;
 pub mod workspace_watch;
