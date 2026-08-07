@@ -560,14 +560,9 @@ export const RightDockPanel = memo(function RightDockPanel(props: RightDockPanel
     [tabsScrollRef],
   );
 
-  const showDisabledMessage = Boolean(
-    disabledMessage && !sshTunnelInitialized,
-  );
+  const showDisabledMessage = Boolean(disabledMessage && !sshTunnelInitialized);
   const showRightDockChooser =
-    !showDisabledMessage &&
-    projectReady &&
-    currentActiveTab === "terminal" &&
-    !activeSession;
+    !showDisabledMessage && projectReady && currentActiveTab === "terminal" && !activeSession;
 
   const startToolTab = useCallback(
     (kind: RightDockSingletonTabKind) => {
