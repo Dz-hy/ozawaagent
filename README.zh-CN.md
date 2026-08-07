@@ -59,8 +59,6 @@
 </tr>
 </table>
 
-
-
 ---
 
 ## 🤝 一起来开发吧！
@@ -73,7 +71,6 @@
   欢迎扫码进群，一起推进 LiveAgent 的开发！<br/>
   （至于为什么是QQ群，感觉功能比微信群多一些～）
 </p>
-
 
 ---
 
@@ -234,10 +231,6 @@ location / {
 > 上游端口与上方 `docker run` 的宿主机映射对应:HTTP/WebSocket 3000(容器内 HTTP 实际监听 `PORT=8080`)。server 块需要 `listen 443 ssl;`,并把 `client_max_body_size` 调大到足够容纳附件上传(如 `100m`)。
 
 </details>
-
-
-
-
 
 ### 从源码构建
 
@@ -401,27 +394,6 @@ LiveAgent/
 - 保持 diff 干净 (无行尾空白):`git diff --check`
 
 ---
-
-## 👥 贡献者
-
-感谢所有为 LiveAgent 做出贡献的朋友们！
-
-<a href="https://github.com/Stack-Cairn/LiveAgent/graphs/contributors">
-  <img src="docs/images/contributors.svg" alt="Contributors" />
-</a>
-
----
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=Stack-Cairn%2FLiveAgent&type=date&legend=top-left">
-
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="docs/images/star-history-dark.svg" />
-   <source media="(prefers-color-scheme: light)" srcset="docs/images/star-history-light.svg" />
-   <img alt="Star History Chart" src="docs/images/star-history-light.svg" />
- </picture>
-</a>
 
 ---
 
