@@ -26,7 +26,6 @@ type StartConversationTitleJobParams = {
   titleJobRef: MutableRefObject<TitleJobRefValue>;
 };
 
-
 export function buildConversationTitleRuntime(
   runtime: Parameters<typeof streamAssistantMessage>[0]["runtime"],
 ): Parameters<typeof streamAssistantMessage>[0]["runtime"] {
@@ -51,7 +50,6 @@ export function startConversationTitleJob(params: StartConversationTitleJobParam
     titleJobRef,
   } = params;
   let streamedTitle = "";
-
 
   const titleRuntime = buildConversationTitleRuntime(runtime);
 

@@ -1,6 +1,5 @@
 export { ChatComposerBar, type ChatQueueTurnPreview } from "./components/ChatComposerBar";
 export { ChatHeader } from "./components/ChatHeader";
-export type { SendChatAction } from "./runtime/useSendChatTurn";
 export {
   scheduleIdleHydration,
   useConversationHistoryActions,
@@ -25,4 +24,5 @@ export {
   resolveActiveModelSelection,
   resolveEffectiveChatModelSelection,
 } from "./runtime/modelSelection";
+export type { SendChatAction } from "./runtime/useSendChatTurn";
 export { ChatTranscript } from "./transcript/ChatTranscript";

@@ -248,7 +248,6 @@ const HistoryRow = memo(function HistoryRow(props: {
     onSetPinned(item.id, item.isPinned !== true);
   }, [item.id, item.isPinned, onSetPinned]);
 
-
   const handleConfirmDelete = useCallback(() => {
     onSetPendingDelete(null);
     onDeleteConversation(item.id);

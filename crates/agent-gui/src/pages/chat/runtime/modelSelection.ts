@@ -49,4 +49,4 @@ export function resolveEffectiveChatModelSelection(params: {
   };
 
   return resolveLocalSelection();
-  }
+}

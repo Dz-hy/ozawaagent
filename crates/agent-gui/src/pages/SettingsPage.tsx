@@ -132,9 +132,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     labelKey: "settings.groupConnectivity",
-    items: [
-      { id: "ssh", icon: <Key className="h-3.5 w-3.5" /> },
-    ],
+    items: [{ id: "ssh", icon: <Key className="h-3.5 w-3.5" /> }],
   },
   {
     labelKey: "settings.groupOther",

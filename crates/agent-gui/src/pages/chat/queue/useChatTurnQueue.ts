@@ -1,7 +1,5 @@
 import { type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type {
-  MentionComposerHandle,
-} from "../../../components/chat/MentionComposer";
+import type { MentionComposerHandle } from "../../../components/chat/MentionComposer";
 import type { LiveTranscriptStore } from "../../../lib/chat/conversation/liveTranscriptStore";
 import type { PendingUploadedFile } from "../../../lib/chat/messages/uploadedFiles";
 import {
@@ -12,8 +10,8 @@ import {
   type SystemToolId,
 } from "../../../lib/settings";
 import type { ChatQueueTurnPreview } from "../components/ChatComposerBar";
-import { type SendChatAction } from "../runtime/useSendChatTurn";
 import type { ConversationRuntimeEntry } from "../runtime/chatPageRuntime";
+import type { SendChatAction } from "../runtime/useSendChatTurn";
 import {
   appendQueuedChatTurn,
   buildQueuedChatTurnPreview,
@@ -348,7 +346,6 @@ export function useChatTurnQueue(params: UseChatTurnQueueParams) {
   function removeQueuedTurn(id: string) {
     setQueuedChatTurnsState((current) => removeQueuedChatTurn(current, id));
   }
-
 
   return {
     queuedChatTurnsRef,
