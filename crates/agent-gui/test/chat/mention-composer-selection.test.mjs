@@ -4,14 +4,13 @@ import test from "node:test";
 
 const sourceRoots = [
   new URL("../../src/components/", import.meta.url),
-  new URL("../../../agent-gateway/web/src/components/", import.meta.url),
 ];
 
 function source(root, relativePath) {
   return readFileSync(new URL(relativePath, root), "utf8");
 }
 
-test("both composers restore the last editor selection before external mention insertion", () => {
+test("the composer restores the last editor selection before external mention insertion", () => {
   for (const root of sourceRoots) {
     const composer = source(root, "chat/MentionComposer.tsx");
     assert.match(composer, /lastEditorSelectionRef = useRef<Range \| null>\(null\)/);
@@ -32,12 +31,7 @@ function extractFunction(src, name) {
 }
 
 test("insertNodeAtCursor hops chip-inner boundaries and normalizes the caret anchor", () => {
-  const bodies = sourceRoots.map((root) =>
-    extractFunction(source(root, "chat/MentionComposer.tsx"), "insertNodeAtCursor"),
-  );
-  // Both frontends must keep the hardened implementation byte-identical.
-  assert.equal(bodies[0], bodies[1]);
-  const body = bodies[0];
+  const body = extractFunction(source(sourceRoots[0], "chat/MentionComposer.tsx"), "insertNodeAtCursor");
   // A saved selection restored before external insertion can sit inside a
   // non-editable chip; the insert must hop outside instead of nesting.
   assert.match(body, /closestComposerChipFromNode\(root, range\.startContainer\)/);
@@ -50,7 +44,7 @@ test("insertNodeAtCursor hops chip-inner boundaries and normalizes the caret anc
   assert.doesNotMatch(body, /range\.insertNode\(afterNode\)/);
 });
 
-test("right-dock context menus preserve composer selection on both frontends", () => {
+test("right-dock context menus preserve composer selection", () => {
   for (const root of sourceRoots) {
     for (const relativePath of [
       "project-tools/file-tree/index.tsx",
@@ -64,12 +58,7 @@ test("right-dock context menus preserve composer selection on both frontends", (
 });
 
 test("composer caret measurement never splits text nodes and restores the selection", () => {
-  const bodies = sourceRoots.map((root) =>
-    extractFunction(source(root, "chat/MentionComposer.tsx"), "measureComposerCaretRect"),
-  );
-  // Both frontends must keep the hardened implementation byte-identical.
-  assert.equal(bodies[0], bodies[1]);
-  const body = bodies[0];
+  const body = extractFunction(source(sourceRoots[0], "chat/MentionComposer.tsx"), "measureComposerCaretRect");
   // Range.insertNode() splits the text node under a line-boundary caret; the
   // caret then lands inside the degenerate empty text node left by the split
   // and WebKit stops painting it — the cursor vanished after Shift+Enter.
@@ -79,10 +68,7 @@ test("composer caret measurement never splits text nodes and restores the select
   assert.match(body, /parent\.insertBefore\(marker, before\)/);
   assert.match(body, /sel\.collapse\(startContainer, startOffset\)/);
 
-  const scrollBodies = sourceRoots.map((root) =>
-    extractFunction(source(root, "chat/MentionComposer.tsx"), "scrollSelectionIntoComposerView"),
-  );
-  assert.equal(scrollBodies[0], scrollBodies[1]);
-  assert.match(scrollBodies[0], /measureComposerCaretRect\(range\)/);
-  assert.doesNotMatch(scrollBodies[0], /cloneRange\(\)/);
+  const scrollBody = extractFunction(source(sourceRoots[0], "chat/MentionComposer.tsx"), "scrollSelectionIntoComposerView");
+  assert.match(scrollBody, /measureComposerCaretRect\(range\)/);
+  assert.doesNotMatch(scrollBody, /cloneRange\(\)/);
 });

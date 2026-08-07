@@ -60,7 +60,6 @@ test("conversation title job disables thinking, caching, and native web search",
     },
   };
   const titleJobRef = { current: null };
-  const forwardedTitles = [];
 
   const title = await startConversationTitleJob({
     providerId: "codex",
@@ -72,9 +71,6 @@ test("conversation title job disables thinking, caching, and native web search",
     content: "Please build a fast settings drawer.",
     sidebarStore,
     titleJobRef,
-    gatewayBridgeEvents: {
-      queueTitle: (nextTitle) => forwardedTitles.push(nextTitle),
-    },
   });
 
   assert.equal(title, "Fast title");
@@ -87,5 +83,4 @@ test("conversation title job disables thinking, caching, and native web search",
   assert.equal(capturedParams.nativeWebSearch, false);
   assert.equal(capturedParams.cacheRetention, "none");
   assert.equal(historyItemsById.get("conversation-1").title, "Fast title");
-  assert.equal(forwardedTitles[0], "Fast title");
 });

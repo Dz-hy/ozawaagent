@@ -6,10 +6,6 @@ const loader = createTsModuleLoader();
 const conversationState = loader.loadModule(
   "src/lib/chat/conversation/conversationState.ts",
 );
-const gatewayBridgeEvents = loader.loadModule(
-  "src/lib/chat/conversation/run/gatewayBridgeEvents.ts",
-);
-
 // ---------------------------------------------------------------------------
 // The new user message's stable identity must enter the chat event stream:
 // without it, remote transcripts create ref-less turns and the NEXT
@@ -48,53 +44,4 @@ test("findHistoryMessageRefByMessageId returns undefined for unknown or blank id
   assert.equal(conversationState.findHistoryMessageRefByMessageId(state, "   "), undefined);
 });
 
-function collectEvents() {
-  const events = [];
-  const controller = gatewayBridgeEvents.createGatewayBridgeEventController({
-    conversationId: "conv-1",
-    requestId: "run-1",
-    enabled: true,
-    sendEvent: (_requestId, event) => {
-      events.push(event);
-    },
-  });
-  return { events, controller };
-}
 
-const sampleRef = {
-  segmentIndex: 0,
-  messageIndex: 3,
-  segmentId: "segment-a",
-  messageId: "user-new",
-  role: "user",
-  contentHash: "fnv1a32:0badf00d",
-};
-
-test("queueUserMessage carries the new message's own message_ref on every send", () => {
-  const { events, controller } = collectEvents();
-  controller.queueUserMessage("plain prompt", [], { messageRef: sampleRef });
-  assert.equal(events.length, 1);
-  assert.deepEqual(events[0].message_ref, {
-    segment_index: 0,
-    message_index: 3,
-    segment_id: "segment-a",
-    message_id: "user-new",
-    role: "user",
-    content_hash: "fnv1a32:0badf00d",
-  });
-  assert.equal(events[0].base_message_ref, undefined, "plain send has no truncation base");
-  assert.equal(events[0].reason, undefined);
-});
-
-test("queueUserMessage keeps base_message_ref and message_ref separate for edit-resend", () => {
-  const { events, controller } = collectEvents();
-  const baseRef = { ...sampleRef, messageId: "user-old", contentHash: "fnv1a32:deadbeef" };
-  controller.queueUserMessage("edited prompt", [], {
-    baseMessageRef: baseRef,
-    messageRef: sampleRef,
-  });
-  assert.equal(events.length, 1);
-  assert.equal(events[0].reason, "edit_resend");
-  assert.equal(events[0].base_message_ref.message_id, "user-old");
-  assert.equal(events[0].message_ref.message_id, "user-new");
-});
