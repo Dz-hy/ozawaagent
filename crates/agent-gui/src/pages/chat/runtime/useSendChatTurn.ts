@@ -96,6 +96,7 @@ type UseSendChatTurnParams = {
   clearAbortSnapshot: LiveTranscriptController["clearAbortSnapshot"];
   getAbortSnapshot: LiveTranscriptController["getAbortSnapshot"];
   resetLiveTranscript: LiveTranscriptController["resetLiveTranscript"];
+  settleLiveTranscript: LiveTranscriptController["settleLiveTranscript"];
   appendDraftAssistantText: LiveTranscriptController["appendDraftAssistantText"];
   batchLiveRoundsUpdate: LiveTranscriptController["batchLiveRoundsUpdate"];
   updateToolStatus: LiveTranscriptController["updateToolStatus"];
