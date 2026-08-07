@@ -1,8 +1,6 @@
 .DEFAULT_GOAL := dev
 
 AGENT_GUI_DIR := crates/agent-gui
-AGENT_GATEWAY_DIR := crates/agent-gateway
-AGENT_GATEWAY_WEB_DIR := $(AGENT_GATEWAY_DIR)/web
 
 HOST_ARCH := $(shell uname -m)
 
@@ -23,18 +21,12 @@ DESKTOP_WINDOWS_TAURI_CONFIG ?= src-tauri/tauri.windows.conf.json
 DESKTOP_RELEASE_TAURI_CONFIG ?= src-tauri/tauri.macos.release.conf.json
 DESKTOP_RELEASE_TAURI_CONFIG_FLAGS ?= --config $(DESKTOP_RELEASE_TAURI_CONFIG) $(if $(LIVEAGENT_TAURI_VERSION_CONFIG),--config $(LIVEAGENT_TAURI_VERSION_CONFIG))
 
-DEV_GATEWAY_TOKEN ?= dev-token
-DEV_GATEWAY_HTTP_ADDR ?= :50052
-DEV_WEBUI_PROXY_API ?= http://localhost:50052
-GATEWAY_DOCKER_IMAGE ?= liveagent-gateway:local
 RELEASE_TAG ?=
 
 .PHONY: all dev build desktop-build-macos desktop-build-macos-release desktop-build-macos-intel desktop-build-macos-m desktop-build-windows desktop-build-linux github-release-main check-github-release-tag help
-.PHONY: dev-gateway dev-webui ensure-webui-embed-stub
-.PHONY: proto proto-check webui gateway-build gateway-docker-build gateway-docker-run gateway-docker-smoke build-linux build-linux-amd build-linux-arm
-.PHONY: clean check-rust-target-% check-macos-signing-identity check-macos-notary-profile desktop-store-macos-notary-profile desktop-wait-macos-notary desktop-staple-macos desktop-verify-macos
+.PHONY: check-rust-target-% check-macos-signing-identity check-macos-notary-profile desktop-store-macos-notary-profile desktop-wait-macos-notary desktop-staple-macos desktop-verify-macos
 
-all: build gateway-build
+all: build
 
 ## Desktop app
 dev:
@@ -105,87 +97,8 @@ check-github-release-tag:
 	@if [ -z "$(RELEASE_TAG)" ]; then echo "RELEASE_TAG is required. Example: make github-release-main RELEASE_TAG=v0.1.10"; exit 1; fi
 	@node scripts/release/prepare-app-version-from-tag.mjs "$(RELEASE_TAG)" --json >/dev/null
 
-## Gateway development
-# go:embed requires web/dist at compile time. Dev serves the SPA from Vite, so
-# a tiny stub is enough to let `go run` start without a full WebUI build.
-dev-gateway: ensure-webui-embed-stub
-	go -C $(AGENT_GATEWAY_DIR) run ./cmd/gateway --token=$(DEV_GATEWAY_TOKEN) --http-addr=$(DEV_GATEWAY_HTTP_ADDR)
-
-dev-webui:
-	npm_config_proxy_api=$(DEV_WEBUI_PROXY_API) pnpm --dir $(AGENT_GATEWAY_WEB_DIR) dev
-
-ensure-webui-embed-stub:
-	@if [ ! -f "$(AGENT_GATEWAY_WEB_DIR)/dist/index.html" ]; then \
-		mkdir -p "$(AGENT_GATEWAY_WEB_DIR)/dist"; \
-		printf '%s\n' \
-			'<!doctype html>' \
-			'<html lang="en">' \
-			'<head><meta charset="utf-8"><title>LiveAgent Gateway</title></head>' \
-			'<body><p>WebUI embed stub. Run <code>make dev-webui</code> for the real SPA.</p></body>' \
-			'</html>' \
-			> "$(AGENT_GATEWAY_WEB_DIR)/dist/index.html"; \
-		echo "created $(AGENT_GATEWAY_WEB_DIR)/dist stub for go:embed"; \
-	fi
-
-## Gateway build and generated assets
-proto:
-	@command -v buf >/dev/null || (echo "buf is required. Run: mise install" && exit 1)
-	cd $(AGENT_GATEWAY_DIR) && buf generate
-
-# buf breaking 的对比基线（本地默认与当前 HEAD 对比；CI 覆写为 origin/main）。
-BUF_BREAKING_AGAINST ?= ../../.git\#subdir=$(AGENT_GATEWAY_DIR)
-
-proto-check:
-	@command -v buf >/dev/null || (echo "buf is required. Run: mise install" && exit 1)
-	cd $(AGENT_GATEWAY_DIR) && buf lint
-	node scripts/check-buf-breaking.mjs "$(AGENT_GATEWAY_DIR)" "$(BUF_BREAKING_AGAINST)"
-
-webui:
-	pnpm --dir $(AGENT_GATEWAY_WEB_DIR) install --offline
-	pnpm --dir $(AGENT_GATEWAY_WEB_DIR) build
-
-gateway-build: proto webui
-	CGO_ENABLED=0 go -C $(AGENT_GATEWAY_DIR) build -o bin/liveagent-gateway ./cmd/gateway
-
-gateway-docker-build:
-	docker build -t $(GATEWAY_DOCKER_IMAGE) .
-
-gateway-docker-run:
-	docker run --rm -p 8080:8080 -e LIVEAGENT_GATEWAY_TOKEN=$(DEV_GATEWAY_TOKEN) $(GATEWAY_DOCKER_IMAGE)
-
-gateway-docker-smoke: gateway-docker-build
-	@set -e; \
-	name="liveagent-gateway-smoke"; \
-	docker rm -f "$$name" >/dev/null 2>&1 || true; \
-	docker run -d --name "$$name" -p 18080:8080 -e LIVEAGENT_GATEWAY_TOKEN=$(DEV_GATEWAY_TOKEN) $(GATEWAY_DOCKER_IMAGE) >/dev/null; \
-	trap 'docker rm -f "$$name" >/dev/null 2>&1 || true' EXIT; \
-	for _ in $$(seq 1 30); do \
-		if curl -fsS http://127.0.0.1:18080/healthz | grep -q '"ok":true'; then \
-			echo "Gateway Docker smoke test passed: http://127.0.0.1:18080/healthz"; \
-			exit 0; \
-		fi; \
-		sleep 1; \
-	done; \
-	echo "Gateway Docker smoke test failed; container logs:"; \
-	docker logs "$$name" || true; \
-	exit 1
-
-build-linux: proto webui
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go -C $(AGENT_GATEWAY_DIR) build -o bin/liveagent-gateway-linux-amd64 ./cmd/gateway
-
-build-linux-amd: build-linux
-
-build-linux-arm: proto webui
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go -C $(AGENT_GATEWAY_DIR) build -o bin/liveagent-gateway-linux-arm64 ./cmd/gateway
-
-build-windows: proto webui
-	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go -C $(AGENT_GATEWAY_DIR) build -o bin/liveagent-gateway-windows-amd64.exe ./cmd/gateway
-
-gateway-build-windows: build-windows
 
 ## Maintenance
-clean:
-	rm -rf $(AGENT_GATEWAY_DIR)/bin/ $(AGENT_GATEWAY_WEB_DIR)/dist/
 
 check-rust-target-%:
 	@rustup target list --installed | grep -qx "$*" || (echo "Rust target $* is not installed. Run: rustup target add $*" && exit 1)
@@ -241,20 +154,6 @@ help:
 	@printf "  %-34s %s\n" "make desktop-build-windows" "构建 Windows Tauri 应用"
 	@printf "  %-34s %s\n" "make desktop-build-linux" "构建 Linux AppImage/deb/rpm"
 	@printf "  %-34s %s\n" "make github-release-main RELEASE_TAG=vX.Y.Z" "从 main 打 tag 并触发 GitHub Release"
-	@printf "\n%s\n" "Gateway development"
-	@printf "  %-34s %s\n" "make dev-gateway" "启动 agent-gateway Go 服务"
-	@printf "  %-34s %s\n" "make dev-webui" "启动 agent-gateway Web UI 开发服务"
-	@printf "\n%s\n" "Gateway build"
-	@printf "  %-34s %s\n" "make proto" "生成 agent-gateway protobuf 代码"
-	@printf "  %-34s %s\n" "make webui" "构建 agent-gateway Web UI"
-	@printf "  %-34s %s\n" "make gateway-build" "构建 agent-gateway 本地二进制"
-	@printf "  %-34s %s\n" "make gateway-docker-build" "构建 agent-gateway Docker 镜像"
-	@printf "  %-34s %s\n" "make gateway-docker-run" "本地运行 agent-gateway Docker 镜像"
-	@printf "  %-34s %s\n" "make gateway-docker-smoke" "构建并健康检查 agent-gateway Docker 镜像"
-	@printf "  %-34s %s\n" "make build-linux" "构建 agent-gateway Linux amd64 二进制"
-	@printf "  %-34s %s\n" "make build-linux-arm" "构建 agent-gateway Linux arm64 二进制"
-	@printf "  %-34s %s\n" "make build-windows" "构建 agent-gateway Windows amd64 二进制"
 	@printf "\n%s\n" "Maintenance"
-	@printf "  %-34s %s\n" "make all" "同时构建 GUI 和 agent-gateway"
-	@printf "  %-34s %s\n" "make clean" "清理 agent-gateway 构建产物"
+	@printf "  %-34s %s\n" "make all" "构建当前平台 Tauri 应用"
 	@printf "  %-34s %s\n" "make help" "查看可用命令"
