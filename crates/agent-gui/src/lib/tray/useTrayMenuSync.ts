@@ -11,12 +11,12 @@
  */
 import { useEffect } from "react";
 import { useLocale } from "../../i18n/LocaleContext";
-import { workspaceProjectPathKey, type AppSettings, type WorkspaceProject } from "../settings";
-import type { SidebarStore } from "../sidebar/store";
-import { selectConversations, selectRunningConversationIds } from "../sidebar/selectors";
 import { useAutomation } from "../automation/store";
-import { useTrayPrefs } from "./trayPrefs";
+import { type AppSettings, type WorkspaceProject, workspaceProjectPathKey } from "../settings";
+import { selectConversations, selectRunningConversationIds } from "../sidebar/selectors";
+import type { SidebarStore } from "../sidebar/store";
 import { buildTrayMenuModel, syncTrayMenu } from "./trayMenu";
+import { useTrayPrefs } from "./trayPrefs";
 
 export type UseTrayMenuSyncParams = {
   sidebarStore: SidebarStore;

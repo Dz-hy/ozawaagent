@@ -31,7 +31,6 @@ import { Button } from "../components/ui/button";
 import { useConfirmDialog } from "../components/ui/confirm-dialog";
 import { useLocale } from "../i18n";
 import type { CompactionStatus } from "../lib/chat/compaction/types";
-import { useTrayMenuSync } from "../lib/tray/useTrayMenuSync";
 import {
   buildRequestContext,
   type ConversationViewState,
@@ -90,6 +89,7 @@ import { terminalSessionBelongsToProject } from "../lib/terminal/sessionStore";
 import { tauriTerminalClient } from "../lib/terminal/tauriTerminalClient";
 import { cancelPendingAskUserQuestionsForConversation } from "../lib/tools/askUserQuestionTools";
 import { disposeTodoToolState } from "../lib/tools/todoTools";
+import { useTrayMenuSync } from "../lib/tray/useTrayMenuSync";
 import { tauriWorkspaceActivityClient } from "../lib/workspace-activity/tauriWorkspaceActivityClient";
 import { resolveGitWorkdir } from "../lib/workspaceProjects";
 import {
