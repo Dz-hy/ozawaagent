@@ -195,15 +195,6 @@ fn ensure_chat_history_schema(conn: &Connection) -> Result<(), String> {
             FOREIGN KEY (conversation_id) REFERENCES chatHistory(id) ON DELETE CASCADE
         );
 
-        CREATE TABLE IF NOT EXISTS chatHistoryShare (
-            conversation_id TEXT PRIMARY KEY,
-            token TEXT UNIQUE,
-            enabled INTEGER NOT NULL DEFAULT 0,
-            redact_tool_content INTEGER NOT NULL DEFAULT 0,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL,
-            FOREIGN KEY (conversation_id) REFERENCES chatHistory(id) ON DELETE CASCADE
-        );
         ",
     )
     .map_err(|e| format!("初始化聊天历史表失败：{e}"))?;
@@ -218,8 +209,6 @@ fn ensure_chat_history_schema(conn: &Connection) -> Result<(), String> {
             ON chatHistorySegment(conversation_id, updated_at DESC);
         CREATE INDEX IF NOT EXISTS idx_chatHistory_pinned
             ON chatHistory(is_pinned DESC, pinned_at DESC, updated_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_chatHistoryShare_token
-            ON chatHistoryShare(token);
         ",
     )
     .map_err(|e| format!("初始化聊天历史索引失败：{e}"))?;
@@ -690,7 +679,6 @@ mod tests {
         for table_name in [
             "chatHistory",
             "chatHistorySegment",
-            "chatHistoryShare",
             "chatHistoryFtsSegmentIndex",
             "subagentMeta",
             "subagentIdentity",

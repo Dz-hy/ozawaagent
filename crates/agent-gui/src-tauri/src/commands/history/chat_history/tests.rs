@@ -158,14 +158,6 @@ mod tests {
 
         assert_eq!(is_pinned_exists, 1);
         assert_eq!(pinned_at_exists, 1);
-        let share_table_exists: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'chatHistoryShare'",
-                [],
-                |row| row.get(0),
-            )
-            .expect("query share table");
-        assert_eq!(share_table_exists, 1);
     }
 
     #[test]
@@ -309,7 +301,6 @@ mod tests {
         for table_name in [
             "chatHistory",
             "chatHistorySegment",
-            "chatHistoryShare",
             "chatHistoryFtsSegmentIndex",
         ] {
             assert_eq!(
