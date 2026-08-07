@@ -31,6 +31,7 @@ import { Button } from "../components/ui/button";
 import { useConfirmDialog } from "../components/ui/confirm-dialog";
 import { useLocale } from "../i18n";
 import type { CompactionStatus } from "../lib/chat/compaction/types";
+import { useTrayMenuSync } from "../lib/tray/useTrayMenuSync";
 import {
   buildRequestContext,
   type ConversationViewState,
@@ -273,6 +274,13 @@ export function ChatPage(props: ChatPageProps) {
     setRightDockOpen,
     startNewConversationActionRef,
     prepareComposerForConversationChangeActionRef,
+  });
+  useTrayMenuSync({
+    sidebarStore,
+    settings,
+    workspaceProjects,
+    activeWorkspaceProjectId,
+    archivedWorkspaceProjectPathKeys,
   });
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
