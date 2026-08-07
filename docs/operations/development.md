@@ -12,11 +12,6 @@
 | `make desktop-build-macos-m` | Apple Silicon macOS 目标构建。 |
 | `make desktop-build-windows` | Windows 桌面目标构建。 |
 | `make desktop-build-linux` | Linux 桌面目标构建。 |
-| `make dev-gateway` | 本地启动 Go Gateway 开发服务。 |
-| `make dev-webui` | 本地启动 Gateway WebUI Vite 开发服务。 |
-| `make proto` | 生成 Gateway proto。 |
-| `make webui` | 构建 Gateway WebUI 静态资源。 |
-| `make gateway-build` | proto + webui + Gateway 构建。 |
 
 ## 包管理与子项目
 
@@ -24,18 +19,12 @@
 |---|---|---|
 | Rust workspace | `Cargo.toml` | 根工作区，包含 Tauri/Rust crate。 |
 | GUI frontend | `crates/agent-gui/package.json` | 桌面 React/Tauri 前端依赖与脚本。 |
-| Gateway | `crates/agent-gateway/go.mod` | Go Gateway 依赖。 |
-| Gateway WebUI | `crates/agent-gateway/web/package.json` | 浏览器 WebUI 依赖与构建脚本。 |
 
 ## 常用检查命令
 
 | 场景 | 命令 |
 |---|---|
 | GUI build | `pnpm -C crates/agent-gui build` |
-| WebUI build | `pnpm -C crates/agent-gateway/web build` |
-| Gateway tests | `cd crates/agent-gateway && go test ./...` |
-| Gateway lint | `cd crates/agent-gateway && golangci-lint run ./...` |
-| Proto 检查 | `make proto-check`（buf lint + 对 origin/main 的 breaking 检查） |
 | Tauri/Rust tests | `cargo test --manifest-path crates/agent-gui/src-tauri/Cargo.toml` |
 | 前端专项测试 | `pnpm -C crates/agent-gui test:frontend` |
 | diff 空白检查 | `git diff --check` |
@@ -79,16 +68,6 @@
 | 日志装置与协议使用打点 | `internal/observability` |
 | HTTP 入口与 public share | `internal/server` |
 
-## GUI/WebUI 双端改造检查
-
-| 改动类型 | 需要同步检查 |
-|---|---|
-| Settings 子页面 | `crates/agent-gui/src/pages/settings/*` 与 `crates/agent-gateway/web/src/pages/settings/*`。 |
-| Chat 气泡/侧边栏/上传 | GUI `src/pages/chat`/`src/components/chat` 与 WebUI 对应 copy。 |
-| Skills Hub | GUI/WebUI `pages/skills-hub`、`lib/skills`、i18n。 |
-| MCP Hub | GUI/WebUI `pages/mcp-hub`、`lib/mcpRegistry`、i18n。 |
-| Provider 设置 | GUI/WebUI settings、Rust settings、Gateway redaction、模型请求层。 |
-| Memory | Rust MemoryStore、GUI/WebUI MemoryPanel、Gateway memory.manage、MemoryManager tool。 |
 
 ## 文档任务边界
 

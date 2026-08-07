@@ -1,7 +1,6 @@
 # Skills Hub 批量选择交互规格 v2
 
-适用范围：`crates/agent-gui/src/pages/skills-hub/SkillsHubPage.tsx` 与
-`crates/agent-gateway/web/src/pages/skills-hub/SkillsHubPage.tsx`（两端 UI 必须保持一致）。
+适用范围：`crates/agent-gui/src/pages/skills-hub/SkillsHubPage.tsx`。
 
 ## 0. 核心原则
 
@@ -66,15 +65,15 @@
   不再直接写 `settings.skills.selected`。
 - `deleteBulkSelectedInstalledSkills` 的目标集合从 `selected`（启用集合）改为 bulkSelection。
 - 顶部工具栏的「全选/批量删除/退出」三按钮组移除，逻辑迁入底部浮动栏。
-- i18n：两端 `i18n/config.ts` 同步新增/调整 key（启用/禁用/清空/已选提示等），中英都要补。
+- i18n：`src/i18n/config.ts` 新增/调整 key（启用/禁用/清空/已选提示等），中英都要补。
 
 ## 7. 风险点自查（改完请逐条验证）
 
 1. 批量删除的确认文案与实际删除集合一致（不再是"已启用集合"）。
 2. Undo 只覆盖启用/禁用，不给删除提供伪撤销暗示。
-3. 触屏（webui 移动端）无 hover：复选框常驻可点，浮动栏不遮挡最后一行卡片（列表底部留 padding）。
+3. 触屏无 hover：复选框常驻可点，浮动栏不遮挡最后一行卡片（列表底部留 padding）。
 4. lockedByChatMode 时批量入口整体隐藏（保留现状）。
-5. agent-gui 与 agent-gateway/web 两份 SkillsHubPage 行为、样式、i18n 全部对齐。
+5. SkillsHubPage 行为、样式、i18n 符合本设计。
 
 ## 8. WebView2 渲染规约
 
@@ -89,8 +88,7 @@ Skills Hub 在 Windows WebView2 中必须遵守以下合成约束：
 3. **backdrop-filter 仅允许用于背后内容完全静态的场景。**
    例如页面顶部 HubHeader 或仅覆盖静态 HubBackdrop 的面板。若调用方可能覆盖列表、
    滚动区域或动画内容，应默认不用 backdrop-filter。
-4. **两端必须同步。**任何相关样式调整都要同时检查 agent-gui 与
-   agent-gateway/web，避免一个端重新引入独立合成层。
+4. **样式调整需回归验证。**任何相关样式调整都要验证 Skills Hub 页面的合成行为，避免重新引入独立合成层。
 
 案例依据：
 
