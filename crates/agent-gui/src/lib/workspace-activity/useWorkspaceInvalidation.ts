@@ -1,9 +1,7 @@
 // Dirty-flag driven workspace invalidation hook.
 //
-// MIRROR NOTICE: this file exists byte-for-byte in both frontends
-// (crates/agent-gui/src/lib/workspace-activity/ and
-// crates/agent-gateway/web/src/lib/workspace-activity/). Keep changes in sync
-// on both ends; only relative or @tauri-apps/* imports are allowed here.
+// NOTE: desktop GUI only (the former agent-gateway/web mirror was removed);
+// keep imports to relative or @tauri-apps/* only.
 //
 // Semantics:
 // - While subscribed, every activity event marks the tracker dirty (fs/git

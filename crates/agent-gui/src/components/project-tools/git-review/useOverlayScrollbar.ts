@@ -1,8 +1,7 @@
 // GitReview transient overlay scrollbar system.
 //
-// MIRROR NOTICE: every file under components/project-tools/git-review exists
-// byte-for-byte in both frontends (crates/agent-gui/src and
-// crates/agent-gateway/web/src). Keep changes in sync on both ends; only
+// NOTE: every file under components/project-tools/git-review exists
+// only in the desktop GUI (the agent-gateway/web mirror was removed); imports stay
 // relative or @tauri-apps/* imports are allowed here.
 //
 // Scroll containers opt in via GIT_REVIEW_TRANSIENT_SCROLLBAR_CLASS plus the

@@ -1,8 +1,7 @@
 // Memoized virtual-list rows for the right-dock file tree panel.
 //
-// MIRROR NOTICE: every file under components/project-tools/file-tree/ exists
-// byte-for-byte in both frontends (crates/agent-gui/src and
-// crates/agent-gateway/web/src). Keep changes in sync on both ends; only
+// NOTE: every file under components/project-tools/file-tree/ exists
+// only in the desktop GUI (the agent-gateway/web mirror was removed); imports stay
 // relative, npm-package, or @tauri-apps/* imports are allowed here.
 
 import { memo, type MouseEvent as ReactMouseEvent } from "react";

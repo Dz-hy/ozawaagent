@@ -2,9 +2,8 @@
 // layout/presentation state shared across views and composes the toolbar,
 // status view and history view around the data layer.
 //
-// MIRROR NOTICE: every file under components/project-tools/git-review exists
-// byte-for-byte in both frontends (crates/agent-gui/src and
-// crates/agent-gateway/web/src). Keep changes in sync on both ends; only
+// NOTE: every file under components/project-tools/git-review exists
+// only in the desktop GUI (the agent-gateway/web mirror was removed); imports stay
 // relative or @tauri-apps/* imports are allowed here.
 
 import { memo, useCallback, useLayoutEffect, useRef, useState } from "react";

@@ -2,9 +2,8 @@
 // request de-duplication and out-of-order protection, per-project LRU state
 // buckets, workspace-activity driven invalidation, search, and fs mutations.
 //
-// MIRROR NOTICE: every file under components/project-tools/file-tree/ exists
-// byte-for-byte in both frontends (crates/agent-gui/src and
-// crates/agent-gateway/web/src). Keep changes in sync on both ends; only
+// NOTE: every file under components/project-tools/file-tree/ exists
+// only in the desktop GUI (the agent-gateway/web mirror was removed); imports stay
 // relative, npm-package, or @tauri-apps/* imports are allowed here.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

@@ -1,9 +1,8 @@
 // GitReview history view: commit graph list (virtualized), commit detail pane
 // and the history context menus.
 //
-// MIRROR NOTICE: every file under components/project-tools/git-review exists
-// byte-for-byte in both frontends (crates/agent-gui/src and
-// crates/agent-gateway/web/src). Keep changes in sync on both ends; only
+// NOTE: every file under components/project-tools/git-review exists
+// only in the desktop GUI (the agent-gateway/web mirror was removed); imports stay
 // relative or @tauri-apps/* imports are allowed here.
 
 import { useVirtualizer } from "@tanstack/react-virtual";

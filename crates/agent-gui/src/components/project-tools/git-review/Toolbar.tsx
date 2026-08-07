@@ -2,9 +2,8 @@
 // mode/pane switchers) plus the modal dialogs and the operation toast shared
 // by the status and history views.
 //
-// MIRROR NOTICE: every file under components/project-tools/git-review exists
-// byte-for-byte in both frontends (crates/agent-gui/src and
-// crates/agent-gateway/web/src). Keep changes in sync on both ends; only
+// NOTE: every file under components/project-tools/git-review exists
+// only in the desktop GUI (the agent-gateway/web mirror was removed); imports stay
 // relative or @tauri-apps/* imports are allowed here.
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
