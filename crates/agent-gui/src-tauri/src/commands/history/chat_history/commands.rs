@@ -31,18 +31,6 @@ pub async fn chat_history_workdirs() -> Result<ChatHistoryWorkdirsResponse, Stri
     .map_err(|e| format!("chat_history_workdirs join 失败：{e}"))?
 }
 
-#[tauri::command]
-pub async fn chat_history_shared_list(
-    page: i64,
-    page_size: i64,
-) -> Result<ChatHistoryListResponse, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        list_shared_chat_history_page_sync(page, page_size)
-    })
-    .await
-    .map_err(|e| format!("chat_history_shared_list join failed: {e}"))?
-}
-
 pub(crate) async fn chat_history_get_summary_inner(
     id: String,
 ) -> Result<ChatHistorySummary, String> {
@@ -133,7 +121,6 @@ pub async fn chat_history_get_active_segment(
             updated_at: record.updated_at,
             is_pinned: record.is_pinned,
             pinned_at: record.pinned_at,
-            is_shared: record.is_shared,
         })
     })
     .await
@@ -316,54 +303,4 @@ pub async fn chat_history_set_model(
 ) -> Result<ChatHistorySummary, String> {
     let summary = chat_history_set_model_inner(id, selected_model_json).await?;
     Ok(summary)
-}
-
-pub(crate) async fn chat_history_share_get_inner(
-    id: String,
-) -> Result<ChatHistoryShareStatus, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let conn = open_db()?;
-        get_chat_history_share_status_sync(&conn, &id)
-    })
-    .await
-    .map_err(|e| format!("chat_history_share_get join 失败：{e}"))?
-}
-
-#[tauri::command]
-pub async fn chat_history_share_get(id: String) -> Result<ChatHistoryShareStatus, String> {
-    chat_history_share_get_inner(id).await
-}
-
-pub(crate) async fn chat_history_share_set_inner(
-    id: String,
-    enabled: bool,
-    redact_tool_content: Option<bool>,
-) -> Result<ChatHistoryShareStatus, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let conn = open_db()?;
-        set_chat_history_share_enabled_sync(&conn, &id, enabled, redact_tool_content)
-    })
-    .await
-    .map_err(|e| format!("chat_history_share_set join 失败：{e}"))?
-}
-
-#[tauri::command]
-pub async fn chat_history_share_set(
-    id: String,
-    enabled: bool,
-    redact_tool_content: Option<bool>,
-) -> Result<ChatHistoryShareStatus, String> {
-    let status = chat_history_share_set_inner(id, enabled, redact_tool_content).await?;
-    Ok(status)
-}
-
-pub(crate) async fn chat_history_share_resolve_inner(
-    token: String,
-) -> Result<ChatHistoryRecord, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let conn = open_db()?;
-        resolve_chat_history_share_sync(&conn, &token)
-    })
-    .await
-    .map_err(|e| format!("chat_history_share_resolve join 失败：{e}"))?
 }

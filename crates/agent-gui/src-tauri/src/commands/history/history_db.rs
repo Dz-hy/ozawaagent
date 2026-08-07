@@ -210,7 +210,6 @@ fn ensure_chat_history_schema(conn: &Connection) -> Result<(), String> {
 
     ensure_chat_history_columns(conn)?;
     ensure_chat_history_segment_columns(conn)?;
-    ensure_chat_history_share_columns(conn)?;
     conn.execute_batch(
         "
         CREATE INDEX IF NOT EXISTS idx_chatHistory_updated_at
@@ -404,59 +403,6 @@ fn ensure_chat_history_segment_columns(conn: &Connection) -> Result<(), String> 
         ",
     )
     .map_err(|e| format!("修复聊天历史分段表默认字段失败：{e}"))?;
-
-    Ok(())
-}
-
-fn ensure_chat_history_share_columns(conn: &Connection) -> Result<(), String> {
-    ensure_table_columns(
-        conn,
-        "chatHistoryShare",
-        "聊天历史分享表",
-        &[
-            (
-                "token",
-                "ALTER TABLE chatHistoryShare ADD COLUMN token TEXT;",
-            ),
-            (
-                "enabled",
-                "ALTER TABLE chatHistoryShare ADD COLUMN enabled INTEGER NOT NULL DEFAULT 0;",
-            ),
-            (
-                "redact_tool_content",
-                "ALTER TABLE chatHistoryShare ADD COLUMN redact_tool_content INTEGER NOT NULL DEFAULT 0;",
-            ),
-            (
-                "created_at",
-                "ALTER TABLE chatHistoryShare ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0;",
-            ),
-            (
-                "updated_at",
-                "ALTER TABLE chatHistoryShare ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0;",
-            ),
-        ],
-    )?;
-
-    conn.execute_batch(
-        "
-        UPDATE chatHistoryShare
-        SET enabled = 0
-        WHERE enabled IS NULL;
-
-        UPDATE chatHistoryShare
-        SET redact_tool_content = 0
-        WHERE redact_tool_content IS NULL;
-
-        UPDATE chatHistoryShare
-        SET created_at = 0
-        WHERE created_at IS NULL;
-
-        UPDATE chatHistoryShare
-        SET updated_at = created_at
-        WHERE updated_at IS NULL;
-        ",
-    )
-    .map_err(|e| format!("修复聊天历史分享表默认字段失败：{e}"))?;
 
     Ok(())
 }

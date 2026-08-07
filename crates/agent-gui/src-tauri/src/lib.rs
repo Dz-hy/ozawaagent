@@ -42,7 +42,6 @@ macro_rules! app_invoke_handler {
             // Chat history
             commands::chat_history::chat_history_list,
             commands::chat_history::chat_history_workdirs,
-            commands::chat_history::chat_history_shared_list,
             commands::chat_history::chat_history_get,
             commands::chat_history::chat_history_get_active_segment,
             commands::chat_history::chat_history_upsert,
@@ -52,8 +51,6 @@ macro_rules! app_invoke_handler {
             commands::chat_history::chat_history_branch,
             commands::chat_history::chat_history_set_pinned,
             commands::chat_history::chat_history_set_model,
-            commands::chat_history::chat_history_share_get,
-            commands::chat_history::chat_history_share_set,
             commands::chat_history::chat_history_delete,
             // Subagent store
             commands::subagent_store::subagent_identity_upsert,

@@ -14,10 +14,6 @@ use crate::{
 };
 use uuid::Uuid;
 
-const HISTORY_SHARE_TOKEN_LEN: usize = 9;
-const HISTORY_SHARE_TOKEN_INSERT_ATTEMPTS: usize = 8;
-const HISTORY_SHARE_TOKEN_ALPHABET: &[u8] =
-    b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 const CHAT_HISTORY_FTS_REFRESH_BATCH_SIZE: usize = 8;
 const DEFAULT_HISTORY_SEARCH_LIMIT: usize = 6;
 const MAX_HISTORY_SEARCH_LIMIT: usize = 12;
@@ -29,7 +25,6 @@ include!("repository.rs");
 include!("message_ref.rs");
 include!("fts.rs");
 include!("segments.rs");
-include!("share.rs");
 include!("search.rs");
 include!("commands.rs");
 include!("branch.rs");
