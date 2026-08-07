@@ -22,7 +22,6 @@ const AGENT_PROMPT_TEMPLATES_TABLE: &str = "agent_prompt_templates";
 const SSH_SETTINGS_TABLE: &str = "ssh_settings";
 const SSH_PROJECT_HOST_ASSOCIATIONS_TABLE: &str = "ssh_project_host_associations";
 const SSH_KNOWN_HOSTS_TABLE: &str = "ssh_known_hosts";
-const REMOTE_SETTINGS_TABLE: &str = "remote_settings";
 const MEMORY_SETTINGS_TABLE: &str = "memory_settings";
 
 const SYSTEM_EXECUTION_MODE_KEY: &str = "executionMode";
@@ -145,7 +144,6 @@ const SSH_KNOWN_HOSTS_DELETE_SQL: &str = "
 ";
 
 include!("types.rs");
-include!("remote.rs");
 include!("db.rs");
 include!("json.rs");
 include!("providers.rs");

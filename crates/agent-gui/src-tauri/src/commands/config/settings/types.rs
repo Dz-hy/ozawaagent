@@ -6,7 +6,6 @@ pub struct SettingsLoadResponse {
     pub mcp: Option<Value>,
     pub agents: Option<Value>,
     pub ssh: Option<Value>,
-    pub remote: Option<Value>,
     pub memory: Option<Value>,
     pub default_workdir: String,
 }
@@ -16,33 +15,6 @@ pub struct SettingsLoadResponse {
 pub struct SshPatchApplyResponse {
     pub ssh: Value,
     pub conflict: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct RemoteSettingsPayload {
-    #[serde(default)]
-    pub enabled: bool,
-    #[serde(default)]
-    pub gateway_url: String,
-    #[serde(default = "default_remote_gateway_port", alias = "grpcPort")]
-    pub gateway_port: u16,
-    #[serde(default)]
-    pub token: String,
-    #[serde(default)]
-    pub agent_id: String,
-    #[serde(default = "default_remote_auto_reconnect")]
-    pub auto_reconnect: bool,
-    #[serde(default = "default_remote_heartbeat_interval")]
-    pub heartbeat_interval: u64,
-    #[serde(default)]
-    pub enable_web_terminal: bool,
-    #[serde(default)]
-    pub enable_web_ssh_terminal: bool,
-    #[serde(default)]
-    pub enable_web_git: bool,
-    #[serde(default)]
-    pub enable_web_tunnels: bool,
 }
 #[derive(Debug, Clone)]
 pub(crate) struct RuntimeSshProxyConfig {

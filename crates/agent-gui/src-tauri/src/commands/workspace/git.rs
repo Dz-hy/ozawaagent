@@ -200,29 +200,6 @@ pub struct GitOperationResponse {
     pub stderr: String,
     pub message: String,
 }
-
-#[derive(Debug, Clone, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-struct GitGatewayArgs {
-    branch: Option<String>,
-    kind: Option<String>,
-    path: Option<String>,
-    old_path: Option<String>,
-    remote_url: Option<String>,
-    message: Option<String>,
-    mode: Option<String>,
-    commit: Option<String>,
-    start_point: Option<String>,
-    limit: Option<usize>,
-    skip: Option<usize>,
-    name: Option<String>,
-    user_name: Option<String>,
-    user_email: Option<String>,
-    force: Option<bool>,
-    new_branch: Option<String>,
-    task_id: Option<String>,
-}
-
 struct GitOutput {
     stdout: String,
     stderr: String,
@@ -2998,143 +2975,6 @@ pub(crate) fn git_stash_pop_sync(workdir: String) -> Result<GitOperationResponse
         "已恢复最近的 stash。",
     )
 }
-
-fn parse_gateway_args(args_json: String) -> Result<GitGatewayArgs, String> {
-    if args_json.trim().is_empty() {
-        return Ok(GitGatewayArgs::default());
-    }
-    serde_json::from_str(&args_json).map_err(|error| format!("Git 参数 JSON 无效：{error}"))
-}
-
-pub(crate) fn git_gateway_action_sync(
-    action: String,
-    workdir: String,
-    args_json: String,
-) -> Result<Value, String> {
-    let action = action.trim().to_ascii_lowercase();
-    let args = parse_gateway_args(args_json)?;
-    let value = match action.as_str() {
-        "status" => serde_json::to_value(git_status_sync(workdir)?),
-        "discover_repositories" => serde_json::to_value(git_discover_repositories_sync(workdir)?),
-        "branches" => serde_json::to_value(git_branches_sync(workdir)?),
-        "init" => serde_json::to_value(git_init_sync(
-            workdir,
-            args.branch.unwrap_or_else(|| "main".to_string()),
-            args.user_name,
-            args.user_email,
-        )?),
-        "clone" => serde_json::to_value(git_clone_repository_sync(
-            workdir,
-            args.name.unwrap_or_default(),
-            args.remote_url.unwrap_or_default(),
-            args.branch,
-        )?),
-        "list_remote_branches" => serde_json::to_value(git_list_remote_branches_sync(
-            args.remote_url.unwrap_or_default(),
-        )?),
-        "switch_branch" => serde_json::to_value(git_switch_branch_sync(
-            workdir,
-            args.branch.unwrap_or_default(),
-            args.kind,
-        )?),
-        "create_branch" => serde_json::to_value(git_create_branch_sync(
-            workdir,
-            args.branch.unwrap_or_default(),
-            args.start_point,
-        )?),
-        "log" => serde_json::to_value(git_log_sync(workdir, args.limit, args.skip)?),
-        "commit_details" => serde_json::to_value(git_commit_details_sync(
-            workdir,
-            args.commit.unwrap_or_default(),
-        )?),
-        "compare_commit_with_remote" => serde_json::to_value(git_compare_commit_with_remote_sync(
-            workdir,
-            args.commit.unwrap_or_default(),
-        )?),
-        "commit_diff" => serde_json::to_value(git_commit_diff_sync(
-            workdir,
-            args.commit.unwrap_or_default(),
-            args.path,
-        )?),
-        "diff" => serde_json::to_value(git_diff_sync(workdir, args.mode, args.path)?),
-        "stage" => serde_json::to_value(git_stage_sync(workdir, args.path.unwrap_or_default())?),
-        "stage_all" => serde_json::to_value(git_stage_all_sync(workdir)?),
-        "unstage" => {
-            serde_json::to_value(git_unstage_sync(workdir, args.path.unwrap_or_default())?)
-        }
-        "unstage_all" => serde_json::to_value(git_unstage_all_sync(workdir)?),
-        "discard" => serde_json::to_value(git_discard_sync(
-            workdir,
-            args.path.unwrap_or_default(),
-            args.old_path,
-        )?),
-        "discard_all" => serde_json::to_value(git_discard_all_sync(workdir)?),
-        "add_to_gitignore" => serde_json::to_value(git_add_to_gitignore_sync(
-            workdir,
-            args.path.unwrap_or_default(),
-        )?),
-        "open_system_file_location" => serde_json::to_value(git_open_system_file_location_sync(
-            workdir,
-            args.path.unwrap_or_default(),
-        )?),
-        "commit" => {
-            serde_json::to_value(git_commit_sync(workdir, args.message.unwrap_or_default())?)
-        }
-        "fetch" => serde_json::to_value(git_fetch_sync(workdir)?),
-        "pull" => serde_json::to_value(git_pull_sync(workdir)?),
-        "set_remote" => serde_json::to_value(git_set_remote_sync(
-            workdir,
-            args.remote_url.unwrap_or_default(),
-        )?),
-        "push" => serde_json::to_value(git_push_sync(workdir)?),
-        "delete_branch" => serde_json::to_value(git_delete_branch_sync(
-            workdir,
-            args.branch.unwrap_or_default(),
-            args.force,
-        )?),
-        "rename_branch" => serde_json::to_value(git_rename_branch_sync(
-            workdir,
-            args.branch.unwrap_or_default(),
-            args.new_branch.unwrap_or_default(),
-        )?),
-        "stash_push" => serde_json::to_value(git_stash_push_sync(workdir, args.message)?),
-        "stash_pop" => serde_json::to_value(git_stash_pop_sync(workdir)?),
-        "" => return Err("Git action 不能为空。".to_string()),
-        other => return Err(format!("不支持的 Git action：{other}")),
-    }
-    .map_err(|error| format!("序列化 Git 响应失败：{error}"))?;
-    Ok(value)
-}
-
-pub(crate) fn git_gateway_clone_task_action_sync(
-    action: String,
-    workdir: String,
-    args_json: String,
-    registry: &Arc<GitCloneTaskRegistry>,
-) -> Result<Value, String> {
-    let action = action.trim().to_ascii_lowercase();
-    let args = parse_gateway_args(args_json.clone())?;
-    match action.as_str() {
-        "clone_start" => serde_json::to_value(registry.start(
-            workdir,
-            args.name.unwrap_or_default(),
-            args.remote_url.unwrap_or_default(),
-            args.branch,
-        )?)
-        .map_err(|error| format!("序列化 Git 响应失败：{error}")),
-        "clone_tasks" => serde_json::to_value(registry.snapshot()?)
-            .map_err(|error| format!("序列化 Git 响应失败：{error}")),
-        "clone_cancel" => serde_json::to_value(registry.cancel(args.task_id.unwrap_or_default())?)
-            .map_err(|error| format!("序列化 Git 响应失败：{error}")),
-        "clone_dismiss" => {
-            registry.dismiss(args.task_id.unwrap_or_default())?;
-            serde_json::to_value(registry.snapshot()?)
-                .map_err(|error| format!("序列化 Git 响应失败：{error}"))
-        }
-        _ => git_gateway_action_sync(action, workdir, args_json),
-    }
-}
-
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_status(workdir: String) -> Result<GitRepositoryState, String> {
     tauri::async_runtime::spawn_blocking(move || git_status_sync(workdir))
@@ -3530,24 +3370,6 @@ mod tests {
         };
         assert_eq!(resolve_review_base(&state), "origin/feature");
     }
-
-    #[test]
-    fn gateway_args_accept_empty_json() {
-        assert!(parse_gateway_args(String::new()).is_ok());
-        assert!(parse_gateway_args(json!({"path":"src/main.rs"}).to_string()).is_ok());
-        let init_args = parse_gateway_args(
-            json!({"branch":"main","userName":"LiveAgent Test","userEmail":"test@example.com"})
-                .to_string(),
-        )
-        .expect("parse init args");
-        assert_eq!(init_args.user_name.as_deref(), Some("LiveAgent Test"));
-        assert_eq!(init_args.user_email.as_deref(), Some("test@example.com"));
-        let log_args =
-            parse_gateway_args(json!({"limit":50,"skip":100}).to_string()).expect("parse log args");
-        assert_eq!(log_args.limit, Some(50));
-        assert_eq!(log_args.skip, Some(100));
-    }
-
     #[test]
     fn parses_git_log_commits_refs_and_renames() {
         let raw = "\x1e0123456789abcdef\x1f0123456\x1ffedcba9\x1fHEAD -> refs/heads/feature, refs/remotes/origin/feature, tag: refs/tags/v1.2.3\x1fAlice\x1falice@example.com\x1f2026-05-29T10:11:12+08:00\x1frename file\nR100\0old\tname.txt\0new name.txt\0A\0src/tab\tfile.txt\0";
@@ -3784,27 +3606,6 @@ mod tests {
         assert_eq!(response.state.head, "release");
         assert_eq!(response.state.remote_name, "origin");
         assert!(parent.path().join("cloned-project/RELEASE.md").is_file());
-
-        let gateway_parent = tempfile::tempdir().expect("gateway clone parent");
-        let gateway_response: GitOperationResponse = serde_json::from_value(
-            git_gateway_action_sync(
-                "clone".to_string(),
-                gateway_parent.path().to_string_lossy().into_owned(),
-                serde_json::json!({
-                    "name": "gateway-project",
-                    "remoteUrl": source.path(),
-                    "branch": "release",
-                })
-                .to_string(),
-            )
-            .expect("gateway clone repository"),
-        )
-        .expect("decode gateway clone response");
-        assert_eq!(gateway_response.state.head, "release");
-        assert!(gateway_parent
-            .path()
-            .join("gateway-project/RELEASE.md")
-            .is_file());
         assert!(git_clone_repository_sync(
             parent.path().to_string_lossy().into_owned(),
             "cloned-project".to_string(),
@@ -3813,60 +3614,6 @@ mod tests {
         )
         .expect_err("existing clone target must be rejected")
         .contains("克隆目标已存在"));
-
-        let task_parent = tempfile::tempdir().expect("task clone parent");
-        let registry = Arc::new(GitCloneTaskRegistry::default());
-        let started = git_gateway_clone_task_action_sync(
-            "clone_start".to_string(),
-            task_parent.path().to_string_lossy().into_owned(),
-            json!({
-                "name": "task-project",
-                "remoteUrl": source.path(),
-                "branch": "release",
-            })
-            .to_string(),
-            &registry,
-        )
-        .expect("start gateway clone task");
-        let task_id = started["id"].as_str().expect("clone task id").to_string();
-        let deadline = Instant::now() + Duration::from_secs(5);
-        loop {
-            let task = registry.task(&task_id).expect("clone task state");
-            if task.status != "running" && task.status != "cancelling" {
-                assert_eq!(
-                    task.status, "completed",
-                    "clone task failed: {}",
-                    task.error
-                );
-                break;
-            }
-            assert!(Instant::now() < deadline, "clone task timed out");
-            thread::sleep(Duration::from_millis(20));
-        }
-        assert!(task_parent.path().join("task-project/RELEASE.md").is_file());
-        let snapshot = git_gateway_clone_task_action_sync(
-            "clone_tasks".to_string(),
-            String::new(),
-            String::new(),
-            &registry,
-        )
-        .expect("read gateway clone tasks");
-        assert!(snapshot
-            .as_array()
-            .expect("task snapshot")
-            .iter()
-            .any(|task| task["id"] == task_id));
-        let dismissed = git_gateway_clone_task_action_sync(
-            "clone_dismiss".to_string(),
-            String::new(),
-            json!({ "taskId": task_id }).to_string(),
-            &registry,
-        )
-        .expect("dismiss gateway clone task");
-        assert!(
-            dismissed.as_array().expect("dismissed snapshot").is_empty(),
-            "dismissed task must leave the registry"
-        );
     }
 
     #[test]
@@ -5112,75 +4859,5 @@ mod tests {
         let dashed =
             git_create_branch_sync(workdir, "from-dashed".to_string(), Some("-d".to_string()));
         assert!(dashed.is_err(), "dashed start point should error");
-    }
-
-    #[test]
-    fn git_gateway_action_dispatches_branch_and_stash_actions() {
-        let Some(repo) = init_temp_repo() else {
-            return;
-        };
-        let workdir = repo.path().to_string_lossy().to_string();
-        let initial = git_status_sync(workdir.clone()).expect("initial status");
-
-        run_temp_git(repo.path(), &["branch", "gateway-branch"]);
-        let renamed = git_gateway_action_sync(
-            "rename_branch".to_string(),
-            workdir.clone(),
-            json!({"branch":"gateway-branch","newBranch":"gateway-renamed"}).to_string(),
-        )
-        .expect("rename via gateway");
-        assert_eq!(renamed["ok"], json!(true), "rename response: {renamed}");
-
-        run_temp_git(repo.path(), &["checkout", "gateway-renamed"]);
-        fs::write(repo.path().join("gateway.txt"), "gateway\n").expect("write gateway file");
-        run_temp_git(repo.path(), &["add", "gateway.txt"]);
-        run_temp_git(repo.path(), &["commit", "-m", "gateway commit"]);
-        run_temp_git(repo.path(), &["checkout", initial.head.as_str()]);
-
-        let soft_deleted = git_gateway_action_sync(
-            "delete_branch".to_string(),
-            workdir.clone(),
-            json!({"branch":"gateway-renamed"}).to_string(),
-        )
-        .expect("soft delete via gateway");
-        assert_eq!(
-            soft_deleted["ok"],
-            json!(false),
-            "soft delete response: {soft_deleted}"
-        );
-        let force_deleted = git_gateway_action_sync(
-            "delete_branch".to_string(),
-            workdir.clone(),
-            json!({"branch":"gateway-renamed","force":true}).to_string(),
-        )
-        .expect("force delete via gateway");
-        assert_eq!(
-            force_deleted["ok"],
-            json!(true),
-            "force delete response: {force_deleted}"
-        );
-
-        fs::write(repo.path().join("README.md"), "gateway stash\n").expect("modify readme");
-        let stashed = git_gateway_action_sync(
-            "stash_push".to_string(),
-            workdir.clone(),
-            json!({"message":"gateway stash"}).to_string(),
-        )
-        .expect("stash push via gateway");
-        assert_eq!(stashed["ok"], json!(true), "stash response: {stashed}");
-        assert_eq!(
-            stashed["state"]["stashCount"],
-            json!(1),
-            "stash response: {stashed}"
-        );
-
-        let popped = git_gateway_action_sync("stash_pop".to_string(), workdir, String::new())
-            .expect("stash pop via gateway");
-        assert_eq!(popped["ok"], json!(true), "pop response: {popped}");
-        assert_eq!(
-            popped["state"]["stashCount"],
-            json!(0),
-            "pop response: {popped}"
-        );
     }
 }

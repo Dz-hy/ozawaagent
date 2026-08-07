@@ -9,7 +9,6 @@ pub async fn settings_load_all() -> Result<SettingsLoadResponse, String> {
             mcp: load_mcp(&conn)?,
             agents: load_agents(&conn)?,
             ssh: load_ssh(&conn)?,
-            remote: load_remote(&conn)?,
             memory: load_memory(&conn)?,
             default_workdir,
         })
