@@ -241,7 +241,7 @@ export class GaBridgeClient {
     const result = await this.request<{ profile: GaModelProfile }>(
       `/api/v1/model-profiles/${encodeURIComponent(id)}`,
       {
-        method: "PATCH",
+        method: "PUT",
         body: JSON.stringify(patch),
       },
     );
