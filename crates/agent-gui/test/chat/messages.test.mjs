@@ -26,7 +26,7 @@ const fileB = {
 };
 const fileC = {
   relativePath: "uploads/report.docx",
-  absolutePath: "/Users/me/.liveagent/uploads/1/report.docx",
+  absolutePath: "/Users/me/.ozawaagent/uploads/1/report.docx",
   fileName: "report.docx",
   kind: "word",
   sizeBytes: 4096,
@@ -82,23 +82,23 @@ test("uploaded file helpers preserve office and archive attachment kinds", () =>
     fileC,
     {
       relativePath: "uploads/workbook.xlsx",
-      absolutePath: "/Users/me/.liveagent/uploads/1/workbook.xlsx",
+      absolutePath: "/Users/me/.ozawaagent/uploads/1/workbook.xlsx",
       fileName: "workbook.xlsx",
       kind: "spreadsheet",
       sizeBytes: 8192,
     },
     {
       relativePath: "uploads/assets.zip",
-      absolutePath: "/Users/me/.liveagent/uploads/1/assets.zip",
+      absolutePath: "/Users/me/.ozawaagent/uploads/1/assets.zip",
       fileName: "assets.zip",
       kind: "archive",
       sizeBytes: 16384,
     },
   ]);
   assert.ok(message);
-  assert.match(message.content, /\/\.liveagent\/uploads\/1\/report\.docx \(word\)/);
-  assert.match(message.content, /\/\.liveagent\/uploads\/1\/workbook\.xlsx \(spreadsheet\)/);
-  assert.match(message.content, /\/\.liveagent\/uploads\/1\/assets\.zip \(archive\)/);
+  assert.match(message.content, /\/\.ozawaagent\/uploads\/1\/report\.docx \(word\)/);
+  assert.match(message.content, /\/\.ozawaagent\/uploads\/1\/workbook\.xlsx \(spreadsheet\)/);
+  assert.match(message.content, /\/\.ozawaagent\/uploads\/1\/assets\.zip \(archive\)/);
   assert.deepEqual(
     uploadedFiles.getUserMessageAttachments(message).map((file) => file.kind),
     ["word", "spreadsheet", "archive"],
@@ -133,7 +133,7 @@ test("pasted text uploads preserve display metadata and parse display references
   const pastedFile = uploadedFiles.withPastedTextDisplayMetadata(
     {
       relativePath: "uploads/pasted-text-1.txt",
-      absolutePath: "/Users/me/.liveagent/uploads/1/pasted-text-1.txt",
+      absolutePath: "/Users/me/.ozawaagent/uploads/1/pasted-text-1.txt",
       fileName: "pasted-text-1.txt",
       kind: "text",
       sizeBytes: 12345,

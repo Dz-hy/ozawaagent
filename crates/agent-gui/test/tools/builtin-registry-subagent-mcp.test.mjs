@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-test("retired LiveAgent builtin registry stays removed", () => {
+test("retired legacy builtin registry stays removed", () => {
   const modulePath = fileURLToPath(
     new URL("../../src/lib/tools/builtinRegistry.ts", import.meta.url),
   );

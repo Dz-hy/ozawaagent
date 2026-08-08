@@ -27,9 +27,9 @@ test("prepareUpstreamProxyRequest 保留路径与查询串并携带三个反代�
   );
 
   assert.equal(prepared.url, "http://127.0.0.1:43110/proxy/hub/api/v1/skills?limit=24&sort=downloads");
-  assert.equal(prepared.headers["x-liveagent-upstream-origin"], "https://clawhub.ai");
-  assert.equal(prepared.headers["x-liveagent-proxy-token"], "test-proxy-token");
-  assert.equal(prepared.headers["x-liveagent-use-system-proxy"], "1");
+  assert.equal(prepared.headers["x-ozawaagent-upstream-origin"], "https://clawhub.ai");
+  assert.equal(prepared.headers["x-ozawaagent-proxy-token"], "test-proxy-token");
+  assert.equal(prepared.headers["x-ozawaagent-use-system-proxy"], "1");
 });
 
 test("prepareUpstreamProxyRequest 拒绝相对地址、非 http(s) 与内嵌凭据", async () => {
@@ -82,11 +82,11 @@ test("hubFetch 桌面端改写请求地址并合并调用方 headers", async () 
   const headers = new Headers(calls[0].init.headers);
   assert.equal(headers.get("accept"), "application/json");
   assert.equal(
-    headers.get("x-liveagent-upstream-origin"),
+    headers.get("x-ozawaagent-upstream-origin"),
     "https://registry.modelcontextprotocol.io",
   );
-  assert.equal(headers.get("x-liveagent-proxy-token"), "test-proxy-token");
-  assert.equal(headers.get("x-liveagent-use-system-proxy"), "1");
+  assert.equal(headers.get("x-ozawaagent-proxy-token"), "test-proxy-token");
+  assert.equal(headers.get("x-ozawaagent-use-system-proxy"), "1");
 });
 
 test("hubFetch 桌面端透传 init 的 method/body/signal", async () => {
@@ -124,7 +124,7 @@ test("hubFetch 在 Gateway WebUI 运行时直连、不改写地址不加反代�
     return { ok: true, status: 200 };
   };
   // 模拟 web main.tsx 在渲染前写入的运行时标记。
-  globalThis.document = { documentElement: { dataset: { liveagentWebui: "gateway" } } };
+  globalThis.document = { documentElement: { dataset: { ozawaagentWebui: "gateway" } } };
   try {
     await hubFetchModule.hubFetch("https://clawhub.ai/api/v1/skills?limit=24", {
       headers: { Accept: "application/json" },
@@ -142,6 +142,6 @@ test("hubFetch 在 Gateway WebUI 运行时直连、不改写地址不加反代�
   assert.equal(calls[0].url, "https://clawhub.ai/api/v1/skills?limit=24");
   const headers = new Headers(calls[0].init.headers);
   assert.equal(headers.get("accept"), "application/json");
-  assert.equal(headers.get("x-liveagent-upstream-origin"), null);
-  assert.equal(headers.get("x-liveagent-use-system-proxy"), null);
+  assert.equal(headers.get("x-ozawaagent-upstream-origin"), null);
+  assert.equal(headers.get("x-ozawaagent-use-system-proxy"), null);
 });

@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-test("retired LiveAgent MCP manager tool adapter stays removed", () => {
+test("retired legacy adapter stays removed", () => {
   const modulePath = fileURLToPath(
     new URL("../../src/lib/tools/mcpManagerTools.ts", import.meta.url),
   );

@@ -16,12 +16,12 @@ test("builtin agent skills stay selected and sort first", () => {
       { name: "z-skill" },
       { name: "skills-installer" },
       { name: "a-skill" },
-      { name: "liveagent-code-review" },
+      { name: "code-review" },
       { name: "skills-creator" },
     ]).map((skill) => skill.name),
-    ["skills-creator", "skills-installer", "a-skill", "liveagent-code-review", "z-skill"],
+    ["skills-creator", "skills-installer", "a-skill", "code-review", "z-skill"],
   );
-  assert.equal(skillBuiltinHelpers.isUserSelectableSkillName("liveagent-code-review"), true);
+  assert.equal(skillBuiltinHelpers.isUserSelectableSkillName("code-review"), true);
   assert.equal(skillBuiltinHelpers.isUserSelectableSkillName("skills-creator"), false);
   assert.equal(skillBuiltinHelpers.isUserSelectableSkillName("workflow-skill"), true);
 });

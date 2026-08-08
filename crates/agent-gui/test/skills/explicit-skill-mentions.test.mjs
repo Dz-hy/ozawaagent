@@ -27,8 +27,8 @@ test("extractSkillMentionNamesFromText finds explicit skill tokens without treat
     ),
     ["code-review", "release_notes"],
   );
-  assert.deepEqual(skills.extractSkillMentionNamesFromText("/liveagent-code-review"), [
-    "liveagent-code-review",
+  assert.deepEqual(skills.extractSkillMentionNamesFromText("/code-review"), [
+    "code-review",
   ]);
   // "$" is no longer a skill mention marker.
   assert.deepEqual(
