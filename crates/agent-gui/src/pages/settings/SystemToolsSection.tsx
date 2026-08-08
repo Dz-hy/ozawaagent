@@ -162,7 +162,7 @@ export function SystemToolsSection(_props: SettingsSectionProps) {
       wrap.style.height = "";
     }, 240);
     return () => window.clearTimeout(timer);
-  }, [activeCategory]);
+  }, []);
 
   const builtinGroups = useMemo(
     () =>
@@ -344,7 +344,18 @@ function ToolDetailModal(props: { detail: ToolDetail; onClose: () => void }) {
       className="settings-modal-overlay settings-tool-detail-overlay fixed inset-0 z-50 flex items-center justify-center p-4"
       data-state={modalState}
     >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={requestClose} />
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        role="presentation"
+        tabIndex={-1}
+        onClick={requestClose}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            requestClose();
+          }
+        }}
+      />
 
       <div
         role="dialog"

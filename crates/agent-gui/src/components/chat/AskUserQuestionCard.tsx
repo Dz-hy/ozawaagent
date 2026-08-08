@@ -265,6 +265,7 @@ export function AskUserQuestionCard({
               const isSelected =
                 !activeCustomSelected && selections[activeQuestion.id] === option.label;
               return (
+                // biome-ignore lint/a11y/useSemanticElements: 合成单选行（模型选项），原生 radio 与按钮内排版不兼容。
                 <button
                   key={option.label}
                   type="button"

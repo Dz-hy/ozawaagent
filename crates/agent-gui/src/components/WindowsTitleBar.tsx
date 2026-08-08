@@ -180,6 +180,7 @@ export function WindowsTitleBar() {
       )}
     >
       <div
+        role="none"
         className="flex h-full min-w-0 flex-1 items-center gap-1.5 pl-2.5 pr-3"
         onDoubleClick={handleTitleDoubleClick}
         onMouseDown={startDragging}

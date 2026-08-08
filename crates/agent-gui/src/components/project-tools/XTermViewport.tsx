@@ -494,7 +494,7 @@ export function XTermViewport({
       streamHandle?.dispose();
       term.dispose();
     };
-  }, [client, session.id, session.projectPathKey]);
+  }, [client, session.id]);
 
   return (
     <div

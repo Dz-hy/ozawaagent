@@ -56,6 +56,7 @@ function AppChrome(props: { children: ReactNode }) {
   const { onRootContextMenu, onRootMouseDownCapture, menu } = useNativeInputContextMenu();
   return (
     <div
+      role="none"
       className="relative flex h-full w-full flex-col overflow-hidden bg-background"
       onContextMenu={onRootContextMenu}
       onMouseDownCapture={onRootMouseDownCapture}
@@ -155,6 +156,10 @@ export default function App() {
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const [systemThemeVersion, setSystemThemeVersion] = useState(0);
+  // systemThemeVersion 是系统主题订阅的强制重算令牌：resolveEffectiveTheme 内部
+  // 实时读取 matchMedia，订阅回调自增 version 触发 useMemo 重算；静态分析看不到
+  // 该读取，故 biome 判定依赖多余——此处保留令牌依赖是刻意为之。
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 强制重算令牌（见上）。
   const effectiveTheme = useMemo(
     () => resolveEffectiveTheme(settings.theme),
     [settings.theme, systemThemeVersion],

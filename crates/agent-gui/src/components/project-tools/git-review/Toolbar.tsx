@@ -96,7 +96,15 @@ export function GitRemoteSetupModal(props: {
     >
       <div
         className="absolute inset-0 bg-black/55 backdrop-blur-sm"
+        role="presentation"
+        tabIndex={-1}
         onClick={loading ? undefined : onClose}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            if (!loading) onClose();
+          }
+        }}
       />
       <form
         className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl border border-border/70 bg-background shadow-2xl"
@@ -198,7 +206,15 @@ export function GitDiscardConfirmModal(props: {
     >
       <div
         className="absolute inset-0 bg-black/55 backdrop-blur-sm"
+        role="presentation"
+        tabIndex={-1}
         onClick={loading ? undefined : onClose}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            if (!loading) onClose();
+          }
+        }}
       />
       <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl border border-border/70 bg-background shadow-2xl">
         <div className="flex items-start gap-3 border-b border-border/60 px-5 py-4">
@@ -264,7 +280,15 @@ export function GitBranchFromCommitModal(props: {
     >
       <div
         className="absolute inset-0 bg-black/55 backdrop-blur-sm"
+        role="presentation"
+        tabIndex={-1}
         onClick={loading ? undefined : onClose}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            if (!loading) onClose();
+          }
+        }}
       />
       <form
         className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl border border-border/70 bg-background shadow-2xl"
@@ -417,7 +441,15 @@ export function GitBranchSwitchConflictModal(props: {
     >
       <div
         className="absolute inset-0 bg-black/55 backdrop-blur-sm"
+        role="presentation"
+        tabIndex={-1}
         onClick={loading ? undefined : onClose}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            if (!loading) onClose();
+          }
+        }}
       />
       <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl border border-border/70 bg-background shadow-2xl">
         <div className="flex items-start gap-3 border-b border-border/60 px-5 py-4">
@@ -810,7 +842,17 @@ export function GitReviewToolbar(props: {
           title={t("projectTools.gitReview.fetch")}
           aria-label={t("projectTools.gitReview.fetch")}
           className="h-7 w-7 px-0"
-          onClick={() => void runOperation("fetch", () => gitClient!.fetch(cwd), "fetch")}
+          onClick={() =>
+            void runOperation(
+              "fetch",
+              () => {
+                const client = gitClient;
+                if (!client) return Promise.reject(new Error("git client unavailable"));
+                return client.fetch(cwd);
+              },
+              "fetch",
+            )
+          }
         >
           {busy === "fetch" ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -825,7 +867,17 @@ export function GitReviewToolbar(props: {
           title={t("projectTools.gitReview.pull")}
           aria-label={t("projectTools.gitReview.pull")}
           className="h-7 w-7 px-0"
-          onClick={() => void runOperation("pull", () => gitClient!.pull(cwd), "pull")}
+          onClick={() =>
+            void runOperation(
+              "pull",
+              () => {
+                const client = gitClient;
+                if (!client) return Promise.reject(new Error("git client unavailable"));
+                return client.pull(cwd);
+              },
+              "pull",
+            )
+          }
         >
           {busy === "pull" ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
