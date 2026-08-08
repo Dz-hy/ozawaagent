@@ -25,11 +25,16 @@
 - [x] 合规：LICENSE(MIT Stack-Cairn) / NOTICE（双 MIT 声明）/ package.json+Cargo license=MIT
 - [x] 31 commits 全带 Co-Authored-By footer，main==origin 同步
 
-## D. 发布步骤（tag 流程）
+## D. 发布步骤（tag 流程）— ⛔ 首发需用户显式确认
+
+> **红线（2026-08-08 用户指令）**：没有 Dz-hy 的确认，**禁止创建第一个正式版本**（v1.x 正式版 / 首个生产 Release）。
+> 任何 tag 创建、GitHub Release、产物对外分发，必须先经用户明确批准后再执行。
+> 开发期产物（0.0.0-dev、本地 build）不在此限，仅供内部验证。
+
 1. 本地全门禁绿 → push main → CI 3/3 绿
-2. `git tag vX.Y.Z`（Cargo.toml version 由 tag workflow 覆盖 0.0.0-dev 占位）
+2. `git tag vX.Y.Z`（Cargo.toml version 由 tag workflow 覆盖 0.0.0-dev 占位）— **执行前向用户确认**
 3. `pnpm tauri build`（Windows 桌面产物；GA 运行时以 GA-local sidecar 分发，不进仓库）
-4. GitHub Release + changelog（README zh-CN/en 对齐）
+4. GitHub Release + changelog（README zh-CN/en 对齐）— **执行前向用户确认**
 5. 产物安装冒烟：首启托盘、Provider 配置、chat 回合、工具调用、面板、重启恢复
 
 ## E. 发布前遗留（已知非阻塞，按序消化）
