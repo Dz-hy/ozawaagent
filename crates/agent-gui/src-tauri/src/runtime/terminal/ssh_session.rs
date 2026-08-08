@@ -192,7 +192,7 @@ impl TerminalSessionRegistry {
         host_config: RuntimeSshHostConfig,
         title: String,
         size: TerminalSize,
-        handle: client::Handle<LiveAgentSshClient>,
+        handle: client::Handle<OzawaAgentSshClient>,
     ) -> Result<TerminalSshCreateResponse, String> {
         let channel = open_ssh_shell_channel(&handle, size).await?;
 
@@ -539,7 +539,7 @@ impl TerminalSessionRegistry {
         host_config: RuntimeSshHostConfig,
         title: String,
         size: TerminalSize,
-        mut handle: client::Handle<LiveAgentSshClient>,
+        mut handle: client::Handle<OzawaAgentSshClient>,
         response: client::KeyboardInteractiveAuthResponse,
         auto_password: Option<String>,
     ) -> Result<TerminalSshCreateResponse, String> {
@@ -569,7 +569,7 @@ impl TerminalSessionRegistry {
         host_config: RuntimeSshHostConfig,
         title: String,
         size: TerminalSize,
-        mut handle: client::Handle<LiveAgentSshClient>,
+        mut handle: client::Handle<OzawaAgentSshClient>,
         password: String,
     ) -> Result<TerminalSshCreateResponse, String> {
         let result = handle
@@ -631,7 +631,7 @@ impl TerminalSessionRegistry {
         host_config: RuntimeSshHostConfig,
         title: String,
         size: TerminalSize,
-        handle: client::Handle<LiveAgentSshClient>,
+        handle: client::Handle<OzawaAgentSshClient>,
         prompt_data: KeyboardInteractivePromptData,
     ) -> Result<TerminalSshCreateResponse, String> {
         let prompt_id = uuid::Uuid::new_v4().to_string();

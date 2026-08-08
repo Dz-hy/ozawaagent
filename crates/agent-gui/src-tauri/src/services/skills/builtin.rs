@@ -18,9 +18,9 @@ pub(crate) struct BuiltinSkill {
     pub(crate) ownership_marker: Option<(&'static str, &'static str)>,
 }
 
-const CODE_REVIEW_OWNERSHIP_MARKER_PATH: &str = "_liveagent_builtin.json";
+const CODE_REVIEW_OWNERSHIP_MARKER_PATH: &str = "_ozawaagent_builtin.json";
 const CODE_REVIEW_OWNERSHIP_MARKER_CONTENT: &str =
-    "{\"schemaVersion\":1,\"owner\":\"LiveAgent\",\"skill\":\"liveagent-code-review\"}\n";
+    "{\"schemaVersion\":1,\"owner\":\"OzawaAgent\",\"skill\":\"code-review\"}\n";
 
 const SKILLS_INSTALLER_FILES: &[BuiltinSkillFile] = &[
     BuiltinSkillFile {
@@ -63,7 +63,7 @@ const SKILLS_CREATOR_FILES: &[BuiltinSkillFile] = &[
 const CODE_REVIEW_FILES: &[BuiltinSkillFile] = &[
     BuiltinSkillFile {
         path: "SKILL.md",
-        content: include_str!("../../../prompt/skills/liveagent-code-review/SKILL.md"),
+        content: include_str!("../../../prompt/skills/code-review/SKILL.md"),
     },
     BuiltinSkillFile {
         path: CODE_REVIEW_OWNERSHIP_MARKER_PATH,
@@ -73,7 +73,7 @@ const CODE_REVIEW_FILES: &[BuiltinSkillFile] = &[
 
 pub(crate) const BUILTIN_AGENT_SKILLS: &[BuiltinSkill] = &[
     BuiltinSkill {
-        name: "liveagent-code-review",
+        name: "code-review",
         files: CODE_REVIEW_FILES,
         ownership_marker: Some((
             CODE_REVIEW_OWNERSHIP_MARKER_PATH,

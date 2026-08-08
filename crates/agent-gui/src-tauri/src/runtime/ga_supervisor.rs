@@ -614,7 +614,7 @@ fn actionable_spawn_error(python: &Path, error: std::io::Error) -> String {
 pub fn default_log_dir() -> PathBuf {
     dirs::data_local_dir()
         .unwrap_or_else(std::env::temp_dir)
-        .join("LiveAgent")
+        .join("OzawaAgent")
         .join("ga-runtime-logs")
 }
 

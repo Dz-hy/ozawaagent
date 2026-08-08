@@ -103,13 +103,13 @@ fn normalize_timeout(timeout_ms: Option<u64>) -> u64 {
 }
 
 /// Context forwarded to hook scripts as environment variables. Keys are
-/// namespaced by the caller (e.g. LIVEAGENT_HOOK_EVENT); values are passed
+/// namespaced by the caller (e.g. OZAWAAGENT_HOOK_EVENT); values are passed
 /// through verbatim.
 fn normalize_context(context: Option<HashMap<String, String>>) -> Vec<(String, String)> {
     context
         .unwrap_or_default()
         .into_iter()
-        .filter(|(key, _)| key.starts_with("LIVEAGENT_"))
+        .filter(|(key, _)| key.starts_with("OZAWAAGENT_"))
         .collect()
 }
 
@@ -349,14 +349,14 @@ mod tests {
     fn run_hook_script_sync_executes_and_injects_context() {
         let registry = HookScopeRegistry::default();
         let dir = temp_workdir();
-        let script = "echo event=$LIVEAGENT_HOOK_EVENT";
+        let script = "echo event=$OZAWAAGENT_HOOK_EVENT";
         let result = run_hook_script_sync(
             &registry,
             Some(dir.path().display().to_string()),
             script.to_string(),
             None,
             Some(format!("scope-{}", Uuid::new_v4())),
-            vec![("LIVEAGENT_HOOK_EVENT".to_string(), "agent_end".to_string())],
+            vec![("OZAWAAGENT_HOOK_EVENT".to_string(), "agent_end".to_string())],
         )
         .expect("run hook script");
         assert_eq!(result.exit_code, 0);

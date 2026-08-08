@@ -543,7 +543,7 @@ mod tests {
 
     #[test]
     fn scan_mcp_config_file_parses_claude_style_json() {
-        let tmp = TempDir::new("liveagent-mcp-file-claude-test").expect("temp dir");
+        let tmp = TempDir::new("ozawaagent-mcp-file-claude-test").expect("temp dir");
         let path = write_config(
             &tmp,
             "config.json",
@@ -574,7 +574,7 @@ mod tests {
 
     #[test]
     fn scan_mcp_config_file_parses_bare_server_map_json() {
-        let tmp = TempDir::new("liveagent-mcp-file-bare-test").expect("temp dir");
+        let tmp = TempDir::new("ozawaagent-mcp-file-bare-test").expect("temp dir");
         let path = write_config(
             &tmp,
             "servers.json",
@@ -590,7 +590,7 @@ mod tests {
 
     #[test]
     fn scan_mcp_config_file_parses_codex_toml() {
-        let tmp = TempDir::new("liveagent-mcp-file-toml-test").expect("temp dir");
+        let tmp = TempDir::new("ozawaagent-mcp-file-toml-test").expect("temp dir");
         let path = write_config(
             &tmp,
             "config.toml",
@@ -619,7 +619,7 @@ url = "https://mcp.example.com"
 
     #[test]
     fn scan_mcp_config_file_rejects_empty_server_names() {
-        let tmp = TempDir::new("liveagent-mcp-file-empty-id-test").expect("temp dir");
+        let tmp = TempDir::new("ozawaagent-mcp-file-empty-id-test").expect("temp dir");
         let path = write_config(
             &tmp,
             "servers.json",
@@ -635,7 +635,7 @@ url = "https://mcp.example.com"
 
     #[test]
     fn scan_mcp_config_file_caps_joined_errors_in_no_server_message() {
-        let tmp = TempDir::new("liveagent-mcp-file-error-cap-test").expect("temp dir");
+        let tmp = TempDir::new("ozawaagent-mcp-file-error-cap-test").expect("temp dir");
         let entries = (0..10)
             .map(|index| format!("\"key{index}\": \"value\""))
             .collect::<Vec<_>>()
@@ -649,7 +649,7 @@ url = "https://mcp.example.com"
 
     #[test]
     fn scan_mcp_config_file_rejects_invalid_and_empty_sources() {
-        let tmp = TempDir::new("liveagent-mcp-file-invalid-test").expect("temp dir");
+        let tmp = TempDir::new("ozawaagent-mcp-file-invalid-test").expect("temp dir");
 
         let missing = tmp
             .path()

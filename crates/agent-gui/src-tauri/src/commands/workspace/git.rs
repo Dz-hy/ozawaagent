@@ -3632,16 +3632,16 @@ mod tests {
         assert!(validate_repo_relative_path("../secret").is_err());
         assert!(validate_repo_relative_path("/tmp/secret").is_err());
         assert!(looks_like_windows_drive_path(
-            "C:/Users/liveagent/secret.txt"
+            "C:/Users/ozawaagent/secret.txt"
         ));
         assert!(looks_like_windows_drive_path(
-            "C:\\Users\\liveagent\\secret.txt"
+            "C:\\Users\\ozawaagent\\secret.txt"
         ));
         assert!(looks_like_windows_drive_path("C:relative\\secret.txt"));
         #[cfg(windows)]
         {
-            assert!(validate_repo_relative_path("C:/Users/liveagent/secret.txt").is_err());
-            assert!(validate_repo_relative_path("C:\\Users\\liveagent\\secret.txt").is_err());
+            assert!(validate_repo_relative_path("C:/Users/ozawaagent/secret.txt").is_err());
+            assert!(validate_repo_relative_path("C:\\Users\\ozawaagent\\secret.txt").is_err());
             assert!(validate_repo_relative_path("C:relative\\secret.txt").is_err());
             assert!(validate_repo_relative_path("\\\\server\\share\\secret.txt").is_err());
         }

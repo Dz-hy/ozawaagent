@@ -759,7 +759,7 @@ fn soffice_candidate_names() -> &'static [&'static str] {
 
 #[cfg(not(target_os = "macos"))]
 fn find_soffice_binary() -> Option<PathBuf> {
-    if let Ok(raw) = std::env::var("LIVEAGENT_SOFFICE_PATH") {
+    if let Ok(raw) = std::env::var("OZAWAAGENT_SOFFICE_PATH") {
         let trimmed = raw.trim().trim_matches('"');
         if !trimmed.is_empty() {
             let path = expand_tilde_path(trimmed);
@@ -868,7 +868,7 @@ fn run_soffice_document_conversion(
 #[cfg(not(target_os = "macos"))]
 fn convert_document_to_html_preview(target: &Path) -> Result<Vec<u8>, String> {
     let soffice = find_soffice_binary().ok_or_else(|| {
-        "Legacy Word/RTF preview conversion requires LibreOffice; install it or set LIVEAGENT_SOFFICE_PATH to the soffice binary".to_string()
+        "Legacy Word/RTF preview conversion requires LibreOffice; install it or set OZAWAAGENT_SOFFICE_PATH to the soffice binary".to_string()
     })?;
 
     let nanos = std::time::SystemTime::now()
@@ -876,7 +876,7 @@ fn convert_document_to_html_preview(target: &Path) -> Result<Vec<u8>, String> {
         .map(|duration| duration.as_nanos())
         .unwrap_or(0);
     let out_dir = std::env::temp_dir()
-        .join("liveagent")
+        .join("ozawaagent")
         .join("workspace-preview-convert")
         .join(format!("{}-{}", std::process::id(), nanos));
     fs::create_dir_all(&out_dir)
@@ -889,7 +889,7 @@ fn convert_document_to_html_preview(target: &Path) -> Result<Vec<u8>, String> {
 
 fn document_preview_cache_dir() -> PathBuf {
     std::env::temp_dir()
-        .join("liveagent")
+        .join("ozawaagent")
         .join("workspace-preview-cache")
 }
 
@@ -3829,7 +3829,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system time should be after epoch")
             .as_nanos();
-        std::env::temp_dir().join(format!("liveagent-{name}-{suffix}"))
+        std::env::temp_dir().join(format!("ozawaagent-{name}-{suffix}"))
     }
 
     fn list_test_entries(workdir: &Path, show_hidden: Option<bool>) -> Vec<ListEntry> {
@@ -3852,7 +3852,7 @@ mod tests {
     }
 
     fn png_like_bytes() -> Vec<u8> {
-        b"\x89PNG\r\n\x1a\nliveagent-test".to_vec()
+        b"\x89PNG\r\n\x1a\nozawaagent-test".to_vec()
     }
 
     fn build_test_zip(entries: &[(&str, &str)]) -> Vec<u8> {
@@ -3958,7 +3958,7 @@ mod tests {
             Some(BASE64_STANDARD.encode(&bytes).as_str())
         );
 
-        for path in ["/tmp/liveagent-outside.png", "../outside.png", ""] {
+        for path in ["/tmp/ozawaagent-outside.png", "../outside.png", ""] {
             let error =
                 fs_read_workspace_image_sync(workdir.display().to_string(), path.to_string())
                     .expect_err("out-of-bounds workspace image path should fail");
@@ -4336,7 +4336,7 @@ mod tests {
             large_error.message
         );
 
-        for path in ["", "/tmp/liveagent-outside", "../outside"] {
+        for path in ["", "/tmp/ozawaagent-outside", "../outside"] {
             let error = fs_read_editable_text_sync(workdir.display().to_string(), path.to_string())
                 .expect_err("invalid path should fail");
             assert!(
@@ -4360,7 +4360,7 @@ mod tests {
         assert_eq!(response.kind, "dir");
         assert!(workdir.join("src").is_dir());
 
-        for path in ["", "/tmp/liveagent-outside", "../outside", "src"] {
+        for path in ["", "/tmp/ozawaagent-outside", "../outside", "src"] {
             let error = fs_create_dir_sync(workdir.display().to_string(), path.to_string())
                 .expect_err("invalid or existing target should fail");
             assert!(

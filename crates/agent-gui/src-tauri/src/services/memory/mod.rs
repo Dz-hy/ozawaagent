@@ -19,7 +19,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-const MEMORY_DIR_NAME: &str = ".liveagent";
+const MEMORY_DIR_NAME: &str = ".ozawaagent";
 const MEMORY_ROOT_DIR: &str = "memory";
 const DB_FILENAME: &str = "memory-index.sqlite3";
 const MAX_BODY_BYTES: usize = 8 * 1024;

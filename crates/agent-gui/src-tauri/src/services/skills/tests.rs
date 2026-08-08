@@ -52,7 +52,7 @@ fn github_tree_url_parses_ref_and_subpath() {
 
 #[test]
 fn discover_skill_dirs_supports_repo_skills_folder() {
-    let tmp = TempDir::new("liveagent-skill-discover-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-discover-test").expect("temp dir");
     let skills_root = tmp.path().join("repo").join("skills");
     write_skill(&skills_root, "first-skill", "First");
     write_skill(&skills_root, "second-skill", "Second");
@@ -68,7 +68,7 @@ fn discover_skill_dirs_supports_repo_skills_folder() {
 
 #[test]
 fn discover_skill_dirs_does_not_let_root_readme_override_skills_folder() {
-    let tmp = TempDir::new("liveagent-readme-root-discover-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-readme-root-discover-test").expect("temp dir");
     let repo = tmp.path().join("repo");
     fs::create_dir_all(&repo).expect("create repo");
     fs::write(repo.join("README.md"), "# Repo README\n").expect("write repo readme");
@@ -85,7 +85,7 @@ fn discover_skill_dirs_does_not_let_root_readme_override_skills_folder() {
 
 #[test]
 fn readme_frontmatter_is_used_as_skill_metadata_fallback() {
-    let tmp = TempDir::new("liveagent-readme-frontmatter-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-readme-frontmatter-test").expect("temp dir");
     let dir = tmp.path().join("readme-skill");
     fs::create_dir_all(&dir).expect("create skill dir");
     fs::write(
@@ -105,7 +105,7 @@ fn readme_frontmatter_is_used_as_skill_metadata_fallback() {
 
 #[test]
 fn readme_without_frontmatter_derives_metadata_for_management() {
-    let tmp = TempDir::new("liveagent-plain-readme-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-plain-readme-test").expect("temp dir");
     let dir = tmp.path().join("plain-readme-skill");
     fs::create_dir_all(&dir).expect("create skill dir");
     fs::write(
@@ -128,7 +128,7 @@ fn readme_without_frontmatter_derives_metadata_for_management() {
 
 #[test]
 fn readme_empty_frontmatter_derives_metadata_for_management() {
-    let tmp = TempDir::new("liveagent-empty-readme-frontmatter-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-empty-readme-frontmatter-test").expect("temp dir");
     let dir = tmp.path().join("empty-readme-metadata");
     fs::create_dir_all(&dir).expect("create skill dir");
     fs::write(
@@ -147,7 +147,7 @@ fn readme_empty_frontmatter_derives_metadata_for_management() {
 
 #[test]
 fn readme_partial_frontmatter_is_invalid_metadata() {
-    let tmp = TempDir::new("liveagent-partial-readme-frontmatter-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-partial-readme-frontmatter-test").expect("temp dir");
     let dir = tmp.path().join("partial-readme-metadata");
     fs::create_dir_all(&dir).expect("create skill dir");
     fs::write(
@@ -176,7 +176,7 @@ fn readme_partial_frontmatter_is_invalid_metadata() {
 
 #[test]
 fn readme_inside_existing_skill_is_not_a_discovery_candidate() {
-    let tmp = TempDir::new("liveagent-nested-readme-discovery-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-nested-readme-discovery-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let skill_dir = write_skill(&root, "documented-skill", "Documented");
     let reference_dir = skill_dir.join("references");
@@ -193,7 +193,7 @@ fn readme_inside_existing_skill_is_not_a_discovery_candidate() {
 
 #[test]
 fn install_skill_dir_with_backup_preserves_existing_target() {
-    let tmp = TempDir::new("liveagent-skill-backup-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-backup-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let source_a = tmp.path().join("source-a");
     let source_b = tmp.path().join("source-b");
@@ -225,7 +225,7 @@ fn install_skill_dir_with_backup_preserves_existing_target() {
 
 #[test]
 fn builtin_seed_backs_up_invalid_target_before_writing() {
-    let tmp = TempDir::new("liveagent-builtin-seed-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-builtin-seed-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let invalid_target = root.join("skills-installer");
     fs::create_dir_all(&invalid_target).expect("create invalid target");
@@ -246,25 +246,25 @@ fn builtin_seed_backs_up_invalid_target_before_writing() {
 }
 
 #[test]
-fn builtin_seed_installs_liveagent_code_review_workflow() {
-    let tmp = TempDir::new("liveagent-code-review-seed-test").expect("temp dir");
+fn builtin_seed_installs_ozawaagent_code_review_workflow() {
+    let tmp = TempDir::new("code-review-seed-test").expect("temp dir");
     let root = tmp.path().join("skills");
 
     let seeded = ensure_builtin_agent_skills_in_root(&root).expect("seed builtins");
     let code_review = seeded
         .iter()
-        .find(|item| item.name == "liveagent-code-review")
+        .find(|item| item.name == "code-review")
         .expect("code review seed result");
 
     assert_eq!(code_review.action, "created");
-    let skill_dir = root.join("liveagent-code-review");
+    let skill_dir = root.join("code-review");
     let content = fs::read_to_string(skill_dir.join("SKILL.md")).expect("read code review skill");
     assert!(content.contains("Anthropic's public Claude Code Code Review plugin"));
     assert!(content.contains("confidence >= 80"));
     assert!(content.contains("mode=readonly"));
     assert!(content.contains("current local branch"));
     assert!(content.contains("Never write to GitHub"));
-    assert!(skill_dir.join("_liveagent_builtin.json").is_file());
+    assert!(skill_dir.join("_ozawaagent_builtin.json").is_file());
     let validation = validate_skill_dir(&skill_dir);
     assert!(validation.ok, "{:?}", validation.errors);
 
@@ -272,22 +272,22 @@ fn builtin_seed_installs_liveagent_code_review_workflow() {
     assert!(invalid.is_empty(), "{invalid:?}");
     assert!(skills
         .iter()
-        .find(|skill| skill.name == "liveagent-code-review")
+        .find(|skill| skill.name == "code-review")
         .is_some_and(|skill| skill.built_in));
 }
 
 #[test]
 fn builtin_seed_preserves_unmanaged_code_review_collision() {
-    let tmp = TempDir::new("liveagent-code-review-collision-test").expect("temp dir");
+    let tmp = TempDir::new("code-review-collision-test").expect("temp dir");
     let root = tmp.path().join("skills");
-    let skill_dir = write_skill(&root, "liveagent-code-review", "User-owned review workflow");
+    let skill_dir = write_skill(&root, "code-review", "User-owned review workflow");
     let original = fs::read(skill_dir.join("SKILL.md")).expect("read original skill");
     fs::write(skill_dir.join("notes.txt"), "keep me\n").expect("write user file");
 
     let seeded = ensure_builtin_agent_skills_in_root(&root).expect("seed builtins");
     let code_review = seeded
         .iter()
-        .find(|item| item.name == "liveagent-code-review")
+        .find(|item| item.name == "code-review")
         .expect("code review seed result");
 
     assert_eq!(code_review.action, "conflict_preserved");
@@ -300,35 +300,35 @@ fn builtin_seed_preserves_unmanaged_code_review_collision() {
         fs::read_to_string(skill_dir.join("notes.txt")).expect("read preserved user file"),
         "keep me\n"
     );
-    assert!(!skill_dir.join("_liveagent_builtin.json").exists());
+    assert!(!skill_dir.join("_ozawaagent_builtin.json").exists());
 
     let (skills, invalid) = list_installed_skills(&root).expect("list preserved skills");
     assert!(invalid.is_empty(), "{invalid:?}");
     assert!(skills
         .iter()
-        .find(|skill| skill.name == "liveagent-code-review")
+        .find(|skill| skill.name == "code-review")
         .is_some_and(|skill| !skill.built_in));
 
-    delete_installed_skill(&root, "liveagent-code-review")
+    delete_installed_skill(&root, "code-review")
         .expect("preserved user skill remains manageable");
 }
 
 #[test]
 fn builtin_seed_updates_owned_code_review_workflow() {
-    let tmp = TempDir::new("liveagent-code-review-update-test").expect("temp dir");
+    let tmp = TempDir::new("code-review-update-test").expect("temp dir");
     let root = tmp.path().join("skills");
     ensure_builtin_agent_skills_in_root(&root).expect("initial seed");
-    let skill_file = root.join("liveagent-code-review").join("SKILL.md");
+    let skill_file = root.join("code-review").join("SKILL.md");
     fs::write(
         &skill_file,
-        "---\nname: liveagent-code-review\ndescription: Old managed workflow\n---\n\n# Old\n",
+        "---\nname: code-review\ndescription: Old managed workflow\n---\n\n# Old\n",
     )
     .expect("modify managed skill");
 
     let seeded = ensure_builtin_agent_skills_in_root(&root).expect("reseed builtins");
     let code_review = seeded
         .iter()
-        .find(|item| item.name == "liveagent-code-review")
+        .find(|item| item.name == "code-review")
         .expect("code review seed result");
 
     assert_eq!(code_review.action, "updated");
@@ -339,7 +339,7 @@ fn builtin_seed_updates_owned_code_review_workflow() {
 
 #[test]
 fn builtin_seed_updates_changed_valid_target_before_writing() {
-    let tmp = TempDir::new("liveagent-builtin-update-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-builtin-update-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let old_target = root.join("skills-creator");
     fs::create_dir_all(&old_target).expect("create old target");
@@ -366,7 +366,7 @@ fn builtin_seed_updates_changed_valid_target_before_writing() {
 
 #[test]
 fn builtin_seed_removes_retired_builtin_files() {
-    let tmp = TempDir::new("liveagent-builtin-retired-file-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-builtin-retired-file-test").expect("temp dir");
     let root = tmp.path().join("skills");
 
     ensure_builtin_agent_skills_in_root(&root).expect("seed builtins");
@@ -389,7 +389,7 @@ fn builtin_seed_removes_retired_builtin_files() {
 
 #[test]
 fn list_installed_skills_skips_hidden_backup_dirs() {
-    let tmp = TempDir::new("liveagent-skill-list-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-list-test").expect("temp dir");
     let root = tmp.path().join("skills");
     write_skill(&root, "active-skill", "Active");
     write_skill(&root.join(".backups"), "backup-skill", "Backup");
@@ -408,7 +408,7 @@ fn list_installed_skills_skips_hidden_backup_dirs() {
 
 #[test]
 fn list_installed_skills_reports_install_timestamp() {
-    let tmp = TempDir::new("liveagent-skill-installed-at-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-installed-at-test").expect("temp dir");
     let root = tmp.path().join("skills");
     write_skill(&root, "timestamped-skill", "Timestamped");
 
@@ -425,7 +425,7 @@ fn list_installed_skills_reports_install_timestamp() {
 
 #[test]
 fn install_source_from_local_skill_archive_installs_skill() {
-    let tmp = TempDir::new("liveagent-skill-archive-install-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-archive-install-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let archive = tmp.path().join("archive-skill.skill");
     {
@@ -547,7 +547,7 @@ fn normalize_clawhub_skill_card_supports_live_search_shape_with_owner() {
 
 #[test]
 fn install_source_persists_clawhub_metadata_when_slug_is_present() {
-    let tmp = TempDir::new("liveagent-skill-clawhub-meta-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-clawhub-meta-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let source = tmp.path().join("source");
     write_skill(&source, "clawhub-skill", "ClawHub install");
@@ -574,7 +574,7 @@ fn install_source_persists_clawhub_metadata_when_slug_is_present() {
 
 #[test]
 fn clawhub_candidate_normalizes_nonportable_name_when_it_matches_slug() {
-    let tmp = TempDir::new("liveagent-clawhub-name-normalize-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-clawhub-name-normalize-test").expect("temp dir");
     let candidate = tmp.path().join("candidate");
     fs::create_dir_all(&candidate).expect("create candidate");
     fs::write(
@@ -601,7 +601,7 @@ fn clawhub_candidate_prefers_registry_slug_when_name_does_not_match_it() {
     // Real registry shape: ClawHub keeps slug and display name separate, so
     // "Self-Improving + Proactive Agent" is published under slug
     // "self-improving" with no derivation relationship between the two.
-    let tmp = TempDir::new("liveagent-clawhub-name-mismatch-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-clawhub-name-mismatch-test").expect("temp dir");
     let candidate = tmp.path().join("candidate");
     fs::create_dir_all(&candidate).expect("create candidate");
     fs::write(
@@ -622,7 +622,7 @@ fn clawhub_candidate_prefers_registry_slug_when_name_does_not_match_it() {
 
 #[test]
 fn clawhub_candidate_falls_back_to_normalized_name_without_usable_slug() {
-    let tmp = TempDir::new("liveagent-clawhub-name-fallback-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-clawhub-name-fallback-test").expect("temp dir");
     let candidate = tmp.path().join("candidate");
     fs::create_dir_all(&candidate).expect("create candidate");
     fs::write(
@@ -642,7 +642,7 @@ fn clawhub_candidate_falls_back_to_normalized_name_without_usable_slug() {
 
 #[test]
 fn clawhub_candidate_keeps_portable_name_untouched_even_when_it_differs_from_slug() {
-    let tmp = TempDir::new("liveagent-clawhub-name-portable-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-clawhub-name-portable-test").expect("temp dir");
     let candidate = tmp.path().join("candidate");
     fs::create_dir_all(&candidate).expect("create candidate");
     fs::write(
@@ -661,7 +661,7 @@ fn clawhub_candidate_keeps_portable_name_untouched_even_when_it_differs_from_slu
 
 #[test]
 fn clawhub_candidate_rejects_when_neither_slug_nor_name_is_usable() {
-    let tmp = TempDir::new("liveagent-clawhub-name-unusable-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-clawhub-name-unusable-test").expect("temp dir");
     let candidate = tmp.path().join("candidate");
     fs::create_dir_all(&candidate).expect("create candidate");
     fs::write(
@@ -699,7 +699,7 @@ fn clawhub_download_query_param_reads_slug_and_owner_from_source_url() {
 
 #[test]
 fn validate_and_package_round_trip() {
-    let tmp = TempDir::new("liveagent-skill-package-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-package-test").expect("temp dir");
     let root = tmp.path().join("skills");
     write_skill(&root, "package-skill", "Package test");
 
@@ -713,7 +713,7 @@ fn validate_and_package_round_trip() {
 
 #[test]
 fn delete_installed_skill_removes_user_skill() {
-    let tmp = TempDir::new("liveagent-skill-delete-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-delete-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let skill_dir = write_skill(&root, "delete-skill", "Delete test");
 
@@ -726,7 +726,7 @@ fn delete_installed_skill_removes_user_skill() {
 
 #[test]
 fn delete_installed_skill_rejects_builtin_skill() {
-    let tmp = TempDir::new("liveagent-skill-delete-builtin-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-delete-builtin-test").expect("temp dir");
     let root = tmp.path().join("skills");
     write_skill(&root, "skills-installer", "Built-in replacement");
 
@@ -741,7 +741,7 @@ fn delete_installed_skill_rejects_builtin_skill() {
 
 #[test]
 fn delete_installed_skill_rejects_missing_skill() {
-    let tmp = TempDir::new("liveagent-skill-delete-missing-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-delete-missing-test").expect("temp dir");
     let root = tmp.path().join("skills");
 
     let error = delete_installed_skill(&root, "missing-skill").expect_err("delete should fail");
@@ -754,7 +754,7 @@ fn delete_installed_skill_rejects_missing_skill() {
 
 #[test]
 fn delete_installed_skill_rejects_non_directory_target() {
-    let tmp = TempDir::new("liveagent-skill-delete-file-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-delete-file-test").expect("temp dir");
     let root = tmp.path().join("skills");
     fs::create_dir_all(&root).expect("create skills root");
     let file = root.join("file-skill");
@@ -771,7 +771,7 @@ fn delete_installed_skill_rejects_non_directory_target() {
 
 #[test]
 fn validate_allows_nested_metadata_frontmatter() {
-    let tmp = TempDir::new("liveagent-skill-frontmatter-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-frontmatter-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let dir = root.join("metadata-skill");
     fs::create_dir_all(&dir).expect("create skill dir");
@@ -788,7 +788,7 @@ fn validate_allows_nested_metadata_frontmatter() {
 
 #[test]
 fn validate_allows_single_line_frontmatter() {
-    let tmp = TempDir::new("liveagent-skill-inline-frontmatter-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-inline-frontmatter-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let dir = root.join("security-threat-model");
     fs::create_dir_all(&dir).expect("create skill dir");
@@ -812,7 +812,7 @@ fn validate_allows_single_line_frontmatter() {
 
 #[test]
 fn validate_accepts_non_english_markdown_documentation() {
-    let tmp = TempDir::new("liveagent-skill-language-doc-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-language-doc-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let dir = root.join("multilingual-skill");
     fs::create_dir_all(&dir).expect("create skill dir");
@@ -829,7 +829,7 @@ fn validate_accepts_non_english_markdown_documentation() {
 
 #[test]
 fn create_skill_accepts_non_english_body() {
-    let tmp = TempDir::new("liveagent-skill-create-language-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-create-language-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let payload = json!({
         "name": "multilingual-create-skill",
@@ -849,7 +849,7 @@ fn create_skill_accepts_non_english_body() {
 
 #[test]
 fn create_skill_rejects_builtin_skill_names() {
-    let tmp = TempDir::new("liveagent-skill-create-builtin-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-create-builtin-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let payload = json!({
         "name": "skills-creator",
@@ -869,7 +869,7 @@ fn create_skill_rejects_builtin_skill_names() {
 
 #[test]
 fn install_source_rejects_builtin_skill_names() {
-    let tmp = TempDir::new("liveagent-skill-install-builtin-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-install-builtin-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let source = tmp.path().join("source");
     write_skill(&source, "skills-installer", "Replacement");
@@ -889,7 +889,7 @@ fn install_source_rejects_builtin_skill_names() {
 
 #[test]
 fn safe_extract_zip_rejects_parent_traversal() {
-    let tmp = TempDir::new("liveagent-skill-zip-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-zip-test").expect("temp dir");
     let archive = tmp.path().join("bad.skill");
     {
         let file = fs::File::create(&archive).expect("archive file");
@@ -909,7 +909,7 @@ fn safe_extract_zip_rejects_parent_traversal() {
 
 #[test]
 fn install_skill_dir_stages_source_metadata_atomically_and_drains_staging() {
-    let tmp = TempDir::new("liveagent-skill-meta-atomic-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-meta-atomic-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let source = tmp.path().join("source");
     write_skill(&source, "meta-skill", "Meta");
@@ -943,7 +943,7 @@ fn install_skill_dir_stages_source_metadata_atomically_and_drains_staging() {
 
 #[test]
 fn install_skill_dir_failure_leaves_existing_target_untouched() {
-    let tmp = TempDir::new("liveagent-skill-fail-safe-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-fail-safe-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let good_source = tmp.path().join("good");
     write_skill(&good_source, "stable-skill", "Stable");
@@ -975,7 +975,7 @@ fn install_skill_dir_failure_leaves_existing_target_untouched() {
 #[test]
 fn concurrent_same_name_installs_serialize_into_one_target_and_complete_backups() {
     const WRITERS: usize = 4;
-    let tmp = TempDir::new("liveagent-skill-race-same-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-race-same-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let barrier = std::sync::Arc::new(std::sync::Barrier::new(WRITERS));
 
@@ -1017,7 +1017,7 @@ fn concurrent_same_name_installs_serialize_into_one_target_and_complete_backups(
 #[test]
 fn concurrent_distinct_installs_all_succeed_and_staging_is_drained() {
     const WRITERS: usize = 4;
-    let tmp = TempDir::new("liveagent-skill-race-distinct-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-race-distinct-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let barrier = std::sync::Arc::new(std::sync::Barrier::new(WRITERS));
 
@@ -1057,7 +1057,7 @@ fn concurrent_distinct_installs_all_succeed_and_staging_is_drained() {
 
 #[test]
 fn install_source_cancel_flag_aborts_before_touching_target() {
-    let tmp = TempDir::new("liveagent-skill-cancel-test").expect("temp dir");
+    let tmp = TempDir::new("ozawaagent-skill-cancel-test").expect("temp dir");
     let root = tmp.path().join("skills");
     let source = tmp.path().join("source");
     write_skill(&source, "cancel-skill", "Cancel");
