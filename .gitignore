@@ -65,3 +65,4 @@ docs/worklog/
 
 # 本地审核报告副本（勿提交）
 CODE_REVIEW_REPORT.md
+*.tsbuildinfo
