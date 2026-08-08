@@ -1,5 +1,5 @@
 ---
-name: liveagent-code-review
+name: code-review
 description: Review an open GitHub pull request or the current local branch and working tree with parallel, independent reviewers and evidence-based validation. Use when the user asks for code review, invokes the Code Review action from Git Review, or explicitly mentions this skill.
 ---
 
@@ -7,7 +7,7 @@ description: Review an open GitHub pull request or the current local branch and 
 
 Review one captured change-set snapshot with independent reviewers, validate every candidate finding, and report only high-confidence problems introduced by that change set.
 
-This is an independent LiveAgent workflow modeled on Anthropic's public Claude Code Code Review plugin. The instructions and implementation are original to LiveAgent and are not affiliated with or endorsed by Anthropic.
+This is an independent OzawaAgent workflow modeled on Anthropic's public Claude Code Code Review plugin. The instructions and implementation are original to OzawaAgent and are not affiliated with or endorsed by Anthropic.
 
 ## Boundaries
 
