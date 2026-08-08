@@ -273,4 +273,59 @@ mod tests {
         // a no-op, not an error (covers the sibling-instance race).
         ensure_journal_schema(&conn).expect("second migration run should be idempotent");
     }
+
+    /// Roundtrip through the liveness journal: insert a row, read it back with
+    /// owner identity intact, overwrite through the same process_id (the table
+    /// uses INSERT OR REPLACE), then delete and confirm the table drains.
+    #[test]
+    fn journal_insert_read_overwrite_and_delete_roundtrip() {
+        let conn = Connection::open_in_memory().expect("in-memory db should open");
+        ensure_automation_meta(&conn).expect("automation meta schema should init");
+        ensure_journal_schema(&conn).expect("journal schema should init");
+
+        let record = ManagedProcessRecord {
+            id: "rt-1".to_string(),
+            label: Some("roundtrip".to_string()),
+            command: "sleep 5".to_string(),
+            cwd: "/tmp".to_string(),
+            shell: "/bin/sh".to_string(),
+            pid: 4242,
+            log_path: "/tmp/rt-1.log".to_string(),
+            started_at: 123_456,
+            finished_at: None,
+            exit_code: None,
+            running: true,
+            isolated: true,
+            restored: false,
+        };
+        insert_row(&conn, &record, 7770, 999).expect("row should insert");
+
+        let rows = read_rows(&conn).expect("rows should read");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].record.id, "rt-1");
+        assert_eq!(rows[0].record.pid, 4242);
+        assert_eq!(rows[0].record.isolated, true);
+        assert_eq!(rows[0].record.restored, false);
+        assert_eq!(rows[0].record.running, true);
+        assert_eq!(rows[0].record.started_at, 123_456);
+        assert_eq!(rows[0].record.label.as_deref(), Some("roundtrip"));
+        assert_eq!(rows[0].owner_pid, 7770);
+        assert_eq!(rows[0].owner_started_at, 999);
+
+        // 同一 process_id 再插入应覆盖而非重复（INSERT OR REPLACE 语义）。
+        let mut updated = record;
+        updated.pid = 5355;
+        updated.running = false;
+        updated.exit_code = Some(999);
+        insert_row(&conn, &updated, 7770, 999).expect("row should overwrite");
+        let rows = read_rows(&conn).expect("rows should read after overwrite");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].record.pid, 5355);
+        assert!(!rows[0].record.running);
+        assert_eq!(rows[0].record.exit_code, Some(999));
+
+        delete_row(&conn, "rt-1").expect("row should delete");
+        let rows = read_rows(&conn).expect("rows should read after delete");
+        assert!(rows.is_empty());
+    }
 }
