@@ -38,7 +38,9 @@
 5. 产物安装冒烟：首启托盘、Provider 配置、chat 回合、工具调用、面板、重启恢复
 
 ## E. 发布前遗留（已知非阻塞，按序消化）
-- [ ] P4 Task11 问2：model-profiles 更新语义 PATCH（现状） vs PUT（官方契约）——见 phase4_task11_provider_notes.md，等用户拍板后 2 行改动
-- [ ] P6 文档层：implementation_plan/dependency-map 中旧 gateway 历史词条，随文档重构轮清理
+- [x] P4 Task11 问2：model-profiles 更新语义 PUT（官方契约）——2026-08-08 拍板 A（client 64f0ae94 + 真源 97fcaf3f + 测试对齐）已落地
+- [x] P6 文档层：docs 内旧 gateway 实战词条（operations/development.md 两节）已清理（2026-08-09）；本地非仓库规划文档（C:\Users\DZHY\git-repository\GA）另行处理
 - [x] Phase 7（旧数据归档与首启迁移）：**已取消**（2026-08-08 用户拍板：全新 Agent，无旧内核 LiveAgent 用户，不做旧数据迁移；旧内核数据原样不动，GA 新数据天然隔离）
-- [ ] Phase 9 剩余功能面：Hive 可视化、高级 Hook 编辑、发布态受控安装（规划后置项）
+- [x] Phase 9 剩余-Hive 可视化：**判定闭环**（2026-08-09）——官方 `/hive` 仅为提示词入口（build_hive_prompt→Goal Hive 多 worker 模式），无独立状态端点；多 Agent 运行态已由 GaConductorSection（ga.conductor.v1 快照：subagents/messages/counts）覆盖，按"不建第二真相源"原则不新增专用端点
+- [x] Phase 9 剩余-高级 Hook 编辑：**判定闭环**（2026-08-06 P5.8）——官方 plugins/hooks.py 为纯内存注册表（无编辑/持久化/超时语义），保留只读快照入口，不建编辑面
+- [ ] Phase 9 剩余-发布态受控安装：**保持后置**（2026-08-09 用户指示先不构建产物；放开后按 Phase 8 安装验收矩阵执行）

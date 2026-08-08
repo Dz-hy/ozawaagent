@@ -45,30 +45,6 @@
 | `~/.ozawaagent/default-project` | 首次安装/空 workdir 时的默认项目目录。 |
 | `~/.ozawaagent/debug/*.jsonl` | debug JSONL 日志。 |
 
-## Gateway 开发关注点
-
-| 项 | 说明 |
-|---|---|
-| HTTP | `internal/server/http.go` 注册 `/ws/v2*` 三链路、`/api/status`、`/api/files/import`、public share 和静态资源。 |
-| Proto | 改 `proto/v2/*.proto` 后执行 `make proto`（buf 生成 Go+TS），生成物随源同 PR 提交；`make proto-check` 把关破坏性变更。 |
-| Shutdown | `make dev-gateway` 应支持 Ctrl+C 后 HTTP 干净退出。 |
-| WebUI embed | Gateway build 通常依赖 `make webui` 先产出静态资源。 |
-| 新增桌面端能力 | `proto/v2/gateway.proto` 加信封臂（编号只增不改）→ `make proto` → v2 直通白名单（`internal/protocol/pbws/guard.go`）放行 → 各端生成物随源同 PR 提交；新增网关本地操作则在 v2 帧（`proto/v2/gateway_ws.proto`）加臂。 |
-| 弃用惯例 | Go `// Deprecated: <原因；替代物；删除条件>`、Rust `#[deprecated]`、TS `@deprecated`、proto `option deprecated`；弃用代码原地保留只修 bug，删除前先经使用打点观察。 |
-
-## Gateway 分层（新代码放哪里）
-
-| 代码类型 | 位置 |
-|---|---|
-| 传输机制（写泵/背压/心跳，帧格式无关） | `internal/transport/wscore` |
-| v2 协议编解码/握手/直通/扇出 | `internal/protocol/pbws` |
-| 跨协议域逻辑（终端门控、Origin 校验等） | `internal/protocol/shared` |
-| chat 命令编排 | `internal/chatcmd` |
-| 会话状态与关联路由（transport 无关） | `internal/session` |
-| 日志装置与协议使用打点 | `internal/observability` |
-| HTTP 入口与 public share | `internal/server` |
-
-
-## 文档任务边界
+## 文档边界
 
 本文档树只描述当前架构，不要求启动 dev server 或跑 build。若后续文档改动伴随代码改动，应按触达模块补充对应 build/test。
