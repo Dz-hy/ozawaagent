@@ -1,4 +1,5 @@
 mod commands;
+mod path_shared;
 mod runtime;
 mod services;
 

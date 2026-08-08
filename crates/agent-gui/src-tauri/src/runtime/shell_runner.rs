@@ -9,6 +9,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
+use crate::path_shared::normalize_rel_path_input;
 use crate::runtime::platform::{
     expand_tilde_path, maybe_augment_macos_path, shell_basename, strip_windows_verbatim_prefix,
 };
@@ -97,10 +98,6 @@ fn canonicalize_workdir(workdir: &str) -> Result<PathBuf, ShellError> {
     // Strip the Windows `\\?\` verbatim prefix: this path becomes the child
     // process cwd and the model-visible workdir string.
     Ok(strip_windows_verbatim_prefix(fs::canonicalize(&p)?))
-}
-
-fn normalize_rel_path_input(input: &str) -> String {
-    input.trim().replace('\\', "/")
 }
 
 fn sanitize_rel_path_core(input: &str) -> Result<Option<PathBuf>, ShellError> {

@@ -14,6 +14,10 @@ use thiserror::Error;
 use zip::ZipArchive;
 
 use super::edit_match::{apply_edit_replacements, find_edit_matches};
+use crate::path_shared::{
+    is_windows_reserved_path_component, looks_like_svg, normalize_rel_path_input,
+    rel_to_workdir_str,
+};
 use crate::runtime::platform::expand_tilde_path;
 
 const READ_MAX_TEXT_BYTES: usize = 200 * 1024; // 200KB
@@ -402,10 +406,6 @@ fn canonicalize_workdir(workdir: &str) -> Result<PathBuf, FsError> {
     Ok(fs::canonicalize(&p)?)
 }
 
-fn normalize_rel_path_input(input: &str) -> String {
-    input.trim().replace('\\', "/")
-}
-
 fn sanitize_rel_path_core(input: &str) -> Result<Option<PathBuf>, FsError> {
     let normalized = normalize_rel_path_input(input);
     if normalized.is_empty() {
@@ -452,19 +452,6 @@ fn is_platform_reserved_rel_path_component(input: &str) -> bool {
 }
 
 #[cfg(any(windows, test))]
-fn is_windows_reserved_path_component(input: &str) -> bool {
-    let stem = input
-        .split('.')
-        .next()
-        .unwrap_or(input)
-        .trim_matches(|ch| ch == ' ' || ch == '.')
-        .to_ascii_uppercase();
-    matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
-        || (stem.len() == 4
-            && (stem.starts_with("COM") || stem.starts_with("LPT"))
-            && stem.as_bytes()[3].is_ascii_digit()
-            && stem.as_bytes()[3] != b'0')
-}
 
 fn sanitize_rel_path(input: &str) -> Result<PathBuf, FsError> {
     sanitize_rel_path_core(input)?.ok_or_else(|| FsError::InvalidRelPath(input.to_string()))
@@ -488,13 +475,6 @@ fn ensure_within_workdir_existing(workdir: &Path, target: &Path) -> Result<PathB
         return Err(FsError::OutOfBounds(canon.display().to_string()));
     }
     Ok(canon)
-}
-
-fn rel_to_workdir_str(workdir: &Path, abs: &Path) -> String {
-    abs.strip_prefix(workdir)
-        .unwrap_or(abs)
-        .to_string_lossy()
-        .replace('\\', "/")
 }
 
 fn normalize_glob_pattern_input(input: &str) -> String {
@@ -655,13 +635,6 @@ fn infer_image_mime(path: &Path) -> Option<&'static str> {
         Some("ico") => Some("image/x-icon"),
         _ => None,
     }
-}
-
-fn looks_like_svg(bytes: &[u8]) -> bool {
-    let prefix_len = bytes.len().min(1024);
-    let prefix = String::from_utf8_lossy(&bytes[..prefix_len]);
-    let trimmed = prefix.trim_start_matches('\u{feff}').trim_start();
-    trimmed.starts_with("<svg") || trimmed.contains("<svg")
 }
 
 fn infer_image_mime_from_bytes(bytes: &[u8]) -> Option<&'static str> {

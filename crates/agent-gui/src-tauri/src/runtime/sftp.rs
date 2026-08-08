@@ -10,6 +10,7 @@ use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
+use crate::path_shared::rel_to_workdir_str;
 use crate::runtime::platform::expand_tilde_path;
 use crate::runtime::project_path::{
     project_path_key as normalize_project_path_key, project_path_keys_equal,
@@ -1114,13 +1115,6 @@ fn ensure_path_inside(workdir: &Path, target: &Path) -> Result<(), String> {
         return Err("target path is outside the project".to_string());
     }
     Ok(())
-}
-
-fn rel_to_workdir_str(workdir: &Path, abs: &Path) -> String {
-    abs.strip_prefix(workdir)
-        .unwrap_or(abs)
-        .to_string_lossy()
-        .replace('\\', "/")
 }
 
 fn local_entry_from_abs(workdir: &Path, abs: &Path) -> Result<SftpEntry, String> {

@@ -7,6 +7,7 @@ use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
+use crate::path_shared::is_windows_reserved_path_component;
 use crate::runtime::process::configure_child_process_group;
 
 fn git_command(cwd: &Path) -> Command {
@@ -330,20 +331,6 @@ fn sanitize_path_component(input: &str, fallback: &str) -> String {
         trimmed.chars().take(80).collect()
     };
     avoid_windows_reserved_path_component(candidate)
-}
-
-fn is_windows_reserved_path_component(input: &str) -> bool {
-    let stem = input
-        .split('.')
-        .next()
-        .unwrap_or(input)
-        .trim_matches(|ch| ch == ' ' || ch == '.')
-        .to_ascii_uppercase();
-    matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
-        || (stem.len() == 4
-            && (stem.starts_with("COM") || stem.starts_with("LPT"))
-            && stem.as_bytes()[3].is_ascii_digit()
-            && stem.as_bytes()[3] != b'0')
 }
 
 fn avoid_windows_reserved_path_component(candidate: String) -> String {

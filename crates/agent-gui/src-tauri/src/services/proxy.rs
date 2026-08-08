@@ -1,3 +1,4 @@
+use crate::path_shared::looks_like_svg;
 use std::{
     net::{Ipv4Addr, TcpListener},
     sync::Arc,
@@ -279,13 +280,6 @@ fn normalize_image_proxy_mime(value: &str) -> Option<&'static str> {
         "image/x-icon" | "image/vnd.microsoft.icon" => Some("image/x-icon"),
         _ => None,
     }
-}
-
-fn looks_like_svg(bytes: &[u8]) -> bool {
-    let prefix_len = bytes.len().min(1024);
-    let prefix = String::from_utf8_lossy(&bytes[..prefix_len]);
-    let trimmed = prefix.trim_start_matches('\u{feff}').trim_start();
-    trimmed.starts_with("<svg") || trimmed.contains("<svg")
 }
 
 fn infer_image_proxy_mime_from_bytes(bytes: &[u8]) -> Option<&'static str> {
