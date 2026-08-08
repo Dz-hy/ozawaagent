@@ -62,3 +62,6 @@ __pycache__/
 docs/phase0/
 docs/project/
 docs/worklog/
+
+# 本地审核报告副本（勿提交）
+CODE_REVIEW_REPORT.md

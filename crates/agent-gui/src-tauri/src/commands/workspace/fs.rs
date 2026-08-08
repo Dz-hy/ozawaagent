@@ -5472,4 +5472,81 @@ mod tests {
 
         let _ = fs::remove_dir_all(workdir);
     }
+
+    #[test]
+    fn write_text_rejects_stale_version_guards_and_accepts_current() {
+        let workdir = unique_test_workdir("write-text-version-guard");
+        fs::create_dir_all(&workdir).expect("create workdir");
+        let target = workdir.join("guard.txt");
+        std::fs::write(&target, "v1").expect("seed");
+        // 按现有约定 seed 后由调用方自行计算文件版本（mtime+hash）。
+        let md = fs::metadata(&target).expect("stat seed");
+        let seed_version = (metadata_mtime_ms(&md), hash_bytes(b"v1"));
+
+        let wd = workdir.to_string_lossy().into_owned();
+        // 携带正确版本首次写入：成功并返回当前版本（此后以该 mtime/hash 作为版本锚点）。
+        let first = fs_write_text_sync(
+            wd.clone(),
+            "guard.txt".to_string(),
+            "v2".to_string(),
+            "rewrite".to_string(),
+            Some(seed_version.0),
+            Some(seed_version.1),
+        )
+        .expect("initial write");
+
+        // 过期 mtime（early 版本）→ 必须拒绝，防止并发覆盖。
+        let stale_attempt = fs_write_text_sync(
+            wd.clone(),
+            "guard.txt".to_string(),
+            "tampered".to_string(),
+            "rewrite".to_string(),
+            Some(first.mtime_ms.saturating_sub(1)),
+            Some(first.content_hash.clone()),
+        );
+        assert!(stale_attempt.is_err(), "stale mtime must be rejected");
+
+        // 当前 mtime + hash → 成功。
+        let ok = fs_write_text_sync(
+            wd.clone(),
+            "guard.txt".to_string(),
+            "v3".to_string(),
+            "rewrite".to_string(),
+            Some(first.mtime_ms),
+            Some(first.content_hash.clone()),
+        )
+        .expect("current version should be accepted");
+        assert_eq!(
+            std::fs::read_to_string(&target).expect("read"),
+            "v3",
+            "content must be updated"
+        );
+
+        // 错误 content hash → 拒绝；正确组合 → 成功。
+        let bad_hash = fs_write_text_sync(
+            wd.clone(),
+            "guard.txt".to_string(),
+            "tampered".to_string(),
+            "rewrite".to_string(),
+            Some(ok.mtime_ms),
+            Some("deadbeefdeadbeefdeadbeef".to_string()),
+        );
+        assert!(bad_hash.is_err(), "stale content hash must be rejected");
+        fs_write_text_sync(
+            wd,
+            "guard.txt".to_string(),
+            "v4".to_string(),
+            "rewrite".to_string(),
+            Some(ok.mtime_ms),
+            Some(ok.content_hash.clone()),
+        )
+        .expect("current content hash should be accepted");
+        assert_eq!(
+            std::fs::read_to_string(&target).expect("read"),
+            "v4",
+            "hash-guarded write must apply"
+        );
+
+        let _ = fs::remove_dir_all(workdir);
+    }
 }
