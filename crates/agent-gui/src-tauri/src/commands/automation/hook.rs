@@ -267,6 +267,18 @@ fn truncate_response(text: &str) -> String {
     out
 }
 
+/// 在钩子作用域内执行一段脚本。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `script`：脚本内容
+/// - `timeout_ms`：超时毫秒
+/// - `scope_id`：作用域 id
+/// - `context`：上下文
+///
+/// # 返回
+/// - `Ok(ShellRunResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn hook_run_script(
     workdir: Option<String>,
@@ -285,6 +297,15 @@ pub async fn hook_run_script(
     .map_err(|e| format!("hook_run_script join 失败：{e}"))?
 }
 
+/// 在钩子作用域内批量发起 HTTP 请求。
+///
+/// # 参数
+/// - `requests`：请求列表
+/// - `scope_id`：作用域 id
+///
+/// # 返回
+/// - `Ok(HookHttpRunResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn hook_run_http_requests(
     requests: Vec<HttpRequestInput>,
@@ -299,6 +320,14 @@ pub async fn hook_run_http_requests(
     .map_err(|e| format!("hook_run_http_requests join 失败：{e}"))?
 }
 
+/// 取消指定钩子作用域中所有未完成任务。
+///
+/// # 参数
+/// - `scope_id`：作用域 id
+///
+/// # 返回
+/// - `Ok(())`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn hook_cancel_scope(
     scope_id: String,

@@ -135,6 +135,13 @@ pub struct RuntimePlatformResponse {
     pub platform: &'static str,
 }
 
+/// 获取当前运行的平台信息。
+///
+/// # 参数
+/// 该命令无业务参数，仅可能包含 Tauri 注入状态。
+///
+/// # 返回
+/// `RuntimePlatformResponse`
 #[tauri::command]
 pub fn app_runtime_platform() -> RuntimePlatformResponse {
     let platform = if cfg!(windows) {
@@ -147,6 +154,14 @@ pub fn app_runtime_platform() -> RuntimePlatformResponse {
     RuntimePlatformResponse { platform }
 }
 
+/// 设置窗口关闭行为（退出或最小化到托盘）。
+///
+/// # 参数
+/// - `behavior`：behavior
+///
+/// # 返回
+/// - `Ok(())`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub fn app_set_close_window_behavior(
     behavior: String,
@@ -156,12 +171,28 @@ pub fn app_set_close_window_behavior(
     Ok(())
 }
 
+/// 读取旧版本归档目录路径。
+///
+/// # 参数
+/// 该命令无业务参数，仅可能包含 Tauri 注入状态。
+///
+/// # 返回
+/// - `Ok(Option<String)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub fn app_legacy_archive_dir() -> Result<Option<String>, String> {
     crate::services::legacy_archive::complete_archive_dir()
         .map(|path| path.map(|value| value.to_string_lossy().into_owned()))
 }
 
+/// 确认退出应用并触发退出流程。
+///
+/// # 参数
+/// 该命令无业务参数，仅可能包含 Tauri 注入状态。
+///
+/// # 返回
+/// - `Ok(())`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub fn app_confirmed_exit(
     app: AppHandle,
@@ -174,6 +205,14 @@ pub fn app_confirmed_exit(
     Ok(())
 }
 
+/// 获取 macOS 窗口红绿灯按钮的布局指标。
+///
+/// # 参数
+/// 该命令无业务参数，仅可能包含 Tauri 注入状态。
+///
+/// # 返回
+/// - `Ok(Option<MacOsTrafficLightMetrics)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[allow(dead_code)]
 #[tauri::command]
 pub async fn app_macos_traffic_light_metrics(

@@ -1251,6 +1251,14 @@ pub(crate) fn list_subagent_messages_sync(
 // Tauri commands
 // ---------------------------------------------------------------------------
 
+/// 创建或更新子 Agent 身份。
+///
+/// # 参数
+/// - `input`：结构化输入
+///
+/// # 返回
+/// - `Ok(SubagentIdentityRecord)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn subagent_identity_upsert(
     input: SubagentIdentityUpsertInput,
@@ -1263,6 +1271,14 @@ pub async fn subagent_identity_upsert(
     .map_err(|e| format!("subagent_identity_upsert join failed: {e}"))?
 }
 
+/// 列出全部子 Agent 身份。
+///
+/// # 参数
+/// - `input`：结构化输入
+///
+/// # 返回
+/// - `Ok(Vec<SubagentIdentityRecord)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn subagent_identity_list(
     input: SubagentIdentityListInput,
@@ -1275,6 +1291,14 @@ pub async fn subagent_identity_list(
     .map_err(|e| format!("subagent_identity_list join failed: {e}"))?
 }
 
+/// 保存一次子 Agent 运行的元数据。
+///
+/// # 参数
+/// - `input`：结构化输入
+///
+/// # 返回
+/// - `Ok(())`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn subagent_run_save(input: SubagentRunSaveInput) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -1285,6 +1309,14 @@ pub async fn subagent_run_save(input: SubagentRunSaveInput) -> Result<(), String
     .map_err(|e| format!("subagent_run_save join failed: {e}"))?
 }
 
+/// 列出子 Agent 运行记录。
+///
+/// # 参数
+/// - `input`：结构化输入
+///
+/// # 返回
+/// - `Ok(Vec<SubagentRunRecord)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn subagent_run_list(
     input: SubagentRunListInput,
@@ -1297,6 +1329,14 @@ pub async fn subagent_run_list(
     .map_err(|e| format!("subagent_run_list join failed: {e}"))?
 }
 
+/// 加载子 Agent 运行详情。
+///
+/// # 参数
+/// - `input`：结构化输入
+///
+/// # 返回
+/// - `Ok(Option<SubagentRunStateRecord)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn subagent_run_load(
     input: SubagentRunLoadInput,
@@ -1309,6 +1349,14 @@ pub async fn subagent_run_load(
     .map_err(|e| format!("subagent_run_load join failed: {e}"))?
 }
 
+/// 清理过期子 Agent 运行记录。
+///
+/// # 参数
+/// - `input`：结构化输入
+///
+/// # 返回
+/// - `Ok(SubagentPruneResult)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn subagent_run_prune(
     input: SubagentRunPruneInput,
@@ -1318,6 +1366,14 @@ pub async fn subagent_run_prune(
         .map_err(|e| format!("subagent_run_prune join failed: {e}"))?
 }
 
+/// 追加子 Agent 运行消息。
+///
+/// # 参数
+/// - `input`：结构化输入
+///
+/// # 返回
+/// - `Ok(SubagentMessageRecord)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn subagent_message_append(
     input: SubagentMessageAppendInput,
@@ -1330,6 +1386,14 @@ pub async fn subagent_message_append(
     .map_err(|e| format!("subagent_message_append join failed: {e}"))?
 }
 
+/// 列出子 Agent 运行消息。
+///
+/// # 参数
+/// - `input`：结构化输入
+///
+/// # 返回
+/// - `Ok(Vec<SubagentMessageRecord)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn subagent_message_list(
     input: SubagentMessageListInput,

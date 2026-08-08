@@ -7,6 +7,18 @@ use crate::runtime::sftp::{
     SftpTransferResponse,
 };
 
+/// 列出 SFTP 会话某侧目录。
+///
+/// # 参数
+/// - `session_id`：终端会话 id
+/// - `project_path_key`：项目路径键
+/// - `workdir`：工作区绝对路径
+/// - `side`：SFTP 侧（local/remote）
+/// - `path`：工作区相对路径（须安全解析）
+///
+/// # 返回
+/// - `Ok(SftpListResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn sftp_list(
     registry: State<'_, Arc<SftpSessionRegistry>>,
@@ -21,6 +33,18 @@ pub async fn sftp_list(
         .await
 }
 
+/// 获取 SFTP 会话某侧文件或目录的状态。
+///
+/// # 参数
+/// - `session_id`：终端会话 id
+/// - `project_path_key`：项目路径键
+/// - `workdir`：工作区绝对路径
+/// - `side`：SFTP 侧（local/remote）
+/// - `path`：工作区相对路径（须安全解析）
+///
+/// # 返回
+/// - `Ok(SftpStatResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn sftp_stat(
     registry: State<'_, Arc<SftpSessionRegistry>>,
@@ -35,6 +59,18 @@ pub async fn sftp_stat(
         .await
 }
 
+/// 在 SFTP 会话某侧创建目录。
+///
+/// # 参数
+/// - `session_id`：终端会话 id
+/// - `project_path_key`：项目路径键
+/// - `workdir`：工作区绝对路径
+/// - `side`：SFTP 侧（local/remote）
+/// - `path`：工作区相对路径（须安全解析）
+///
+/// # 返回
+/// - `Ok(SftpActionResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn sftp_mkdir(
     registry: State<'_, Arc<SftpSessionRegistry>>,
@@ -49,6 +85,19 @@ pub async fn sftp_mkdir(
         .await
 }
 
+/// 重命名 SFTP 会话某侧的文件或目录。
+///
+/// # 参数
+/// - `session_id`：终端会话 id
+/// - `project_path_key`：项目路径键
+/// - `workdir`：工作区绝对路径
+/// - `side`：SFTP 侧（local/remote）
+/// - `from_path`：源路径
+/// - `to_path`：目标路径
+///
+/// # 返回
+/// - `Ok(SftpActionResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn sftp_rename(
     registry: State<'_, Arc<SftpSessionRegistry>>,
@@ -71,6 +120,19 @@ pub async fn sftp_rename(
         .await
 }
 
+/// 删除 SFTP 会话某侧的文件或目录。
+///
+/// # 参数
+/// - `session_id`：终端会话 id
+/// - `project_path_key`：项目路径键
+/// - `workdir`：工作区绝对路径
+/// - `side`：SFTP 侧（local/remote）
+/// - `path`：工作区相对路径（须安全解析）
+/// - `recursive`：是否递归
+///
+/// # 返回
+/// - `Ok(SftpActionResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn sftp_delete(
     registry: State<'_, Arc<SftpSessionRegistry>>,
@@ -93,6 +155,19 @@ pub async fn sftp_delete(
         .await
 }
 
+/// 发起双向文件传输。
+///
+/// # 参数
+/// - `session_id`：终端会话 id
+/// - `project_path_key`：项目路径键
+/// - `workdir`：工作区绝对路径
+/// - `direction`：传输方向
+/// - `source_path`：source_path
+/// - `target_path`：目标路径
+///
+/// # 返回
+/// - `Ok(SftpTransferResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn sftp_transfer(
     registry: State<'_, Arc<SftpSessionRegistry>>,
@@ -121,6 +196,15 @@ pub async fn sftp_transfer(
         .await
 }
 
+/// 取消正在进行的 SFTP 传输。
+///
+/// # 参数
+/// - `session_id`：终端会话 id
+/// - `transfer_id`：传输 id
+///
+/// # 返回
+/// - `Ok(())`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub fn sftp_cancel_transfer(
     registry: State<'_, Arc<SftpSessionRegistry>>,

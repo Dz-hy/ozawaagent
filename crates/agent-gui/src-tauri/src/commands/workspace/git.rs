@@ -2975,6 +2975,15 @@ pub(crate) fn git_stash_pop_sync(workdir: String) -> Result<GitOperationResponse
         "已恢复最近的 stash。",
     )
 }
+
+/// 获取 Git 仓库工作区状态。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+///
+/// # 返回
+/// - `Ok(GitRepositoryState)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_status(workdir: String) -> Result<GitRepositoryState, String> {
     tauri::async_runtime::spawn_blocking(move || git_status_sync(workdir))
@@ -2982,6 +2991,14 @@ pub async fn git_status(workdir: String) -> Result<GitRepositoryState, String> {
         .map_err(|error| format!("git_status join 失败：{error}"))?
 }
 
+/// 扫描目录树发现 Git 仓库。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+///
+/// # 返回
+/// - `Ok(GitRepositoryDiscovery)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_discover_repositories(workdir: String) -> Result<GitRepositoryDiscovery, String> {
     tauri::async_runtime::spawn_blocking(move || git_discover_repositories_sync(workdir))
@@ -2989,6 +3006,14 @@ pub async fn git_discover_repositories(workdir: String) -> Result<GitRepositoryD
         .map_err(|error| format!("git_discover_repositories join 失败：{error}"))?
 }
 
+/// 列出仓库全部本地分支。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+///
+/// # 返回
+/// - `Ok(GitBranchesResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_branches(workdir: String) -> Result<GitBranchesResponse, String> {
     tauri::async_runtime::spawn_blocking(move || git_branches_sync(workdir))
@@ -2996,6 +3021,16 @@ pub async fn git_branches(workdir: String) -> Result<GitBranchesResponse, String
         .map_err(|error| format!("git_branches join 失败：{error}"))?
 }
 
+/// 切换到指定分支（支持 checkout、create 模式）。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `branch`：分支名
+/// - `kind`：类型
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_switch_branch(
     workdir: String,
@@ -3007,6 +3042,16 @@ pub async fn git_switch_branch(
         .map_err(|error| format!("git_switch_branch join 失败：{error}"))?
 }
 
+/// 从起点创建新分支。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `branch`：分支名
+/// - `start_point`：起始点
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_create_branch(
     workdir: String,
@@ -3020,6 +3065,17 @@ pub async fn git_create_branch(
     .map_err(|error| format!("git_create_branch join 失败：{error}"))?
 }
 
+/// 初始化 Git 仓库（可选默认分支与提交身份）。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `branch`：分支名
+/// - `user_name`：用户昵称
+/// - `user_email`：用户邮箱
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_init(
     workdir: String,
@@ -3039,6 +3095,17 @@ pub async fn git_init(
     .map_err(|error| format!("git_init join 失败：{error}"))?
 }
 
+/// 以后台任务方式克隆远程仓库。
+///
+/// # 参数
+/// - `parent`：父路径
+/// - `name`：name
+/// - `remote_url`：远端仓库地址
+/// - `branch`：分支名
+///
+/// # 返回
+/// - `Ok(GitCloneTask)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub fn git_clone_repository_start(
     registry: tauri::State<'_, Arc<GitCloneTaskRegistry>>,
@@ -3050,6 +3117,14 @@ pub fn git_clone_repository_start(
     registry.start(parent, name, remote_url, branch)
 }
 
+/// 列出全部克隆任务。
+///
+/// # 参数
+/// 该命令无业务参数，仅可能包含 Tauri 注入状态。
+///
+/// # 返回
+/// - `Ok(Vec<GitCloneTask)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub fn git_clone_repository_tasks(
     registry: tauri::State<'_, Arc<GitCloneTaskRegistry>>,
@@ -3057,6 +3132,14 @@ pub fn git_clone_repository_tasks(
     registry.snapshot()
 }
 
+/// 取消运行中的克隆任务。
+///
+/// # 参数
+/// - `task_id`：任务 id
+///
+/// # 返回
+/// - `Ok(GitCloneTask)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub fn git_clone_repository_cancel(
     registry: tauri::State<'_, Arc<GitCloneTaskRegistry>>,
@@ -3065,6 +3148,14 @@ pub fn git_clone_repository_cancel(
     registry.cancel(task_id)
 }
 
+/// 移除克隆任务记录。
+///
+/// # 参数
+/// - `task_id`：任务 id
+///
+/// # 返回
+/// - `Ok(Vec<GitCloneTask)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub fn git_clone_repository_dismiss(
     registry: tauri::State<'_, Arc<GitCloneTaskRegistry>>,
@@ -3074,6 +3165,14 @@ pub fn git_clone_repository_dismiss(
     registry.snapshot()
 }
 
+/// 列出远程仓库分支（ls-remote）。
+///
+/// # 参数
+/// - `remote_url`：远端仓库地址
+///
+/// # 返回
+/// - `Ok(GitRemoteBranchesResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_list_remote_branches(
     remote_url: String,
@@ -3083,6 +3182,16 @@ pub async fn git_list_remote_branches(
         .map_err(|error| format!("git_list_remote_branches join 失败：{error}"))?
 }
 
+/// 读取工作区差异（工作树、暂存区、提交比较）。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `mode`：模式
+/// - `path`：工作区相对路径（须安全解析）
+///
+/// # 返回
+/// - `Ok(GitDiffResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_diff(
     workdir: String,
@@ -3094,6 +3203,16 @@ pub async fn git_diff(
         .map_err(|error| format!("git_diff join 失败：{error}"))?
 }
 
+/// 读取提交历史。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `limit`：条数上限
+/// - `skip`：跳过的条数
+///
+/// # 返回
+/// - `Ok(GitLogResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_log(
     workdir: String,
@@ -3105,6 +3224,15 @@ pub async fn git_log(
         .map_err(|error| format!("git_log join 失败：{error}"))?
 }
 
+/// 读取提交详细信息。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `commit`：提交哈希
+///
+/// # 返回
+/// - `Ok(GitCommitDetailsResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_commit_details(
     workdir: String,
@@ -3115,6 +3243,15 @@ pub async fn git_commit_details(
         .map_err(|error| format!("git_commit_details join 失败：{error}"))?
 }
 
+/// 比较本地提交与远端分支是否同步。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `commit`：提交哈希
+///
+/// # 返回
+/// - `Ok(GitDiffResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_compare_commit_with_remote(
     workdir: String,
@@ -3127,6 +3264,16 @@ pub async fn git_compare_commit_with_remote(
     .map_err(|error| format!("git_compare_commit_with_remote join 失败：{error}"))?
 }
 
+/// 读取单个提交的变更差异。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `commit`：提交哈希
+/// - `path`：工作区相对路径（须安全解析）
+///
+/// # 返回
+/// - `Ok(GitDiffResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_commit_diff(
     workdir: String,
@@ -3138,6 +3285,15 @@ pub async fn git_commit_diff(
         .map_err(|error| format!("git_commit_diff join 失败：{error}"))?
 }
 
+/// 暂存指定路径。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `path`：工作区相对路径（须安全解析）
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_stage(workdir: String, path: String) -> Result<GitOperationResponse, String> {
     tauri::async_runtime::spawn_blocking(move || git_stage_sync(workdir, path))
@@ -3145,6 +3301,14 @@ pub async fn git_stage(workdir: String, path: String) -> Result<GitOperationResp
         .map_err(|error| format!("git_stage join 失败：{error}"))?
 }
 
+/// 全量暂存。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_stage_all(workdir: String) -> Result<GitOperationResponse, String> {
     tauri::async_runtime::spawn_blocking(move || git_stage_all_sync(workdir))
@@ -3152,6 +3316,15 @@ pub async fn git_stage_all(workdir: String) -> Result<GitOperationResponse, Stri
         .map_err(|error| format!("git_stage_all join 失败：{error}"))?
 }
 
+/// 取消暂存指定路径。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `path`：工作区相对路径（须安全解析）
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_unstage(workdir: String, path: String) -> Result<GitOperationResponse, String> {
     tauri::async_runtime::spawn_blocking(move || git_unstage_sync(workdir, path))
@@ -3159,6 +3332,14 @@ pub async fn git_unstage(workdir: String, path: String) -> Result<GitOperationRe
         .map_err(|error| format!("git_unstage join 失败：{error}"))?
 }
 
+/// 取消全部暂存。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_unstage_all(workdir: String) -> Result<GitOperationResponse, String> {
     tauri::async_runtime::spawn_blocking(move || git_unstage_all_sync(workdir))
@@ -3166,6 +3347,16 @@ pub async fn git_unstage_all(workdir: String) -> Result<GitOperationResponse, St
         .map_err(|error| format!("git_unstage_all join 失败：{error}"))?
 }
 
+/// 丢弃工作树中指定路径的修改。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `path`：工作区相对路径（须安全解析）
+/// - `old_path`：原路径
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_discard(
     workdir: String,
@@ -3177,6 +3368,14 @@ pub async fn git_discard(
         .map_err(|error| format!("git_discard join 失败：{error}"))?
 }
 
+/// 丢弃全部未提交修改。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_discard_all(workdir: String) -> Result<GitOperationResponse, String> {
     tauri::async_runtime::spawn_blocking(move || git_discard_all_sync(workdir))
@@ -3184,6 +3383,15 @@ pub async fn git_discard_all(workdir: String) -> Result<GitOperationResponse, St
         .map_err(|error| format!("git_discard_all join 失败：{error}"))?
 }
 
+/// 将路径加入 .gitignore。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `path`：工作区相对路径（须安全解析）
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_add_to_gitignore(
     workdir: String,
@@ -3194,6 +3402,15 @@ pub async fn git_add_to_gitignore(
         .map_err(|error| format!("git_add_to_gitignore join 失败：{error}"))?
 }
 
+/// 在系统文件管理器中定位显示文件。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `path`：工作区相对路径（须安全解析）
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_open_system_file_location(
     workdir: String,
@@ -3204,6 +3421,15 @@ pub async fn git_open_system_file_location(
         .map_err(|error| format!("git_open_system_file_location join 失败：{error}"))?
 }
 
+/// 创建一次提交（使用默认或已配置身份）。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `message`：提交信息
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_commit(workdir: String, message: String) -> Result<GitOperationResponse, String> {
     tauri::async_runtime::spawn_blocking(move || git_commit_sync(workdir, message))
@@ -3211,6 +3437,14 @@ pub async fn git_commit(workdir: String, message: String) -> Result<GitOperation
         .map_err(|error| format!("git_commit join 失败：{error}"))?
 }
 
+/// 从远端拉取引用。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_fetch(workdir: String) -> Result<GitOperationResponse, String> {
     tauri::async_runtime::spawn_blocking(move || git_fetch_sync(workdir))
@@ -3218,6 +3452,14 @@ pub async fn git_fetch(workdir: String) -> Result<GitOperationResponse, String> 
         .map_err(|error| format!("git_fetch join 失败：{error}"))?
 }
 
+/// 拉取并合并远端分支。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_pull(workdir: String) -> Result<GitOperationResponse, String> {
     tauri::async_runtime::spawn_blocking(move || git_pull_sync(workdir))
@@ -3225,6 +3467,15 @@ pub async fn git_pull(workdir: String) -> Result<GitOperationResponse, String> {
         .map_err(|error| format!("git_pull join 失败：{error}"))?
 }
 
+/// 设置或替换 origin 远端地址。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `remote_url`：远端仓库地址
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_set_remote(
     workdir: String,
@@ -3235,6 +3486,14 @@ pub async fn git_set_remote(
         .map_err(|error| format!("git_set_remote join 失败：{error}"))?
 }
 
+/// 推送当前分支到远端。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_push(workdir: String) -> Result<GitOperationResponse, String> {
     tauri::async_runtime::spawn_blocking(move || git_push_sync(workdir))
@@ -3242,6 +3501,16 @@ pub async fn git_push(workdir: String) -> Result<GitOperationResponse, String> {
         .map_err(|error| format!("git_push join 失败：{error}"))?
 }
 
+/// 删除分支（支持强制删除）。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `branch`：分支名
+/// - `force`：是否强制
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_delete_branch(
     workdir: String,
@@ -3253,6 +3522,16 @@ pub async fn git_delete_branch(
         .map_err(|error| format!("git_delete_branch join 失败：{error}"))?
 }
 
+/// 重命名分支。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `branch`：分支名
+/// - `new_branch`：新分支名
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_rename_branch(
     workdir: String,
@@ -3266,6 +3545,15 @@ pub async fn git_rename_branch(
     .map_err(|error| format!("git_rename_branch join 失败：{error}"))?
 }
 
+/// 创建 stash 快照。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `message`：提交信息
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_stash_push(
     workdir: String,
@@ -3276,6 +3564,14 @@ pub async fn git_stash_push(
         .map_err(|error| format!("git_stash_push join 失败：{error}"))?
 }
 
+/// 应用并移除最近 stash。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+///
+/// # 返回
+/// - `Ok(GitOperationResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn git_stash_pop(workdir: String) -> Result<GitOperationResponse, String> {
     tauri::async_runtime::spawn_blocking(move || git_stash_pop_sync(workdir))

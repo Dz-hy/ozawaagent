@@ -1,3 +1,11 @@
+/// 加载全部应用设置（模型供应商、系统、MCP、记忆、子 Agent）。
+///
+/// # 参数
+/// 该命令无业务参数，仅可能包含 Tauri 注入状态。
+///
+/// # 返回
+/// - `Ok(SettingsLoadResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn settings_load_all() -> Result<SettingsLoadResponse, String> {
     tauri::async_runtime::spawn_blocking(|| {
@@ -17,6 +25,14 @@ pub async fn settings_load_all() -> Result<SettingsLoadResponse, String> {
     .map_err(|e| format!("settings_load_all join 失败：{e}"))?
 }
 
+/// 保存模型供应商配置。
+///
+/// # 参数
+/// - `payload`：JSON 载荷
+///
+/// # 返回
+/// - `Ok(())`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn settings_save_providers(payload: Value) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -27,6 +43,14 @@ pub async fn settings_save_providers(payload: Value) -> Result<(), String> {
     .map_err(|e| format!("settings_save_providers join 失败：{e}"))?
 }
 
+/// 保存系统设置（含自动化调度器状态）。
+///
+/// # 参数
+/// - `payload`：JSON 载荷
+///
+/// # 返回
+/// - `Ok(())`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn settings_save_system(
     payload: Value,
@@ -46,6 +70,14 @@ pub async fn settings_save_system(
     Ok(())
 }
 
+/// 保存 MCP 服务器配置。
+///
+/// # 参数
+/// - `payload`：JSON 载荷
+///
+/// # 返回
+/// - `Ok(())`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn settings_save_mcp(payload: Value) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -56,6 +88,14 @@ pub async fn settings_save_mcp(payload: Value) -> Result<(), String> {
     .map_err(|e| format!("settings_save_mcp join 失败：{e}"))?
 }
 
+/// 保存记忆配置。
+///
+/// # 参数
+/// - `payload`：JSON 载荷
+///
+/// # 返回
+/// - `Ok(())`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn settings_save_memory(payload: Value) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -66,6 +106,14 @@ pub async fn settings_save_memory(payload: Value) -> Result<(), String> {
     .map_err(|e| format!("settings_save_memory join 失败：{e}"))?
 }
 
+/// 保存子 Agent 配置。
+///
+/// # 参数
+/// - `payload`：JSON 载荷
+///
+/// # 返回
+/// - `Ok(())`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn settings_save_agents(payload: Value) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -76,6 +124,14 @@ pub async fn settings_save_agents(payload: Value) -> Result<(), String> {
     .map_err(|e| format!("settings_save_agents join 失败：{e}"))?
 }
 
+/// 应用 SSH 配置增量补丁。
+///
+/// # 参数
+/// - `payload`：JSON 载荷
+///
+/// # 返回
+/// - `Ok(SshPatchApplyResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn settings_apply_ssh_patch(payload: Value) -> Result<SshPatchApplyResponse, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -86,6 +142,15 @@ pub async fn settings_apply_ssh_patch(payload: Value) -> Result<SshPatchApplyRes
     .map_err(|e| format!("settings_apply_ssh_patch join 失败：{e}"))?
 }
 
+/// 从 known_hosts 中移除指定主机的指纹。
+///
+/// # 参数
+/// - `host`：主机
+/// - `port`：端口
+///
+/// # 返回
+/// - `Ok(SshKnownHostResetResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn settings_reset_ssh_known_host(
     host: String,

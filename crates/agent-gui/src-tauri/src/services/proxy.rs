@@ -73,6 +73,13 @@ struct ImageProxyQuery {
     url: String,
 }
 
+/// 获取本地代理服务器信息。
+///
+/// # 参数
+/// 该命令无业务参数，仅可能包含 Tauri 注入状态。
+///
+/// # 返回
+/// `ProxyServerInfo`
 #[tauri::command]
 pub fn proxy_get_server_info(state: tauri::State<'_, Arc<ProxyServerState>>) -> ProxyServerInfo {
     state.info.clone()

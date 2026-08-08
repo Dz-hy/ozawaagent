@@ -307,6 +307,15 @@ pub(crate) async fn chat_history_branch_inner(
     .map_err(|e| format!("chat_history_branch join 失败：{e}"))?
 }
 
+/// 基于指定消息锚点创建会话历史分支。
+///
+/// # 参数
+/// - `id`：实体 id
+/// - `base_message_ref`：消息锚点
+///
+/// # 返回
+/// - `Ok(ChatHistorySummary)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn chat_history_branch(
     id: String,

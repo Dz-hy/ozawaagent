@@ -1,3 +1,14 @@
+/// 分页列出会话历史，支持按工作目录过滤。
+///
+/// # 参数
+/// - `page`：页码（从 1 开始）
+/// - `page_size`：每页条数
+/// - `cwd`：当前工作目录
+/// - `cwd_empty`：是否仅显示无目录会话
+///
+/// # 返回
+/// - `Ok(ChatHistoryListResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn chat_history_list(
     page: i64,
@@ -21,6 +32,14 @@ pub async fn chat_history_list(
     .map_err(|e| format!("chat_history_list join 失败：{e}"))?
 }
 
+/// 列出历史会话中出现过的全部工作目录。
+///
+/// # 参数
+/// 该命令无业务参数，仅可能包含 Tauri 注入状态。
+///
+/// # 返回
+/// - `Ok(ChatHistoryWorkdirsResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn chat_history_workdirs() -> Result<ChatHistoryWorkdirsResponse, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -42,6 +61,14 @@ pub(crate) async fn chat_history_get_summary_inner(
     .map_err(|e| format!("chat_history_get_summary join 失败：{e}"))?
 }
 
+/// 按 id 读取完整会话历史。
+///
+/// # 参数
+/// - `id`：实体 id
+///
+/// # 返回
+/// - `Ok(ChatHistoryRecord)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn chat_history_get(id: String) -> Result<ChatHistoryRecord, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -86,6 +113,14 @@ pub(crate) async fn chat_history_get_tail(
     .map_err(|e| format!("chat_history_get_tail join 失败：{e}"))?
 }
 
+/// 读取会话当前活跃段。
+///
+/// # 参数
+/// - `id`：实体 id
+///
+/// # 返回
+/// - `Ok(ChatHistoryActiveSegmentRecord)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn chat_history_get_active_segment(
     id: String,
@@ -171,6 +206,14 @@ pub(crate) async fn chat_history_upsert_inner(
     .map_err(|e| format!("chat_history_upsert join 失败：{e}"))?
 }
 
+/// 创建或更新会话元数据。
+///
+/// # 参数
+/// - `input`：结构化输入
+///
+/// # 返回
+/// - `Ok(ChatHistorySummary)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn chat_history_upsert(
     input: ChatHistoryUpsertInput,
@@ -202,6 +245,14 @@ pub(crate) async fn chat_history_upsert_active_segment_inner(
     .map_err(|e| format!("chat_history_upsert_active_segment join 失败：{e}"))?
 }
 
+/// 更新会话活跃段。
+///
+/// # 参数
+/// - `input`：结构化输入
+///
+/// # 返回
+/// - `Ok(ChatHistorySummary)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn chat_history_upsert_active_segment(
     input: ChatHistorySegmentMutationInput,
@@ -234,6 +285,14 @@ pub(crate) async fn chat_history_append_segment_inner(
     .map_err(|e| format!("chat_history_append_segment join 失败：{e}"))?
 }
 
+/// 向会话追加新段。
+///
+/// # 参数
+/// - `input`：结构化输入
+///
+/// # 返回
+/// - `Ok(ChatHistorySummary)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn chat_history_append_segment(
     input: ChatHistorySegmentMutationInput,
@@ -254,6 +313,15 @@ pub(crate) async fn chat_history_rename_inner(
     .map_err(|e| format!("chat_history_rename join 失败：{e}"))?
 }
 
+/// 重命名会话标题。
+///
+/// # 参数
+/// - `id`：实体 id
+/// - `title`：会话标题
+///
+/// # 返回
+/// - `Ok(ChatHistorySummary)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn chat_history_rename(
     id: String,
@@ -275,6 +343,15 @@ pub(crate) async fn chat_history_set_pinned_inner(
     .map_err(|e| format!("chat_history_set_pinned join 失败：{e}"))?
 }
 
+/// 设置会话是否置顶。
+///
+/// # 参数
+/// - `id`：实体 id
+/// - `is_pinned`：is_pinned
+///
+/// # 返回
+/// - `Ok(ChatHistorySummary)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn chat_history_set_pinned(
     id: String,
@@ -296,6 +373,15 @@ pub(crate) async fn chat_history_set_model_inner(
     .map_err(|e| format!("chat_history_set_model join 失败：{e}"))?
 }
 
+/// 设置会话绑定的模型。
+///
+/// # 参数
+/// - `id`：实体 id
+/// - `selected_model_json`：选中模型 JSON
+///
+/// # 返回
+/// - `Ok(ChatHistorySummary)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn chat_history_set_model(
     id: String,

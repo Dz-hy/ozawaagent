@@ -12,6 +12,15 @@ pub struct GaRuntimeStartResponse {
     pub token: String,
 }
 
+/// 启动 GenericAgent 运行时（sidecar）。
+///
+/// # 参数
+/// - `ga_root`：ga_root
+/// - `bundled_root`：bundled_root
+///
+/// # 返回
+/// - `Ok(GaRuntimeStartResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub fn ga_runtime_start(
     app: tauri::AppHandle,

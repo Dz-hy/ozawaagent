@@ -2095,6 +2095,15 @@ fn fs_read_workspace_image_impl(wd: &Path, path: &str) -> Result<ReadResponse, F
     read_local_preview_file(target, logical_path)
 }
 
+/// 读取工作区内图片文件内容。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `path`：工作区相对路径（须安全解析）
+///
+/// # 返回
+/// - `Ok(ReadResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn fs_read_workspace_image(
     workdir: String,
@@ -2400,6 +2409,15 @@ fn fs_read_editable_text_impl(wd: &Path, path: &str) -> Result<ReadEditableTextR
     })
 }
 
+/// 读取工作区内可编辑文本文件。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `path`：工作区相对路径（须安全解析）
+///
+/// # 返回
+/// - `Ok(ReadEditableTextResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn fs_read_editable_text(
     workdir: String,
@@ -2563,6 +2581,19 @@ fn fs_write_text_impl(
     })
 }
 
+/// 写入文本文件（支持并发保护：期望修改时间或内容哈希）。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `path`：工作区相对路径（须安全解析）
+/// - `content`：文本内容
+/// - `mode`：模式
+/// - `expected_mtime_ms`：期望的修改时间
+/// - `expected_content_hash`：期望的内容哈希
+///
+/// # 返回
+/// - `Ok(WriteTextResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn fs_write_text(
     workdir: String,
@@ -2761,6 +2792,15 @@ fn fs_delete_impl(wd: &Path, path: &str) -> Result<DeleteResponse, FsError> {
     })
 }
 
+/// 删除工作区内文件或目录（回收站逻辑）。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `path`：工作区相对路径（须安全解析）
+///
+/// # 返回
+/// - `Ok(DeleteResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn fs_delete(workdir: String, path: String) -> Result<DeleteResponse, FsCommandError> {
     run_blocking_fs("fs_delete", move || fs_delete_sync(workdir, path)).await
@@ -2884,6 +2924,16 @@ fn fs_open_workspace_path_impl(
     })
 }
 
+/// 用默认应用打开工作区内路径。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `path`：工作区相对路径（须安全解析）
+/// - `mode`：模式
+///
+/// # 返回
+/// - `Ok(OpenWorkspacePathResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn fs_open_workspace_path(
     workdir: String,
@@ -2936,6 +2986,15 @@ fn fs_create_dir_impl(wd: &Path, path: &str) -> Result<CreateDirResponse, FsErro
     })
 }
 
+/// 在工作区内创建目录。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `path`：工作区相对路径（须安全解析）
+///
+/// # 返回
+/// - `Ok(CreateDirResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn fs_create_dir(
     workdir: String,
@@ -3014,6 +3073,16 @@ fn fs_rename_impl(wd: &Path, from_path: &str, to_path: &str) -> Result<RenameRes
     })
 }
 
+/// 重命名或移动工作区路径。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `from_path`：源路径
+/// - `to_path`：目标路径
+///
+/// # 返回
+/// - `Ok(RenameResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn fs_rename(
     workdir: String,
@@ -3139,6 +3208,14 @@ pub(crate) fn fs_roots_sync() -> Result<FsRootsResponse, String> {
     Ok(FsRootsResponse { roots })
 }
 
+/// 返回已登记的工作区根目录。
+///
+/// # 参数
+/// 该命令无业务参数，仅可能包含 Tauri 注入状态。
+///
+/// # 返回
+/// - `Ok(FsRootsResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn fs_roots() -> Result<FsRootsResponse, String> {
     run_blocking("fs_roots", fs_roots_sync).await
@@ -3386,6 +3463,19 @@ fn fs_list_impl(
     })
 }
 
+/// 列目录：支持深度、偏移、数量上限、隐藏项过滤。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `path`：工作区相对路径（须安全解析）
+/// - `depth`：深度
+/// - `offset`：偏移量
+/// - `max_results`：最大返回条数
+/// - `show_hidden`：是否显示隐藏项
+///
+/// # 返回
+/// - `Ok(ListResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn fs_list(
     workdir: String,
@@ -4021,6 +4111,17 @@ pub fn fs_mention_list_sync(
     Ok(MentionListResponse { entries, truncated })
 }
 
+/// 按关键词搜索工作区可提及路径。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `max_results`：最大返回条数
+/// - `query`：query
+/// - `show_hidden`：是否显示隐藏项
+///
+/// # 返回
+/// - `Ok(MentionListResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn fs_mention_list(
     workdir: String,

@@ -1048,6 +1048,14 @@ pub(crate) fn cleanup_worktree_targets_blocking(
     }
 }
 
+/// 为子 Agent 创建独立 git worktree。
+///
+/// # 参数
+/// - `input`：结构化输入
+///
+/// # 返回
+/// - `Ok(SubagentWorktreeCreateResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn subagent_worktree_create(
     input: SubagentWorktreeCreateInput,
@@ -1138,6 +1146,14 @@ pub async fn subagent_worktree_create(
     .map_err(|err| format!("subagent_worktree_create join failed: {err}"))?
 }
 
+/// 查询 worktree 状态。
+///
+/// # 参数
+/// - `input`：结构化输入
+///
+/// # 返回
+/// - `Ok(SubagentWorktreeStatusResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn subagent_worktree_status(
     input: SubagentWorktreeStatusInput,
@@ -1149,6 +1165,14 @@ pub async fn subagent_worktree_status(
     .map_err(|err| format!("subagent_worktree_status join failed: {err}"))?
 }
 
+/// 将 worktree 修改应用到主工作区。
+///
+/// # 参数
+/// - `input`：结构化输入
+///
+/// # 返回
+/// - `Ok(SubagentWorktreeApplyResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn subagent_worktree_apply(
     input: SubagentWorktreeApplyInput,
@@ -1160,6 +1184,14 @@ pub async fn subagent_worktree_apply(
     .map_err(|err| format!("subagent_worktree_apply join failed: {err}"))?
 }
 
+/// 清理子 Agent worktree。
+///
+/// # 参数
+/// - `input`：结构化输入
+///
+/// # 返回
+/// - `Ok(SubagentWorktreeCleanupItem)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn subagent_worktree_cleanup(
     input: SubagentWorktreeCleanupInput,

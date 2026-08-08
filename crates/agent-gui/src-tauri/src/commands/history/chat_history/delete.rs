@@ -59,6 +59,14 @@ pub(crate) async fn chat_history_delete_inner(id: String) -> Result<(), String> 
     .map_err(|e| format!("chat_history_delete join 失败：{e}"))?
 }
 
+/// 删除指定会话及其历史。
+///
+/// # 参数
+/// - `id`：实体 id
+///
+/// # 返回
+/// - `Ok(())`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn chat_history_delete(
     id: String,

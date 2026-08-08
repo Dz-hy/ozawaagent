@@ -1332,6 +1332,14 @@ pub(crate) fn system_create_project_folder_sync(
     })
 }
 
+/// 弹出系统文件夹选择对话框并返回所选绝对路径。
+///
+/// # 参数
+/// - `initial_workdir`：initial_workdir
+///
+/// # 返回
+/// - `Ok(Option<String)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn system_pick_folder(initial_workdir: Option<String>) -> Result<Option<String>, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -1348,6 +1356,15 @@ pub async fn system_pick_folder(initial_workdir: Option<String>) -> Result<Optio
     .map_err(|e| format!("system_pick_folder join 失败：{e}"))?
 }
 
+/// 弹出系统文件选择对话框，读取并返回文本或图片等可读文件内容。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `max_files`：最大文件数
+///
+/// # 返回
+/// - `Ok(SystemPickReadableFilesResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn system_pick_readable_files(
     workdir: String,
@@ -1360,6 +1377,16 @@ pub async fn system_pick_readable_files(
     .map_err(|e| format!("system_pick_readable_files join failed: {e}"))?
 }
 
+/// 将给定的绝对路径列表校验为可读文件并返回元数据。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `paths`：paths
+/// - `max_files`：最大文件数
+///
+/// # 返回
+/// - `Ok(SystemPickReadableFilesResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn system_import_readable_file_paths(
     workdir: String,
@@ -1373,6 +1400,16 @@ pub async fn system_import_readable_file_paths(
     .map_err(|e| format!("system_import_readable_file_paths join failed: {e}"))?
 }
 
+/// 处理前端上传的可读文件输入并返回规范化结果。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `files`：文件列表
+/// - `max_files`：最大文件数
+///
+/// # 返回
+/// - `Ok(SystemPickReadableFilesResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn system_import_uploaded_readable_files(
     workdir: String,
@@ -1386,6 +1423,15 @@ pub async fn system_import_uploaded_readable_files(
     .map_err(|e| format!("system_import_uploaded_readable_files join failed: {e}"))?
 }
 
+/// 处理前端粘贴的文本并返回规范化结果。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `texts`：文本列表
+///
+/// # 返回
+/// - `Ok(SystemPickReadableFilesResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn system_import_pasted_texts(
     workdir: String,
@@ -1406,6 +1452,15 @@ pub async fn system_import_pasted_texts(
     .map_err(|e| format!("system_import_pasted_texts join failed: {e}"))?
 }
 
+/// 读取上传图片的预览元数据。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `absolute_path`：absolute_path
+///
+/// # 返回
+/// - `Ok(SystemUploadedImagePreviewResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn system_read_uploaded_image_preview(
     workdir: String,
@@ -1418,6 +1473,16 @@ pub async fn system_read_uploaded_image_preview(
     .map_err(|e| format!("system_read_uploaded_image_preview join failed: {e}"))?
 }
 
+/// 读取上传的原生附件内容，支持自定义 kind 解码。
+///
+/// # 参数
+/// - `workdir`：工作区绝对路径
+/// - `absolute_path`：absolute_path
+/// - `kind`：类型
+///
+/// # 返回
+/// - `Ok(SystemUploadedNativeAttachmentResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn system_read_uploaded_native_attachment(
     workdir: String,
@@ -1431,6 +1496,14 @@ pub async fn system_read_uploaded_native_attachment(
     .map_err(|e| format!("system_read_uploaded_native_attachment join failed: {e}"))?
 }
 
+/// 确保内置 Skills 资源存在并同步到应用目录。
+///
+/// # 参数
+/// 该命令无业务参数，仅可能包含 Tauri 注入状态。
+///
+/// # 返回
+/// - `Ok(Vec<crate::services::skills::SystemBuiltinSkillSeedResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn system_ensure_builtin_skills(
 ) -> Result<Vec<crate::services::skills::SystemBuiltinSkillSeedResponse>, String> {
@@ -1439,6 +1512,14 @@ pub async fn system_ensure_builtin_skills(
         .map_err(|e| format!("system_ensure_builtin_skills join failed: {e}"))?
 }
 
+/// 根据 payload 执行技能管理操作（列举、启用、禁用等）。
+///
+/// # 参数
+/// - `payload`：JSON 载荷
+///
+/// # 返回
+/// - `Ok(SystemManageSkillResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn system_manage_skill(payload: Value) -> Result<SystemManageSkillResponse, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -1448,6 +1529,16 @@ pub async fn system_manage_skill(payload: Value) -> Result<SystemManageSkillResp
     .map_err(|e| format!("system_manage_skill join failed: {e}"))?
 }
 
+/// 按偏移与长度读取技能文件的部分文本。
+///
+/// # 参数
+/// - `path`：工作区相对路径（须安全解析）
+/// - `offset`：偏移量
+/// - `length`：length
+///
+/// # 返回
+/// - `Ok(SystemReadSkillTextResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn system_read_skill_text(
     path: String,
@@ -1459,6 +1550,14 @@ pub async fn system_read_skill_text(
         .map_err(|e| format!("system_read_skill_text join failed: {e}"))?
 }
 
+/// 读取技能文件的元数据（名称、描述、标签等）。
+///
+/// # 参数
+/// - `path`：工作区相对路径（须安全解析）
+///
+/// # 返回
+/// - `Ok(SystemReadSkillMetadataResponse)`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command]
 pub async fn system_read_skill_metadata(
     path: String,
@@ -1468,6 +1567,15 @@ pub async fn system_read_skill_metadata(
         .map_err(|e| format!("system_read_skill_metadata join 失败：{e}"))?
 }
 
+/// 追加一条调试 JSONL 记录到会话调试日志。
+///
+/// # 参数
+/// - `conversation_id`：conversation_id
+/// - `entry`：entry
+///
+/// # 返回
+/// - `Ok(())`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub async fn system_append_debug_jsonl(
     conversation_id: String,
@@ -1480,6 +1588,16 @@ pub async fn system_append_debug_jsonl(
     .map_err(|e| format!("system_append_debug_jsonl join 失败：{e}"))?
 }
 
+/// 注册一段电源活动（防止系统休眠）。
+///
+/// # 参数
+/// - `activity_id`：活动 id
+/// - `reason`：原因
+/// - `ttl_ms`：存活毫秒
+///
+/// # 返回
+/// - `Ok(())`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub fn system_begin_power_activity(
     activity_id: String,
@@ -1491,6 +1609,14 @@ pub fn system_begin_power_activity(
     Ok(())
 }
 
+/// 结束指定电源活动。
+///
+/// # 参数
+/// - `activity_id`：活动 id
+///
+/// # 返回
+/// - `Ok(())`：操作成功后的结果
+/// - `Err(String)`：可读的错误描述
 #[tauri::command(rename_all = "snake_case")]
 pub fn system_end_power_activity(
     activity_id: String,
