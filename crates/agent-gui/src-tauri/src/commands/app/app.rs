@@ -222,6 +222,9 @@ fn read_macos_traffic_light_metrics_on_main_thread(
         return Ok(None);
     }
 
+    // SAFETY: `ns_window_ptr` is non-null (checked above) and is the platform
+    // NSWindow instance owned by this Tauri window; it stays alive for the
+    // duration of this call, so reborrowing it as `&NSWindow` is sound.
     let ns_window: &NSWindow = unsafe { &*ns_window_ptr.cast::<NSWindow>() };
     let window_frame = ns_window.frame();
 
@@ -262,7 +265,7 @@ fn read_macos_traffic_light_metrics_on_main_thread(
     let top = [top_from_top_edge, top_from_bottom_edge]
         .into_iter()
         .filter(|value| value.is_finite() && *value >= 0.0)
-        .min_by(|left, right| left.partial_cmp(right).unwrap())
+        .min_by(|left, right| left.partial_cmp(right).unwrap_or(std::cmp::Ordering::Equal))
         .unwrap_or(top_from_bottom_edge);
     let left = min_x - window_frame.origin.x;
 
@@ -292,6 +295,10 @@ fn macos_window_button_screen_frame(
     use objc2_app_kit::NSView;
 
     let frame = NSView::frame(button);
+    // SAFETY: `button` is a live view of the window's current view hierarchy
+    // and its superview (if any) is owned by the same hierarchy; reading
+    // frames is a pure geometry query on the main queue, so the raw `&NSView`
+    // pointers are valid for the duration of the call.
     let window_frame = unsafe {
         NSView::superview(button)
             .map(|superview| superview.convertRect_toView(frame, None))

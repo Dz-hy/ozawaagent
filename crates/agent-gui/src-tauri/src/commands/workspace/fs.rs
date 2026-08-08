@@ -262,7 +262,13 @@ fn file_identity(_meta: &fs::Metadata, canon: &Path) -> String {
             .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
             .open(path)
             .ok()?;
+        // SAFETY: `file` was just opened on this stack frame, so the handle
+        // from `as_raw_handle()` is valid and stays owned until the end of
+        // this call; `info` is an all-zero BY_HANDLE_FILE_INFORMATION struct
+        // of exactly the layout Win32 expects.
         let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+        // SAFETY: GetFileInformationByHandle requires a valid open handle
+        // (satisfied above) and an output buffer of the exact struct layout.
         if unsafe { GetFileInformationByHandle(file.as_raw_handle() as _, &mut info) } == 0 {
             return None;
         }
@@ -3103,6 +3109,9 @@ pub(crate) fn fs_roots_sync() -> Result<FsRootsResponse, String> {
             fn GetLogicalDrives() -> u32;
         }
 
+        // SAFETY: GetLogicalDrives takes no arguments and returns a plain
+        // drive-letter bitmask; it has no pointer parameters and requires no
+        // caller-owned buffers, so this call cannot violate memory safety.
         let mask = unsafe { GetLogicalDrives() };
         if mask == 0 {
             // Keep the picker usable if we at least have home.
@@ -4095,6 +4104,53 @@ mod tests {
         assert!(sanitize_rel_path("CON.txt").is_err());
         assert!(sanitize_rel_path("notes/LPT1.log").is_err());
         assert!(sanitize_optional_rel_path(Some("uploads/AUX".to_string())).is_err());
+    }
+
+    #[test]
+    fn sanitize_rel_path_rejects_traversal_absolute_and_special_shapes() {
+        // Absolute, rooted, UNC and drive-prefixed inputs must never resolve
+        // into the workdir.
+        for path in ["/etc/passwd", "/", "C:/outside", "//server/share", "a:b/c"] {
+            assert!(
+                sanitize_rel_path(path).is_err(),
+                "absolute/prefixed path should be rejected: {path:?}"
+            );
+        }
+        // Parent traversal at any depth is invalid, not just a leading `..`.
+        for path in ["..", "../outside", "a/../b", "ok/../../etc", "a/.."] {
+            assert!(
+                sanitize_rel_path(path).is_err(),
+                "parent traversal should be rejected: {path:?}"
+            );
+        }
+        // `.` and empty inputs never escape the workdir.
+        assert_eq!(sanitize_rel_path_core(".").expect("dot resolves"), None);
+        assert_eq!(
+            sanitize_rel_path_core("./").expect("dot-slash resolves"),
+            None
+        );
+        assert!(sanitize_rel_path(".").is_err());
+        assert!(sanitize_rel_path_core("").is_err());
+        assert!(sanitize_rel_path_core("   ").is_err());
+        // Backslashes normalize to forward slashes; redundant segments collapse.
+        assert_eq!(
+            sanitize_rel_path("a\\b/c.txt").expect("backslash path"),
+            Path::new("a/b/c.txt")
+        );
+        assert_eq!(
+            sanitize_rel_path("./a/./b/").expect("dot segments"),
+            Path::new("a/b")
+        );
+        // The optional wrapper treats missing and blank input as None.
+        assert_eq!(sanitize_optional_rel_path(None).expect("none"), None);
+        assert_eq!(
+            sanitize_optional_rel_path(Some("  ".to_string())).expect("blank"),
+            None
+        );
+        assert_eq!(
+            sanitize_optional_rel_path(Some("docs/readme.md".to_string())).expect("relative"),
+            Some(PathBuf::from("docs/readme.md"))
+        );
     }
 
     #[test]

@@ -279,6 +279,9 @@ fn set_windows_keep_awake(active: bool) -> Result<(), String> {
     const ES_DISPLAY_REQUIRED: u32 = 0x0000_0002;
 
     #[link(name = "kernel32")]
+    // SAFETY: Declaring this extern block is safe because
+    // `SetThreadExecutionState` neither receives nor returns pointers; its
+    // only data is a u32 flag bitmask, so no caller-owned memory is involved.
     unsafe extern "system" {
         fn SetThreadExecutionState(es_flags: u32) -> u32;
     }
@@ -288,6 +291,9 @@ fn set_windows_keep_awake(active: bool) -> Result<(), String> {
     } else {
         ES_CONTINUOUS
     };
+    // SAFETY: SetThreadExecutionState has no pointer parameters and the flags
+    // are built from ES_* constants; the call is memory-safe regardless of the
+    // returned status value.
     let previous = unsafe { SetThreadExecutionState(flags) };
     if previous == 0 {
         Err(format!(

@@ -560,7 +560,8 @@ pub fn run() {
         Arc::clone(&automation_store),
     ));
     let memory_store = Arc::new(
-        services::memory::MemoryStore::open().expect("failed to initialize OzawaAgent memory store"),
+        services::memory::MemoryStore::open()
+            .expect("failed to initialize OzawaAgent memory store"),
     );
     let power_activity = Arc::new(services::power_activity::PowerActivityManager::default());
     let managed_process_registry =

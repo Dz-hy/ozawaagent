@@ -178,6 +178,10 @@ pub(crate) fn probe_process_start_time(pid: u32) -> ProcessProbe {
 
     const FILETIME_UNIX_EPOCH_OFFSET_100NS: i64 = 116_444_736_000_000_000;
 
+    // SAFETY: `OpenProcess` returns a nullable handle that is null-checked
+    // right away; each non-null handle is closed exactly once via
+    // `CloseHandle` on every path below. `GetProcessTimes` writes into
+    // stack `FILETIME` locals with the exact struct layout for the call.
     unsafe {
         let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
         if handle.is_null() {
