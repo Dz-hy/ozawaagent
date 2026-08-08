@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { sortSkillsForDisplay } from "./builtin";
 import type { ClawHubSkillCard } from "./clawHub";
 
-const SKILLS_DISCOVERY_UPDATED_EVENT = "liveagent:skills-discovery-updated";
+const SKILLS_DISCOVERY_UPDATED_EVENT = "ozawaagent:skills-discovery-updated";
 
 export {
   isAlwaysEnabledSkillName,
@@ -22,7 +22,7 @@ export type SkillSummary = {
   skillFile: string;
   /** relative directory of the skill (from app skills root) */
   baseDir: string;
-  /** true only when the backend verified LiveAgent ownership metadata */
+  /** true only when the backend verified OzawaAgent ownership metadata */
   builtIn?: boolean;
   /** skill directory creation/modification time in epoch milliseconds */
   installedAt?: number | null;

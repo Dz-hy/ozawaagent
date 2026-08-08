@@ -255,7 +255,7 @@ function editorModelUri(tabKey: string) {
     hexKey += byte.toString(16).padStart(2, "0");
   }
   return monaco.Uri.from({
-    scheme: "liveagent-editor",
+    scheme: "ozawaagent-editor",
     authority: "model",
     path: `/${hexKey}`,
   });

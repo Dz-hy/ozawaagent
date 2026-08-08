@@ -408,7 +408,7 @@ export function ChatPage(props: ChatPageProps) {
   const codeReviewSkill = useMemo(
     () =>
       availableSkills.find(
-        (skill) => skill.name === "liveagent-code-review" && skill.builtIn === true,
+        (skill) => skill.name === "code-review" && skill.builtIn === true,
       ),
     [availableSkills],
   );

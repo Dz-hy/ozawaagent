@@ -122,7 +122,7 @@ async function requestSummary(params: SummarizerRequest): Promise<AssistantMessa
         role: "assistant",
         content: [{ type: "text", text: params.repair.invalidOutput }],
         timestamp: Date.now() + 1,
-        api: "liveagent-compaction",
+        api: "ozawaagent-compaction",
         provider: params.providerId,
         model: params.model,
         stopReason: "stop",

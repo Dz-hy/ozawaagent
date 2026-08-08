@@ -14,7 +14,7 @@ export type TrayPrefs = {
   showRunningBadge: boolean;
 };
 
-const STORAGE_KEY = "liveagent.trayPrefs.v1";
+const STORAGE_KEY = "ozawaagent.trayPrefs.v1";
 
 export const DEFAULT_TRAY_PREFS: TrayPrefs = {
   showConversationTitles: true,

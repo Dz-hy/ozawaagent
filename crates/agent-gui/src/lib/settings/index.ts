@@ -2260,7 +2260,7 @@ export function updateCustomSettings(
   });
 }
 
-const RIGHT_DOCK_WRITER_ID_STORAGE_KEY = "liveagent.client-id";
+const RIGHT_DOCK_WRITER_ID_STORAGE_KEY = "ozawaagent.client-id";
 
 let cachedRightDockWriterId = "";
 
