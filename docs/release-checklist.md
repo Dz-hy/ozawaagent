@@ -40,5 +40,5 @@
 ## E. 发布前遗留（已知非阻塞，按序消化）
 - [ ] P4 Task11 问2：model-profiles 更新语义 PATCH（现状） vs PUT（官方契约）——见 phase4_task11_provider_notes.md，等用户拍板后 2 行改动
 - [ ] P6 文档层：implementation_plan/dependency-map 中旧 gateway 历史词条，随文档重构轮清理
-- [ ] Phase 7：旧 WebUI 归档策略（迁移至 docs + git LFS 或归档分支，不驻主线，待用户定）
+- [x] Phase 7（旧数据归档与首启迁移）：**已取消**（2026-08-08 用户拍板：全新 Agent，无旧内核 LiveAgent 用户，不做旧数据迁移；旧内核数据原样不动，GA 新数据天然隔离）
 - [ ] Phase 9 剩余功能面：Hive 可视化、高级 Hook 编辑、发布态受控安装（规划后置项）
