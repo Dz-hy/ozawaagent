@@ -406,10 +406,7 @@ export function ChatPage(props: ChatPageProps) {
     };
   }, []);
   const codeReviewSkill = useMemo(
-    () =>
-      availableSkills.find(
-        (skill) => skill.name === "code-review" && skill.builtIn === true,
-      ),
+    () => availableSkills.find((skill) => skill.name === "code-review" && skill.builtIn === true),
     [availableSkills],
   );
 

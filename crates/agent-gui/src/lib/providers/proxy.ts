@@ -28,7 +28,9 @@ export function buildUpstreamHeaderOverrideHeaders(
   const contentType = readHeaderValue(headers, "content-type");
   return {
     ...(userAgent !== undefined ? { [OZAWAAGENT_UPSTREAM_USER_AGENT_HEADER]: userAgent } : {}),
-    ...(contentType !== undefined ? { [OZAWAAGENT_UPSTREAM_CONTENT_TYPE_HEADER]: contentType } : {}),
+    ...(contentType !== undefined
+      ? { [OZAWAAGENT_UPSTREAM_CONTENT_TYPE_HEADER]: contentType }
+      : {}),
   };
 }
 
