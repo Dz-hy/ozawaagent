@@ -2808,7 +2808,7 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
     app.router.add_get("/api/v1/model-profiles", model_profiles_handler)
     app.router.add_post("/api/v1/model-profiles", create_model_profile_handler)
     app.router.add_get("/api/v1/model-profiles/{profile_id}", model_profile_handler)
-    app.router.add_patch("/api/v1/model-profiles/{profile_id}", model_profile_handler)
+    app.router.add_put("/api/v1/model-profiles/{profile_id}", model_profile_handler)
     app.router.add_delete("/api/v1/model-profiles/{profile_id}", model_profile_handler)
     app.router.add_post("/api/v1/model-profiles/{profile_id}/default", set_default_model_profile_handler)
     app.router.add_get("/api/v1/commands", commands_handler)
