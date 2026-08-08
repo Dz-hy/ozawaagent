@@ -427,8 +427,6 @@ fn is_platform_reserved_rel_path_component(input: &str) -> bool {
     }
 }
 
-#[cfg(any(windows, test))]
-
 fn sanitize_rel_path(input: &str) -> Result<PathBuf, FsError> {
     sanitize_rel_path_core(input)?.ok_or_else(|| FsError::InvalidRelPath(input.to_string()))
 }
