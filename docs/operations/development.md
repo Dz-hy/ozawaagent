@@ -38,12 +38,12 @@
 
 | 路径 | 说明 |
 |---|---|
-| `~/.liveagent/config.sqlite` | 桌面端 settings 数据库。 |
-| `~/.liveagent/chat-history.sqlite3` | Chat history 数据库。 |
-| `~/.liveagent/memory/` | Memory Markdown 根目录与 `memory-index.sqlite3`。 |
-| `~/.liveagent/skills` | Skills runtime root。 |
-| `~/.liveagent/default-project` | 首次安装/空 workdir 时的默认项目目录。 |
-| `~/.liveagent/debug/*.jsonl` | debug JSONL 日志。 |
+| `~/.ozawaagent/config.sqlite` | 桌面端 settings 数据库。 |
+| `~/.ozawaagent/chat-history.sqlite3` | Chat history 数据库。 |
+| `~/.ozawaagent/memory/` | Memory Markdown 根目录与 `memory-index.sqlite3`。 |
+| `~/.ozawaagent/skills` | Skills runtime root。 |
+| `~/.ozawaagent/default-project` | 首次安装/空 workdir 时的默认项目目录。 |
+| `~/.ozawaagent/debug/*.jsonl` | debug JSONL 日志。 |
 
 ## Gateway 开发关注点
 

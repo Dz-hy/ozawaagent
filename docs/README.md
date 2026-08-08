@@ -20,7 +20,7 @@ OzawaAgent 是一个以桌面端为本地执行核心的 Agent 应用：React GU
 | [operations/development.md](operations/development.md) | 本地开发、构建、测试 | 日常开发 |
 | [operations/deployment.md](operations/deployment.md) | CI、跨平台 Release 发布链路 | 发布维护 |
 | [reference/source-map.md](reference/source-map.md) | 按功能域列出的源码路径索引 | 快速定位源码 |
-| [project/implementation_plan.md](project/implementation_plan.md) | LiveAgent × GenericAgent 二开主规划与阶段状态 | 项目推进 |
+| [project/implementation_plan.md](project/implementation_plan.md) | OzawaAgent 二开主规划与阶段状态 | 项目推进 |
 | [project/PROJECT_OVERVIEW.md](project/PROJECT_OVERVIEW.md) | 产品总览与目标 | 项目交接 |
 
 ## 架构阅读顺序

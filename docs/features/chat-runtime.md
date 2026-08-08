@@ -39,13 +39,13 @@ GenericAgent runtime 是主对话的唯一 Agent 语义真相源，负责模型�
 
 ## Hooks 生命周期
 
-GenericAgent Hooks 是主对话 hooks 的真相源。GUI Settings 提供只读观察视图，通过 GA bridge 读取 hook 定义、事件与 diagnostics；GUI 不再创建、编辑或执行旧 LiveAgent shell/HTTP hooks。
+GenericAgent Hooks 是主对话 hooks 的真相源。GUI Settings 提供只读观察视图，通过 GA bridge 读取 hook 定义、事件与 diagnostics；GUI 不再创建、编辑或执行旧桌面 shell/HTTP hooks。
 
 ## 上传与重发
 
 | 能力 | 语义 |
 |---|---|
-| 文件上传 | 仅在 tools 类模式可用；文件暂存在 `~/.liveagent/uploads`（工作区外，启动时按 30 天时效 GC），模型通过绝对路径以只读方式访问。 |
+| 文件上传 | 仅在 tools 类模式可用；文件暂存在 `~/.ozawaagent/uploads`（工作区外，启动时按 30 天时效 GC），模型通过绝对路径以只读方式访问。 |
 | 图片预览 | GUI/WebUI 都支持用户附件、Image 工具图片和 inline tool result 图片预览。 |
 | 编辑重发 | 从目标 user message 处 truncate 后重发，保持历史语义与 GUI/WebUI 一致。 |
 | 附件-only 重发 | 支持仅靠已有附件重新发起请求。 |

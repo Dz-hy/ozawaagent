@@ -53,10 +53,10 @@ Keychain 中必须是带私钥的 `Developer ID Application` identity。若 macO
 
 | 平台 | Runner | 产物 |
 |---|---|---|
-| macOS Intel | `macos-15-intel` | `LiveAgent-vX.Y.Z-macOS-x64.dmg`。 |
-| macOS Apple Silicon | `macos-14` | `LiveAgent-vX.Y.Z-macOS-aarch64.dmg`。 |
-| Windows x64 | `windows-latest` | `LiveAgent-vX.Y.Z-Windows-x64.msi`、`LiveAgent-vX.Y.Z-Windows-x64-Setup.exe`、`LiveAgent-vX.Y.Z-Windows-x64-portable.zip`。 |
-| Linux x64 | `ubuntu-latest` | `LiveAgent-vX.Y.Z-Linux-x86_64.AppImage`、`.deb`、`.rpm`。 |
+| macOS Intel | `macos-15-intel` | `OzawaAgent-vX.Y.Z-macOS-x64.dmg`。 |
+| macOS Apple Silicon | `macos-14` | `OzawaAgent-vX.Y.Z-macOS-aarch64.dmg`。 |
+| Windows x64 | `windows-latest` | `OzawaAgent-vX.Y.Z-Windows-x64.msi`、`OzawaAgent-vX.Y.Z-Windows-x64-Setup.exe`、`OzawaAgent-vX.Y.Z-Windows-x64-portable.zip`。 |
+| Linux x64 | `ubuntu-latest` | `OzawaAgent-vX.Y.Z-Linux-x86_64.AppImage`、`.deb`、`.rpm`。 |
 
 发布 job 会上传各平台构建 job 汇总的安装包和便携包；桌面端「设置 -> 关于」不访问远程 Release，也不会自动安装新版本。
 
@@ -74,10 +74,10 @@ node scripts/release/prepare-app-version-from-tag.mjs vX.Y.Z
 
 | 输出 | 示例 | 用途 |
 |---|---|---|
-| `LIVEAGENT_RELEASE_TAG` | `v0.1.3` | GitHub Release、产物命名和下载 URL。 |
-| `LIVEAGENT_APP_VERSION` | `0.1.3` | 前端 About 页和 Rust 运行时代码。 |
-| `LIVEAGENT_IS_PRERELEASE` | `false` | 决定 GitHub Release 是否标记为 prerelease。 |
-| `LIVEAGENT_TAURI_VERSION_CONFIG` | `src-tauri/tauri.version.generated.conf.json` | Tauri 构建时追加的临时 config overlay。 |
+| `OZAWAAGENT_RELEASE_TAG` | `v0.1.3` | GitHub Release、产物命名和下载 URL。 |
+| `OZAWAAGENT_APP_VERSION` | `0.1.3` | 前端 About 页和 Rust 运行时代码。 |
+| `OZAWAAGENT_IS_PRERELEASE` | `false` | 决定 GitHub Release 是否标记为 prerelease。 |
+| `OZAWAAGENT_TAURI_VERSION_CONFIG` | `src-tauri/tauri.version.generated.conf.json` | Tauri 构建时追加的临时 config overlay。 |
 
 各平台构建 job 会复用同一份 metadata，并生成一个未提交到仓库的 Tauri overlay：
 
@@ -87,6 +87,6 @@ node scripts/release/prepare-app-version-from-tag.mjs vX.Y.Z
 }
 ```
 
-Tauri 构建命令通过额外的 `--config "$LIVEAGENT_TAURI_VERSION_CONFIG"` 注入这个版本；Vite 和 Rust build script 通过 `LIVEAGENT_APP_VERSION` 注入同一个版本。这样发布版本以 tag 为事实来源，应用内显示版本和安装包版本会保持一致；忘记改 `package.json` 不会导致发布包仍显示旧版本。
+Tauri 构建命令通过额外的 `--config "$OZAWAAGENT_TAURI_VERSION_CONFIG"` 注入这个版本；Vite 和 Rust build script 通过 `OZAWAAGENT_APP_VERSION` 注入同一个版本。这样发布版本以 tag 为事实来源，应用内显示版本和安装包版本会保持一致；忘记改 `package.json` 不会导致发布包仍显示旧版本。
 
 Windows 当前没有代码签名 secret，release workflow 会先自动发布 unsigned 包。接入 Windows `.p12/.pfx` 或 Trusted Signing 后再补签名步骤。

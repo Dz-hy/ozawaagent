@@ -225,4 +225,4 @@ OzawaAgent/
 
 ## License
 
-MIT © StackCairn (LiveAgent 上游) · © 2026 Dz-hy (OzawaAgent)
+MIT © 2026 Dz-hy (OzawaAgent)；上游组件另有版权（见 [NOTICE](NOTICE)）

@@ -12,7 +12,7 @@
 |---|---|---|
 | 展示目录与类型 | `builtinToolCatalog.ts`、`builtinTypes.ts`、`systemToolOptions.ts` | 工具名称、分类、只读标记、runtime scope 与 UI 选项。 |
 | 文件后端适配 | `fsBackend.ts`、`bashTimeoutPolicy.ts` | Tauri FS 错误归一与 Shell timeout 策略；不组成模型工具注册表。 |
-| Memory | GenericAgent runtime 的 MemoryManager | GUI 不再保留旧 LiveAgent Memory extraction/organizer 工具执行器；主对话与 Settings 的 Memory 能力以 runtime/Gateway 契约为准。 |
+| Memory | GenericAgent runtime 的 MemoryManager | GUI 不再保留旧桌面 Memory extraction/organizer 工具执行器；主对话与 Settings 的 Memory 能力以 runtime/Gateway 契约为准。 |
 | Todo / AskUser | `todoTools.ts`、`askUserQuestionTools.ts` | 独立状态与交互 bundle；不构成主对话本地注册表。 |
 | Subagent 支撑 | `src/lib/subagents/*` | 保留会话持久化、消息总线与 SendMessage/卡片展示适配；Agent 执行与模型工具所有权属于 GenericAgent runtime。 |
 
@@ -35,14 +35,14 @@ Settings/MCP Hub 维护 server 配置并通过 `mcpOps.ts` 写入/同步；Gener
 
 | 能力 | 说明 |
 |---|---|
-| 固定 root | 旧 LiveAgent Skills runtime root 是 `~/.liveagent/skills`；当前 Agent 语义以 GenericAgent 为唯一真相源。 |
+| 固定 root | 旧桌面 Skills runtime root 是 `~/.ozawaagent/skills`；当前 Agent 语义以 GenericAgent 为唯一真相源。 |
 | 桌面管理 | Skills Hub 与 Tauri/Rust skills service 可继续提供安装、校验和打包等桌面管理能力。 |
 | 文件访问 | `fsBackend.ts` 与桌面文件树/预览适配器继续提供本地文件能力；GUI 不再注册 `SkillsManager` 模型工具。 |
 | 主对话 | 可见 Skills 与相关工具以 GenericAgent runtime 实际暴露为准。 |
 
 ## Memory 工具边界
 
-GUI 不再保留旧 LiveAgent Memory extraction/organizer 工具执行器。主对话的 MemoryManager、Settings Memory 展示与 Gateway memory.manage 均以 GenericAgent runtime 的 MemoryStore 和契约为准。
+GUI 不再保留旧桌面 Memory extraction/organizer 工具执行器。主对话的 MemoryManager、Settings Memory 展示与 Gateway memory.manage 均以 GenericAgent runtime 的 MemoryStore 和契约为准。
 
 ## Subagent（Agent / SendMessage）
 

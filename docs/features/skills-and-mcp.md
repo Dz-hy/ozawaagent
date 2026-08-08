@@ -5,7 +5,7 @@
 | 层 | 路径 | 职责 |
 |---|---|---|
 | builtin source | `crates/agent-gui/src-tauri/prompt/skills/<skill-name>` | 内置 skills 源文件。 |
-| runtime root | `~/.liveagent/skills` | 用户运行时 skills 根目录。 |
+| runtime root | `~/.ozawaagent/skills` | 用户运行时 skills 根目录。 |
 | Rust service | `src-tauri/src/services/skills/*` | seed builtin、list/read/manage/install/create/validate/package/ClawHub。写侧由进程级 `skills_write_guard()` 串行化（agent 调用、gateway 转发、UI 后台安装线程、builtin seeding 四路写者）；安装走 stage-then-swap：内容（含 `_meta.json`）先在 `<root>/.staging/` 完整构建，再原子 rename 入位，读者永远看不到半成品。 |
 | Frontend lib | `src/lib/skills/*` | managed skills metadata、展示 prompt 辅助、ClawHub client、install status。 |
 | Agent runtime | GenericAgent | 主对话中的 Skills/SOP 发现、选择与工具暴露。 |
@@ -54,7 +54,7 @@ UI 后台安装 job 使用 `install_start` 启动带进度的后台安装线程�
 | 扫描 | `discoverSkills()` 调用 Tauri skills service，读取 runtime root 中的 Skill metadata。 |
 | 选择 | Settings/Skills Hub 管理 `settings.skills.selected`，builtin always-on 自动合并。 |
 | 注入 | Chat tools 模式下，`useChatSkills` 和 `lib/skills/index.ts` 生成当前对话可见 skills prompt。 |
-| 访问 | 桌面 UI 与 Rust skills service 管理 LiveAgent runtime root；主对话对 Skills/SOP 的访问由 GenericAgent runtime 负责。 |
+| 访问 | 桌面 UI 与 Rust skills service 管理运行时 Skills root；主对话对 Skills/SOP 的访问由 GenericAgent runtime 负责。 |
 
 ## MCP 架构
 

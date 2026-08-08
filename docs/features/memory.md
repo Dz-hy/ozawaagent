@@ -2,18 +2,18 @@
 
 ## 当前所有权
 
-GenericAgent 是 Agent Memory 的唯一真相源。桌面 GUI 不维护第二套聊天记忆库，不向主对话注入旧 LiveAgent Memory overview，也不在 turn 结束后运行本地提取控制器或在 App shell 启动 organizer。
+GenericAgent 是 Agent Memory 的唯一真相源。桌面 GUI 不维护第二套聊天记忆库，不向主对话注入旧桌面 Memory overview，也不在 turn 结束后运行本地提取控制器或在 App shell 启动 organizer。
 
 | 能力 | 当前实现 | 边界 |
 |---|---|---|
 | Memory catalog | `src/pages/settings/GaMemorySection.tsx` → `GaBridgeClient.getKnowledgeCatalog()` | Settings 只读展示 GenericAgent 声明的 memory layers。 |
 | Project memory status | `GaBridgeClient.getProjectMemoryStatus()` → `/api/v1/projects/{project_id}/memory-status` | 侧栏展示绑定项目的 memory 可用性、行数与更新时间。 |
 | Memory 内容与路径 | GenericAgent runtime | 不经 GUI 返回；Settings 明确不运行本地 database、extraction engine 或 organizer。 |
-| 主对话召回/写入 | GenericAgent session/runtime | LiveAgent 只映射权威 session snapshot，不注册 `MemoryManager`。 |
+| 主对话召回/写入 | GenericAgent session/runtime | 桌面服务只映射权威 session snapshot，不注册 `MemoryManager`。 |
 
 ## 已断开的旧入口
 
-以下旧 LiveAgent 入口已经从生产接线移除：
+以下旧桌面 Memory 入口已经从生产接线移除：
 
 - `ChatPage` 不再导入或调用 `memoryExtraction`。
 - `App` 不再挂载 `MemoryOrganizerHost`。
@@ -22,7 +22,7 @@ GenericAgent 是 Agent Memory 的唯一真相源。桌面 GUI 不维护第二套
 
 本轮先删除了因此失去生产消费者的 `src/lib/chat/memory/extractionController.ts` 与 `src/components/memory/useMemoryOrganizer.ts`；后续切片又删除了完整的旧 extraction engine 闭包（`extractionEngine.ts`、`extraction/context.ts`、`extraction/planTool.ts`、`prompts/extraction.ts`）及其专属行为测试。`ga-automation-ui-contract.test.mjs` 继续约束 `App`/`ChatPage` 不得恢复这些接线。
 
-## 尚存的旧 LiveAgent Memory 闭包
+## 尚存的旧桌面 Memory 闭包
 
 仓库仍保留下列历史实现，供后续按依赖闭包分批清理；它们不得被视为当前 Agent Memory 真相源：
 
