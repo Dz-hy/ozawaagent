@@ -992,7 +992,7 @@ def test_load_official_module_registers_bridge_directory_for_absolute_imports(tm
         encoding="utf-8",
     )
     manifest = {"official_bridge": {"path": "frontends/desktop_bridge.py"}}
-    module_name = "liveagent_official_ga_bridge"
+    module_name = "ozawaagent_official_ga_bridge"
     original_path = list(adapter.sys.path)
     previous_plan_state = adapter.sys.modules.pop("plan_state", None)
     adapter.sys.modules.pop(module_name, None)

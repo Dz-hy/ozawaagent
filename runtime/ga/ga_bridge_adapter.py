@@ -307,7 +307,7 @@ def load_official_module(root: Path, manifest: dict[str, Any]):
         sys.path.insert(0, str(bridge_dir))
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
-    module = load_module_from_path("liveagent_official_ga_bridge", path)
+    module = load_module_from_path("ozawaagent_official_ga_bridge", path)
     if not callable(getattr(module, "create_app", None)):
         raise RuntimeError("Official GenericAgent bridge has no create_app contract")
     return module
@@ -1424,7 +1424,7 @@ def load_command_plugins(root: Path) -> tuple[dict[str, Any], list[dict[str, Any
     for path in sorted(plugin_dir.glob("*.py")):
         if path.is_symlink():
             continue
-        module_name = "liveagent_command_plugin_" + hashlib.sha256(path.name.encode("utf-8")).hexdigest()[:12]
+        module_name = "ozawaagent_command_plugin_" + hashlib.sha256(path.name.encode("utf-8")).hexdigest()[:12]
         try:
             module = load_module_from_path(module_name, path)
             entries = getattr(module, "COMMANDS", ())
@@ -1479,7 +1479,7 @@ def load_command_extensions(root: Path) -> tuple[dict[str, Any], list[dict[str, 
 def load_command_registry(root: Path) -> tuple[Any, list[dict[str, Any]]]:
     """Reflect GA-owned slash metadata without copying command logic into the adapter."""
     path = root / "frontends" / "slash_cmds.py"
-    module_name = f"liveagent_ga_slash_cmds_{manifest_safe_version(root)}"
+    module_name = f"ozawaagent_ga_slash_cmds_{manifest_safe_version(root)}"
     module = load_module_from_path(module_name, path)
     entries = getattr(module, "PALETTE_ENTRIES", ())
     prompt_for = getattr(module, "prompt_for", None)
@@ -2462,7 +2462,7 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
         plugins: list[dict[str, Any]] = []
         if plugin_dir.is_dir():
             for path in sorted(plugin_dir.glob("*.py")):
-                module_name = ("liveagent_command_plugin_"
+                module_name = ("ozawaagent_command_plugin_"
                                + hashlib.sha256(path.name.encode("utf-8")).hexdigest()[:12])
                 try:
                     module = load_module_from_path(module_name, path)

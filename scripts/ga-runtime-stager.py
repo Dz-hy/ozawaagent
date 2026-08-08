@@ -155,7 +155,7 @@ def _source_file(root: Path, value: Path) -> Path:
     if candidate != root and root not in candidate.parents:
         raise ValueError(f"source file is outside OzawaAgent root: {candidate}")
     if not candidate.is_file():
-        raise FileNotFoundError(f"LiveAgent source file is missing: {candidate}")
+        raise FileNotFoundError(f"OzawaAgent source file is missing: {candidate}")
     return candidate
 
 
@@ -163,13 +163,13 @@ def stage(
     ga_repo: Path,
     output: Path,
     *,
-    liveagent_root: Path | None = None,
+    ozawaagent_root: Path | None = None,
     commit: str = PINNED_COMMIT,
     adapter: Path = ADAPTER_SOURCE,
     manifest: Path = MANIFEST_SOURCE,
 ) -> dict:
     ga_repo = ga_repo.resolve()
-    liveagent_root = (liveagent_root or Path(__file__).resolve().parents[1]).resolve()
+    ozawaagent_root = (ozawaagent_root or Path(__file__).resolve().parents[1]).resolve()
     output = output.resolve()
     if not (ga_repo / ".git").exists():
         raise ValueError(f"not a Git checkout: {ga_repo}")
@@ -177,8 +177,8 @@ def stage(
     if actual_commit != commit:
         raise RuntimeError(f"pinned commit resolved unexpectedly: {actual_commit}")
 
-    adapter_src = _source_file(liveagent_root, adapter)
-    manifest_src = _source_file(liveagent_root, manifest)
+    adapter_src = _source_file(ozawaagent_root, adapter)
+    manifest_src = _source_file(ozawaagent_root, manifest)
     script_src = Path(__file__).resolve()
     protected_sources = (adapter_src, manifest_src, script_src)
     if output == ga_repo or ga_repo in output.parents:
@@ -207,7 +207,7 @@ def stage(
     (output / "ga_bridge_adapter.py").write_bytes(adapter_bytes)
     sidecar_files: list[str] = []
     for sidecar_dir, suffixes in (("command_packs", (".json",)), ("command_plugins", (".py",))):
-        source_dir = liveagent_root / "runtime" / "ga" / sidecar_dir
+        source_dir = ozawaagent_root / "runtime" / "ga" / sidecar_dir
         if not source_dir.is_dir():
             continue
         for path in sorted(source_dir.iterdir()):
@@ -225,7 +225,7 @@ def stage(
         "files": list(GA_RUNTIME_FILES),
         "excluded": sorted(EXCLUDED_NAMES),
         "official_bridge_sha256": bridge_sha256,
-        "liveagent_sidecar": sidecar_files,
+        "ozawaagent_sidecar": sidecar_files,
     })
     (output / "runtime_manifest.json").write_text(
         json.dumps(manifest_doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -237,7 +237,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ga-repo", "--repo", dest="ga_repo", type=Path, required=True)
     parser.add_argument(
-        "--liveagent-root",
+        "--ozawaagent-root",
         type=Path,
         default=Path(__file__).resolve().parents[1],
         help="OzawaAgent checkout containing runtime/ga (default: repository root)",
@@ -252,7 +252,7 @@ def main(argv: list[str] | None = None) -> int:
     manifest = stage(
         args.ga_repo,
         args.output,
-        liveagent_root=args.liveagent_root,
+        ozawaagent_root=args.ozawaagent_root,
         commit=args.commit,
     )
     print(json.dumps({"output": str(args.output.resolve()), "ga_commit": manifest["ga_commit"]}, ensure_ascii=False))

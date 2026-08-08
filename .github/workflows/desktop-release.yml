@@ -44,9 +44,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     needs: release-metadata
     env:
-      LIVEAGENT_APP_VERSION: ${{ needs.release-metadata.outputs.app_version }}
-      LIVEAGENT_IS_PRERELEASE: ${{ needs.release-metadata.outputs.is_prerelease }}
-      LIVEAGENT_RELEASE_TAG: ${{ needs.release-metadata.outputs.release_tag }}
+      OZAWAAGENT_APP_VERSION: ${{ needs.release-metadata.outputs.app_version }}
+      OZAWAAGENT_IS_PRERELEASE: ${{ needs.release-metadata.outputs.is_prerelease }}
+      OZAWAAGENT_RELEASE_TAG: ${{ needs.release-metadata.outputs.release_tag }}
     strategy:
       fail-fast: false
       matrix:
@@ -92,14 +92,14 @@ jobs:
           python scripts/ga-runtime-stager.py \
             --ga-repo "$RUNNER_TEMP/genericagent-runtime" \
             --commit "$GA_RUNTIME_COMMIT" \
-            --liveagent-root "$GITHUB_WORKSPACE" \
+            --ozawaagent-root "$GITHUB_WORKSPACE" \
             --output "$GITHUB_WORKSPACE/crates/agent-gui/src-tauri/ga-runtime"
           test -f crates/agent-gui/src-tauri/ga-runtime/runtime_manifest.json
           test -f crates/agent-gui/src-tauri/ga-runtime/frontends/desktop_bridge.py
 
       - name: Prepare release version config
         working-directory: crates/agent-gui
-        run: node ../../scripts/release/prepare-app-version-from-tag.mjs "$LIVEAGENT_RELEASE_TAG" --github-env "$GITHUB_ENV" --tauri-config src-tauri/tauri.version.generated.conf.json
+        run: node ../../scripts/release/prepare-app-version-from-tag.mjs "$OZAWAAGENT_RELEASE_TAG" --github-env "$GITHUB_ENV" --tauri-config src-tauri/tauri.version.generated.conf.json
 
       - name: Install pnpm
         run: npm install -g pnpm@10.32.1
@@ -127,7 +127,7 @@ jobs:
           set -euo pipefail
           test -n "$APPLE_CERTIFICATE_P12_BASE64"
           test -n "$APPLE_CERTIFICATE_PASSWORD"
-          KEYCHAIN_PATH="$RUNNER_TEMP/liveagent-release.keychain-db"
+          KEYCHAIN_PATH="$RUNNER_TEMP/ozawaagent-release.keychain-db"
           KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
           CERT_PATH="$RUNNER_TEMP/developer-id-application.p12"
           printf '%s' "$APPLE_CERTIFICATE_P12_BASE64" | base64 --decode > "$CERT_PATH"
@@ -150,7 +150,7 @@ jobs:
           test -n "$APPLE_ID"
           test -n "$APPLE_TEAM_ID"
           test -n "$APPLE_APP_SPECIFIC_PASSWORD"
-          xcrun notarytool store-credentials liveagent-notary \
+          xcrun notarytool store-credentials ozawaagent-notary \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_APP_SPECIFIC_PASSWORD" \
@@ -168,7 +168,7 @@ jobs:
           mkdir -p dist
           dmg_path="$(find "target/${{ matrix.target }}/release/bundle/dmg" -maxdepth 1 -name 'OzawaAgent_*.dmg' -print -quit)"
           test -n "$dmg_path"
-          cp "$dmg_path" "dist/OzawaAgent-${LIVEAGENT_RELEASE_TAG}-macOS-${{ matrix.suffix }}.dmg"
+          cp "$dmg_path" "dist/OzawaAgent-${OZAWAAGENT_RELEASE_TAG}-macOS-${{ matrix.suffix }}.dmg"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -181,9 +181,9 @@ jobs:
     runs-on: windows-latest
     needs: release-metadata
     env:
-      LIVEAGENT_APP_VERSION: ${{ needs.release-metadata.outputs.app_version }}
-      LIVEAGENT_IS_PRERELEASE: ${{ needs.release-metadata.outputs.is_prerelease }}
-      LIVEAGENT_RELEASE_TAG: ${{ needs.release-metadata.outputs.release_tag }}
+      OZAWAAGENT_APP_VERSION: ${{ needs.release-metadata.outputs.app_version }}
+      OZAWAAGENT_IS_PRERELEASE: ${{ needs.release-metadata.outputs.is_prerelease }}
+      OZAWAAGENT_RELEASE_TAG: ${{ needs.release-metadata.outputs.release_tag }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -217,7 +217,7 @@ jobs:
           python scripts/ga-runtime-stager.py \
             --ga-repo "$RUNNER_TEMP/genericagent-runtime" \
             --commit "$GA_RUNTIME_COMMIT" \
-            --liveagent-root "$GITHUB_WORKSPACE" \
+            --ozawaagent-root "$GITHUB_WORKSPACE" \
             --output "$GITHUB_WORKSPACE/crates/agent-gui/src-tauri/ga-runtime"
           test -f crates/agent-gui/src-tauri/ga-runtime/runtime_manifest.json
           test -f crates/agent-gui/src-tauri/ga-runtime/frontends/desktop_bridge.py
@@ -225,7 +225,7 @@ jobs:
       - name: Prepare release version config
         shell: bash
         working-directory: crates/agent-gui
-        run: node ../../scripts/release/prepare-app-version-from-tag.mjs "$LIVEAGENT_RELEASE_TAG" --github-env "$GITHUB_ENV" --tauri-config src-tauri/tauri.version.generated.conf.json
+        run: node ../../scripts/release/prepare-app-version-from-tag.mjs "$OZAWAAGENT_RELEASE_TAG" --github-env "$GITHUB_ENV" --tauri-config src-tauri/tauri.version.generated.conf.json
 
       - name: Install pnpm
         run: npm install -g pnpm@10.32.1
@@ -248,7 +248,7 @@ jobs:
       - name: Build Windows bundles
         working-directory: crates/agent-gui
         shell: bash
-        run: pnpm tauri build --config src-tauri/tauri.windows.release.conf.json --config "$LIVEAGENT_TAURI_VERSION_CONFIG" --target x86_64-pc-windows-msvc
+        run: pnpm tauri build --config src-tauri/tauri.windows.release.conf.json --config "$OZAWAAGENT_TAURI_VERSION_CONFIG" --target x86_64-pc-windows-msvc
 
       - name: Stage Windows artifacts
         shell: bash
@@ -261,11 +261,11 @@ jobs:
           test -n "$msi_path"
           test -n "$exe_path"
           test -n "$portable_exe_path"
-          cp "$msi_path" "dist/OzawaAgent-${LIVEAGENT_RELEASE_TAG}-Windows-x64.msi"
-          cp "$exe_path" "dist/OzawaAgent-${LIVEAGENT_RELEASE_TAG}-Windows-x64-Setup.exe"
+          cp "$msi_path" "dist/OzawaAgent-${OZAWAAGENT_RELEASE_TAG}-Windows-x64.msi"
+          cp "$exe_path" "dist/OzawaAgent-${OZAWAAGENT_RELEASE_TAG}-Windows-x64-Setup.exe"
           mkdir -p dist/portable/OzawaAgent
           cp "$portable_exe_path" dist/portable/OzawaAgent/OzawaAgent.exe
-          portable_zip="dist/OzawaAgent-${LIVEAGENT_RELEASE_TAG}-Windows-x64-portable.zip"
+          portable_zip="dist/OzawaAgent-${OZAWAAGENT_RELEASE_TAG}-Windows-x64-portable.zip"
           powershell -NoProfile -Command "Compress-Archive -Path 'dist/portable/OzawaAgent/*' -DestinationPath '$portable_zip' -Force"
           rm -rf dist/portable
           test "$(find dist -type f | wc -l)" -gt 0
@@ -281,9 +281,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: release-metadata
     env:
-      LIVEAGENT_APP_VERSION: ${{ needs.release-metadata.outputs.app_version }}
-      LIVEAGENT_IS_PRERELEASE: ${{ needs.release-metadata.outputs.is_prerelease }}
-      LIVEAGENT_RELEASE_TAG: ${{ needs.release-metadata.outputs.release_tag }}
+      OZAWAAGENT_APP_VERSION: ${{ needs.release-metadata.outputs.app_version }}
+      OZAWAAGENT_IS_PRERELEASE: ${{ needs.release-metadata.outputs.is_prerelease }}
+      OZAWAAGENT_RELEASE_TAG: ${{ needs.release-metadata.outputs.release_tag }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -317,14 +317,14 @@ jobs:
           python scripts/ga-runtime-stager.py \
             --ga-repo "$RUNNER_TEMP/genericagent-runtime" \
             --commit "$GA_RUNTIME_COMMIT" \
-            --liveagent-root "$GITHUB_WORKSPACE" \
+            --ozawaagent-root "$GITHUB_WORKSPACE" \
             --output "$GITHUB_WORKSPACE/crates/agent-gui/src-tauri/ga-runtime"
           test -f crates/agent-gui/src-tauri/ga-runtime/runtime_manifest.json
           test -f crates/agent-gui/src-tauri/ga-runtime/frontends/desktop_bridge.py
 
       - name: Prepare release version config
         working-directory: crates/agent-gui
-        run: node ../../scripts/release/prepare-app-version-from-tag.mjs "$LIVEAGENT_RELEASE_TAG" --github-env "$GITHUB_ENV" --tauri-config src-tauri/tauri.version.generated.conf.json
+        run: node ../../scripts/release/prepare-app-version-from-tag.mjs "$OZAWAAGENT_RELEASE_TAG" --github-env "$GITHUB_ENV" --tauri-config src-tauri/tauri.version.generated.conf.json
 
       - name: Install pnpm
         run: npm install -g pnpm@10.32.1
@@ -358,7 +358,7 @@ jobs:
 
       - name: Build Linux bundles
         working-directory: crates/agent-gui
-        run: pnpm tauri build --config src-tauri/tauri.linux.release.conf.json --config "$LIVEAGENT_TAURI_VERSION_CONFIG" --target x86_64-unknown-linux-gnu --bundles appimage deb rpm
+        run: pnpm tauri build --config src-tauri/tauri.linux.release.conf.json --config "$OZAWAAGENT_TAURI_VERSION_CONFIG" --target x86_64-unknown-linux-gnu --bundles appimage deb rpm
 
       - name: Strip bundled Wayland libraries from AppImage
         run: |
@@ -378,9 +378,9 @@ jobs:
           test -n "$appimage_path"
           test -n "$deb_path"
           test -n "$rpm_path"
-          cp "$appimage_path" "dist/OzawaAgent-${LIVEAGENT_RELEASE_TAG}-Linux-x86_64.AppImage"
-          cp "$deb_path" "dist/OzawaAgent-${LIVEAGENT_RELEASE_TAG}-Linux-x86_64.deb"
-          cp "$rpm_path" "dist/OzawaAgent-${LIVEAGENT_RELEASE_TAG}-Linux-x86_64.rpm"
+          cp "$appimage_path" "dist/OzawaAgent-${OZAWAAGENT_RELEASE_TAG}-Linux-x86_64.AppImage"
+          cp "$deb_path" "dist/OzawaAgent-${OZAWAAGENT_RELEASE_TAG}-Linux-x86_64.deb"
+          cp "$rpm_path" "dist/OzawaAgent-${OZAWAAGENT_RELEASE_TAG}-Linux-x86_64.rpm"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -397,9 +397,9 @@ jobs:
       - windows
       - linux
     env:
-      LIVEAGENT_APP_VERSION: ${{ needs.release-metadata.outputs.app_version }}
-      LIVEAGENT_IS_PRERELEASE: ${{ needs.release-metadata.outputs.is_prerelease }}
-      LIVEAGENT_RELEASE_TAG: ${{ needs.release-metadata.outputs.release_tag }}
+      OZAWAAGENT_APP_VERSION: ${{ needs.release-metadata.outputs.app_version }}
+      OZAWAAGENT_IS_PRERELEASE: ${{ needs.release-metadata.outputs.is_prerelease }}
+      OZAWAAGENT_RELEASE_TAG: ${{ needs.release-metadata.outputs.release_tag }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -421,7 +421,7 @@ jobs:
           AI_RELEASE_NOTES_MODEL: ${{ vars.AI_RELEASE_NOTES_MODEL }}
         run: |
           set -euo pipefail
-          is_prerelease="$LIVEAGENT_IS_PRERELEASE"
+          is_prerelease="$OZAWAAGENT_IS_PRERELEASE"
 
           github_notes_path="$RUNNER_TEMP/ozawaagent-github-release-notes.md"
           notes_path="$RUNNER_TEMP/ozawaagent-release-notes.md"
