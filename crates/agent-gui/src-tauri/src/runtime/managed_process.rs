@@ -32,6 +32,58 @@ const RESTORED_PROBE_INTERVAL_MS: u128 = 2000;
 /// time drifts beyond this from the journaled one is a reused pid, not ours.
 const START_TIME_TOLERANCE_MS: i64 = 60_000;
 
+/// Typed failure reasons for registry operations. Each variant renders
+/// byte-for-byte the same message the module previously produced inline, so
+/// public `Result<_, String>` error text is unchanged (lock-in tested below).
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ProcessError {
+    WorkdirInvalidAbsolute,
+    WorkdirNotAbsolute(String),
+    WorkdirMissing(String),
+    WorkdirNotDir(String),
+    InvalidCwd(String),
+    CwdDrive(String),
+    CwdMissing(String),
+    CwdOutside(String),
+    CwdNotDir(String),
+    CommandEmpty,
+    ProcessIdRequired,
+    ProcessStillRunning(String),
+    ProcessNotFound(String),
+}
+
+impl std::fmt::Display for ProcessError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProcessError::WorkdirInvalidAbsolute => {
+                write!(f, "workdir must be an existing absolute directory")
+            }
+            ProcessError::WorkdirNotAbsolute(workdir) => {
+                write!(f, "workdir must be absolute: {workdir}")
+            }
+            ProcessError::WorkdirMissing(workdir) => {
+                write!(f, "workdir does not exist: {workdir}")
+            }
+            ProcessError::WorkdirNotDir(workdir) => {
+                write!(f, "workdir must be a directory: {workdir}")
+            }
+            ProcessError::InvalidCwd(raw) => {
+                write!(f, "cwd must be relative and stay inside workdir: {raw}")
+            }
+            ProcessError::CwdDrive(raw) => {
+                write!(f, "cwd must not contain drive letters or streams: {raw}")
+            }
+            ProcessError::CwdMissing(raw) => write!(f, "cwd does not exist: {raw}"),
+            ProcessError::CwdOutside(raw) => write!(f, "cwd is outside workdir: {raw}"),
+            ProcessError::CwdNotDir(raw) => write!(f, "cwd must be a directory: {raw}"),
+            ProcessError::CommandEmpty => write!(f, "command cannot be empty"),
+            ProcessError::ProcessIdRequired => write!(f, "process_id is required"),
+            ProcessError::ProcessStillRunning(id) => write!(f, "process is still running: {id}"),
+            ProcessError::ProcessNotFound(id) => write!(f, "Managed process not found: {id}"),
+        }
+    }
+}
+
 pub const MANAGED_PROCESS_CHANGED_EVENT: &str = "managed-process:changed";
 
 /// Fan-out target for registry mutations: every change emits the same full
@@ -166,15 +218,16 @@ fn process_log_dir() -> Result<PathBuf, String> {
 fn canonicalize_workdir(workdir: &str) -> Result<PathBuf, String> {
     let raw = workdir.trim();
     if raw.is_empty() {
-        return Err("workdir must be an existing absolute directory".to_string());
+        return Err(ProcessError::WorkdirInvalidAbsolute.to_string());
     }
     let path = expand_tilde_path(raw);
     if !path.is_absolute() {
-        return Err(format!("workdir must be absolute: {workdir}"));
+        return Err(ProcessError::WorkdirNotAbsolute(workdir.to_string()).to_string());
     }
-    let metadata = fs::metadata(&path).map_err(|_| format!("workdir does not exist: {workdir}"))?;
+    let metadata = fs::metadata(&path)
+        .map_err(|_| ProcessError::WorkdirMissing(workdir.to_string()).to_string())?;
     if !metadata.is_dir() {
-        return Err(format!("workdir must be a directory: {workdir}"));
+        return Err(ProcessError::WorkdirNotDir(workdir.to_string()).to_string());
     }
     // Strip the Windows `\\?\` verbatim prefix: the result becomes the child
     // process cwd (cmd.exe rejects verbatim paths) and the record's display cwd.
@@ -196,16 +249,12 @@ fn sanitize_rel_cwd(input: Option<String>, workdir: &Path) -> Result<PathBuf, St
     for component in path.components() {
         match component {
             Component::Prefix(_) | Component::RootDir | Component::ParentDir => {
-                return Err(format!(
-                    "cwd must be relative and stay inside workdir: {raw}"
-                ));
+                return Err(ProcessError::InvalidCwd(raw.to_string()).to_string());
             }
             Component::CurDir => {}
             Component::Normal(segment) => {
                 if segment.to_string_lossy().contains(':') {
-                    return Err(format!(
-                        "cwd must not contain drive letters or streams: {raw}"
-                    ));
+                    return Err(ProcessError::CwdDrive(raw.to_string()).to_string());
                 }
                 out.push(segment);
             }
@@ -215,16 +264,17 @@ fn sanitize_rel_cwd(input: Option<String>, workdir: &Path) -> Result<PathBuf, St
     // Same verbatim-stripped shape as the workdir so starts_with compares
     // like forms on Windows.
     let canonical = strip_windows_verbatim_prefix(
-        fs::canonicalize(&target).map_err(|_| format!("cwd does not exist: {raw}"))?,
+        fs::canonicalize(&target)
+            .map_err(|_| ProcessError::CwdMissing(raw.to_string()).to_string())?,
     );
     if !canonical.starts_with(workdir) {
-        return Err(format!("cwd is outside workdir: {raw}"));
+        return Err(ProcessError::CwdOutside(raw.to_string()).to_string());
     }
     if !fs::metadata(&canonical)
         .map_err(|err| err.to_string())?
         .is_dir()
     {
-        return Err(format!("cwd must be a directory: {raw}"));
+        return Err(ProcessError::CwdNotDir(raw.to_string()).to_string());
     }
     Ok(canonical)
 }
@@ -500,7 +550,7 @@ impl ManagedProcessRegistry {
     ) -> Result<ManagedProcessRecord, String> {
         let command = command.trim().to_string();
         if command.is_empty() {
-            return Err("command cannot be empty".to_string());
+            return Err(ProcessError::CommandEmpty.to_string());
         }
         let workdir = canonicalize_workdir(&workdir)?;
         let cwd = sanitize_rel_cwd(cwd, &workdir)?;
@@ -550,7 +600,7 @@ impl ManagedProcessRegistry {
     pub fn stop(&self, id: String) -> Result<ManagedProcessStopResponse, String> {
         let id = id.trim().to_string();
         if id.is_empty() {
-            return Err("process_id is required".to_string());
+            return Err(ProcessError::ProcessIdRequired.to_string());
         }
         self.sync()?;
         let (stopped, record) = {
@@ -605,7 +655,7 @@ impl ManagedProcessRegistry {
                     match processes.get(&id) {
                         None => false,
                         Some(entry) if entry_running(entry) => {
-                            return Err(format!("process is still running: {id}"));
+                            return Err(ProcessError::ProcessStillRunning(id).to_string());
                         }
                         Some(_) => {
                             processes.remove(&id);
@@ -633,12 +683,12 @@ impl ManagedProcessRegistry {
     ) -> Result<ManagedProcessLogResponse, String> {
         let id = id.trim();
         if id.is_empty() {
-            return Err("process_id is required".to_string());
+            return Err(ProcessError::ProcessIdRequired.to_string());
         }
         let log_path = {
             let processes = self.lock_processes()?;
             let Some(entry) = processes.get(id) else {
-                return Err(format!("Managed process not found: {id}"));
+                return Err(ProcessError::ProcessNotFound(id.to_string()).to_string());
             };
             entry.log_path.clone()
         };
@@ -1230,5 +1280,62 @@ mod tests {
 
         let _ = registry.stop(running.id);
         let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn process_error_display_messages_are_locked() {
+        // 锁定 ProcessError 的 Display 文案：这些字符串经 Result<String> 直通
+        // 前端，任何改写都必须显式通过本测试（防止无意识行为变化）。
+        let cases: Vec<(ProcessError, &str)> = vec![
+            (
+                ProcessError::WorkdirInvalidAbsolute,
+                "workdir must be an existing absolute directory",
+            ),
+            (
+                ProcessError::WorkdirNotAbsolute("W".into()),
+                "workdir must be absolute: W",
+            ),
+            (
+                ProcessError::WorkdirMissing("W".into()),
+                "workdir does not exist: W",
+            ),
+            (
+                ProcessError::WorkdirNotDir("W".into()),
+                "workdir must be a directory: W",
+            ),
+            (
+                ProcessError::InvalidCwd("c".into()),
+                "cwd must be relative and stay inside workdir: c",
+            ),
+            (
+                ProcessError::CwdDrive("c".into()),
+                "cwd must not contain drive letters or streams: c",
+            ),
+            (
+                ProcessError::CwdMissing("c".into()),
+                "cwd does not exist: c",
+            ),
+            (
+                ProcessError::CwdOutside("c".into()),
+                "cwd is outside workdir: c",
+            ),
+            (
+                ProcessError::CwdNotDir("c".into()),
+                "cwd must be a directory: c",
+            ),
+            (ProcessError::CommandEmpty, "command cannot be empty"),
+            (ProcessError::ProcessIdRequired, "process_id is required"),
+            (
+                ProcessError::ProcessStillRunning("p".into()),
+                "process is still running: p",
+            ),
+            (
+                ProcessError::ProcessNotFound("p".into()),
+                "Managed process not found: p",
+            ),
+        ];
+        for (err, expected) in cases {
+            assert_eq!(err.to_string(), expected);
+        }
     }
 }
