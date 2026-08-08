@@ -2194,7 +2194,7 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
                 profile = safe_editable_model_profile(_manager_profile(manager, profile_id))
                 return _json("model_profile.get", {"profile": profile}, 200,
                              request.headers.get("X-Request-Id", ""))
-            if request.method == "PATCH":
+            if request.method in ("PATCH", "PUT"):
                 body = normalize_model_profile_input(await request.json(), creating=False)
                 existing = safe_editable_model_profile(_manager_profile(manager, profile_id))
                 body.setdefault("model", existing["model"])

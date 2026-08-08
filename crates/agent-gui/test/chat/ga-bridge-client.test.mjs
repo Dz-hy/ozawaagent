@@ -242,7 +242,7 @@ test("model profile client uses safe typed adapter routes", async () => {
     if (path === "/api/v1/model-profiles/1" && (options.method ?? "GET") === "GET") {
       return response(200, { payload: { profile } });
     }
-    if (path === "/api/v1/model-profiles/1" && options.method === "PATCH") {
+    if (path === "/api/v1/model-profiles/1" && options.method === "PUT") {
       return response(200, { payload: { profile } });
     }
     return response(200, { payload: { id: 1, profiles: [profile] } });
@@ -266,7 +266,7 @@ test("model profile client uses safe typed adapter routes", async () => {
     ["/api/v1/model-profiles", "GET"],
     ["/api/v1/model-profiles/1", "GET"],
     ["/api/v1/model-profiles", "POST"],
-    ["/api/v1/model-profiles/1", "PATCH"],
+    ["/api/v1/model-profiles/1", "PUT"],
     ["/api/v1/model-profiles/1/default", "POST"],
     ["/api/v1/model-profiles/1", "DELETE"],
   ]);

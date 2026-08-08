@@ -386,7 +386,7 @@ async def test_model_profiles_crud_never_returns_api_keys(model_client):
     assert created_profile["api_mode"] == "responses"
     assert created_profile["proxy_configured"] is True
 
-    patched = await client.patch("/api/v1/model-profiles/1", headers=AUTH, json={
+    patched = await client.put("/api/v1/model-profiles/1", headers=AUTH, json={
         "name": "Claude Renamed", "api_key": "",
     })
     assert patched.status == 200
@@ -439,7 +439,7 @@ async def test_private_model_profile_io_preserves_advanced_fields_and_redacts(pr
     assert "trim_keep_prefix" in raw_after_create
     assert "responses" in raw_after_create
 
-    patched = await client.patch("/api/v1/model-profiles/1", headers=AUTH, json={
+    patched = await client.put("/api/v1/model-profiles/1", headers=AUTH, json={
         "name": "Private Claude Renamed", "api_key": "", "trim_keep_prefix": 9,
     })
     assert patched.status == 200
@@ -1018,7 +1018,7 @@ async def test_adapter_exposes_model_profile_routes(model_client):
     required = {
         ("GET", "/api/v1/model-profiles"), ("POST", "/api/v1/model-profiles"),
         ("GET", "/api/v1/model-profiles/{profile_id}"),
-        ("PATCH", "/api/v1/model-profiles/{profile_id}"),
+        ("PUT", "/api/v1/model-profiles/{profile_id}"),
         ("DELETE", "/api/v1/model-profiles/{profile_id}"),
         ("POST", "/api/v1/model-profiles/{profile_id}/default"),
     }
@@ -2061,7 +2061,7 @@ def test_safe_profile_apibase_redaction_matrix():
 @pytest.mark.asyncio
 async def test_model_profile_patch_preserves_stored_proxy_and_apibase_on_display_shape_submit(private_model_client):
     client, manager = private_model_client
-    patched = await client.patch("/api/v1/model-profiles/0", headers=AUTH, json={
+    patched = await client.put("/api/v1/model-profiles/0", headers=AUTH, json={
         "name": "Renamed",
         "proxy": "http://proxy.example:8080",          # redacted display shape
         "apibase": "https://private.example",          # redacted display shape
@@ -2082,7 +2082,7 @@ async def test_model_profile_patch_preserves_stored_proxy_and_apibase_on_display
 @pytest.mark.asyncio
 async def test_model_profile_patch_empty_proxy_clears_configured_proxy(private_model_client):
     client, manager = private_model_client
-    patched = await client.patch("/api/v1/model-profiles/0", headers=AUTH, json={
+    patched = await client.put("/api/v1/model-profiles/0", headers=AUTH, json={
         "proxy": "",
     })
     assert patched.status == 200
