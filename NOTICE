@@ -1,0 +1,22 @@
+# NOTICE
+
+**OzawaAgent** is a modified desktop derivation built on two MIT-licensed
+upstreams. No warranty is provided; use at your own risk.
+
+## Upstream copyrights (retained)
+
+1. **LiveAgent** — Copyright (c) 2026 Stack-Cairn — MIT License.
+   This repository's `LICENSE` file retains the upstream MIT copyright notice.
+2. **GenericAgent** — Copyright (c) 2025 lsdefine — MIT License.
+   The GenericAgent kernel is integrated as the Agent runtime (GA-local sidecar);
+   its own LICENSE text applies to that kernel (MIT, Copyright (c) 2025 lsdefine).
+
+## Derivative work
+
+Modifications and the desktop shell authored for this project (© 2026 Dz-hy)
+are distributed under the same MIT terms as the upstream `LICENSE` file.
+
+## Third-party assets
+
+Runtime skins shipped with GenericAgent are CC0 (public domain) per their
+license notices; they are not vendored into this repository.
