@@ -273,7 +273,7 @@ pub(crate) fn chat_history_branch_sync(
         model: source.model.clone(),
         session_id: None,
         cwd: source.cwd.clone(),
-        selected_model_json: source.selected_model_json.clone(),
+        selected_model_json: source.selected_model_json,
         context_meta_json,
         active_segment_index,
         total_segment_count,

@@ -172,7 +172,7 @@ pub(crate) fn start_install_job_from_payload(
         cancel_requested: cancel_requested.clone(),
     })?;
 
-    let thread_job_id = job_id.clone();
+    let thread_job_id = job_id;
     let payload = payload.clone();
     thread::spawn(move || {
         let progress_job_id = thread_job_id.clone();

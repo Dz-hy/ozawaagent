@@ -103,7 +103,7 @@ pub fn system_manage_skill_sync(payload: Value) -> Result<SystemManageSkillRespo
             })
         }
         "install_start" => Ok(SystemManageSkillResponse {
-            install_job: Some(start_install_job_from_payload(root.clone(), payload)?),
+            install_job: Some(start_install_job_from_payload(root, payload)?),
             ..base
         }),
         "install_status" => {

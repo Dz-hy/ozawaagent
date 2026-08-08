@@ -249,12 +249,12 @@ fn sanitize_rel_cwd(input: Option<String>, workdir: &Path) -> Result<PathBuf, St
     for component in path.components() {
         match component {
             Component::Prefix(_) | Component::RootDir | Component::ParentDir => {
-                return Err(ProcessError::InvalidCwd(raw.to_string()).to_string());
+                return Err(ProcessError::InvalidCwd(raw).to_string());
             }
             Component::CurDir => {}
             Component::Normal(segment) => {
                 if segment.to_string_lossy().contains(':') {
-                    return Err(ProcessError::CwdDrive(raw.to_string()).to_string());
+                    return Err(ProcessError::CwdDrive(raw).to_string());
                 }
                 out.push(segment);
             }
@@ -268,13 +268,13 @@ fn sanitize_rel_cwd(input: Option<String>, workdir: &Path) -> Result<PathBuf, St
             .map_err(|_| ProcessError::CwdMissing(raw.to_string()).to_string())?,
     );
     if !canonical.starts_with(workdir) {
-        return Err(ProcessError::CwdOutside(raw.to_string()).to_string());
+        return Err(ProcessError::CwdOutside(raw).to_string());
     }
     if !fs::metadata(&canonical)
         .map_err(|err| err.to_string())?
         .is_dir()
     {
-        return Err(ProcessError::CwdNotDir(raw.to_string()).to_string());
+        return Err(ProcessError::CwdNotDir(raw).to_string());
     }
     Ok(canonical)
 }

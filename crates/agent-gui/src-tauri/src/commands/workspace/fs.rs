@@ -2245,7 +2245,7 @@ fn fs_write_text_impl(
         }
         Err(err) if err.kind() == io::ErrorKind::NotFound => {
             ensure_parent_dir(wd, &raw_target)?;
-            (raw_target.clone(), false)
+            (raw_target, false)
         }
         Err(err) => return Err(FsError::Io(err)),
     };

@@ -619,7 +619,7 @@ pub(crate) fn run_shell_script_with_envs(
     }
 
     let actual_cwd = match cwd {
-        None => wd.clone(),
+        None => wd,
         Some(cwd_value) if is_absolute_cwd_input(cwd_value.trim()) => {
             resolve_absolute_cwd(cwd_value.trim()).map_err(|e| e.to_string())?
         }

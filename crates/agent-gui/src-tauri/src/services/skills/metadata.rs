@@ -344,7 +344,7 @@ pub(crate) fn read_skill_metadata_from_dir(skill_dir: &Path) -> Result<SkillMeta
     })?;
     let metadata = read_skill_metadata_file(&metadata_file)?;
     let name = metadata.name.clone();
-    let description = metadata.description.clone();
+    let description = metadata.description;
     if is_readme_markdown(&metadata_file) && name.is_none() && description.is_none() {
         let name = fallback_readme_skill_name(skill_dir)?;
         let description = fallback_readme_description(&metadata_file, &name)?;

@@ -801,7 +801,7 @@ pub(crate) fn git_discover_repositories_sync(
         let canonical_root = fs::canonicalize(&root_path).unwrap_or(root_path.clone());
         seen_roots.insert(canonical_root);
         repositories.push(GitDiscoveredRepository {
-            root: root.clone(),
+            root: root,
             name: path_basename(&root_path),
             relative_path: String::new(),
             is_workspace_root: true,

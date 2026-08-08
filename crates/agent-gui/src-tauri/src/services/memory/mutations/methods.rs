@@ -866,7 +866,7 @@ impl MemoryStore {
             memory_type.clone(),
             description.clone(),
             body.clone(),
-            write_options.clone(),
+            write_options,
             false,
         ) {
             Ok(resp) => {

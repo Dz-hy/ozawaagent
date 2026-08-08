@@ -418,7 +418,7 @@ impl GaRuntimeSupervisor {
                     failed.pid = None;
                     failed.port = None;
                     failed.restart_count = attempt;
-                    failed.last_error = Some(last_error.clone());
+                    failed.last_error = Some(last_error);
                     supervisor.publish(failed);
                     return;
                 }

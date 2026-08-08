@@ -50,7 +50,7 @@ impl TerminalSessionRegistry {
                 ));
             } else {
                 state.tabs.push(SshTerminalTabRecord {
-                    id: tab_id.clone(),
+                    id: tab_id,
                     session_id: session.id.clone(),
                     project_path_key: session.project_path_key.clone(),
                     kind,

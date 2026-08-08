@@ -158,7 +158,7 @@ fn merge_memory_content(existing: &str, incoming: &str) -> String {
         return existing_trimmed.to_string();
     }
 
-    let mut merged = existing_units.clone();
+    let mut merged = existing_units;
     let mut appended = Vec::new();
     for incoming_unit in &incoming_units {
         if let Some(index) = best_merge_match_index(&merged, incoming_unit) {
