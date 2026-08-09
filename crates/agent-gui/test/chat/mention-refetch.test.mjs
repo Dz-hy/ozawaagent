@@ -7,7 +7,9 @@ const sourceRoots = [
 ];
 
 function source(root) {
-  return readFileSync(new URL("MentionComposer.tsx", root), "utf8");
+  // Worktrees checked out on Windows carry CRLF; the tests locate functions
+  // by LF-only markers, so normalize before scanning.
+  return readFileSync(new URL("MentionComposer.tsx", root), "utf8").replace(/\r\n/g, "\n");
 }
 
 function extractFunction(src, name) {

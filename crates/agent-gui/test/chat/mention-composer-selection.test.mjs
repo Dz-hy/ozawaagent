@@ -7,7 +7,9 @@ const sourceRoots = [
 ];
 
 function source(root, relativePath) {
-  return readFileSync(new URL(relativePath, root), "utf8");
+  // Worktrees checked out on Windows carry CRLF; the tests assert functions
+  // by LF-only markers, so normalize on read.
+  return readFileSync(new URL(relativePath, root), "utf8").replace(/\r\n/g, "\n");
 }
 
 test("the composer restores the last editor selection before external mention insertion", () => {
