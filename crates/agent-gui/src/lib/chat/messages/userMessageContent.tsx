@@ -586,7 +586,7 @@ function CommitReferenceTooltip({
     if (!node) return;
     const measuredWidth = Math.ceil(node.getBoundingClientRect().width);
     setTooltipWidth(Math.min(maxWidth, Math.max(minWidth, measuredWidth)));
-  }, [commit, maxWidth, minWidth]);
+  }, [maxWidth, minWidth]);
 
   return createPortal(
     <div
@@ -788,7 +788,7 @@ function CommitMentionChip({
   useEffect(() => {
     setResolvedCommit(normalizeCommitDisplayReference(commit));
     setDetailsState("idle");
-  }, [commit.githubUrl, commit.sha, commit.shortSha, commit.subject]);
+  }, [commit]);
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current === null) return;

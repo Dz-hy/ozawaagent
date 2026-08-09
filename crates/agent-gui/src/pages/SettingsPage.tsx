@@ -173,17 +173,13 @@ export function SettingsPage(props: SettingsPageProps) {
   };
 
   const hiddenSectionSet = useMemo(() => new Set(hiddenSections), [hiddenSections]);
-  const navGroups = useMemo(
-    () =>
-      NAV_GROUPS.map((group) => ({
-        label: t(group.labelKey),
-        items: group.items
-          .filter((item) => !hiddenSectionSet.has(item.id))
-          .map((item) => ({ ...item, label: sectionLabels[item.id] })),
-      })).filter((group) => group.items.length > 0),
-    [hiddenSectionSet, sectionLabels, t],
-  );
-  const allNavItems = useMemo(() => navGroups.flatMap((g) => g.items), [navGroups]);
+  const navGroups = NAV_GROUPS.map((group) => ({
+    label: t(group.labelKey),
+    items: group.items
+      .filter((item) => !hiddenSectionSet.has(item.id))
+      .map((item) => ({ ...item, label: sectionLabels[item.id] })),
+  })).filter((group) => group.items.length > 0);
+  const allNavItems = navGroups.flatMap((g) => g.items);
 
   useEffect(() => {
     setSection(initialSection);

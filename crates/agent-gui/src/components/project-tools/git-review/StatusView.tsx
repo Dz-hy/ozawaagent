@@ -182,7 +182,7 @@ export function GitReviewStatusView(props: {
   useEffect(() => {
     setVisibleStagedEntryCount(INITIAL_CHANGE_ENTRY_RENDER_COUNT);
     setVisibleWorkingEntryCount(INITIAL_CHANGE_ENTRY_RENDER_COUNT);
-  }, [state.repoRoot, state.head, stagedEntries.length, workingEntries.length]);
+  }, []);
   const visibleStagedEntries = useMemo(
     () => stagedEntries.slice(0, visibleStagedEntryCount),
     [stagedEntries, visibleStagedEntryCount],

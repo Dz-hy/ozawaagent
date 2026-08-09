@@ -750,7 +750,7 @@ export function DiffContent(props: {
 
   useEffect(() => {
     closeSelectionContextMenu();
-  }, [closeSelectionContextMenu, diff?.patch, error, loading]);
+  }, [closeSelectionContextMenu]);
 
   useEffect(() => {
     if (!selectionContextMenu) return;

@@ -1794,7 +1794,7 @@ function Popup({
   const hlRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     hlRef.current?.scrollIntoView({ block: "nearest" });
-  }, [highlightIndex]);
+  }, []);
 
   useLayoutEffect(() => {
     const anchor = anchorRef.current;
@@ -2027,7 +2027,7 @@ function CommitMentionTooltip({
     if (!node) return;
     const measuredWidth = Math.ceil(node.getBoundingClientRect().width);
     setTooltipWidth(Math.min(maxWidth, Math.max(minWidth, measuredWidth)));
-  }, [commit, maxWidth, minWidth]);
+  }, [maxWidth, minWidth]);
 
   return createPortal(
     <div
@@ -2320,7 +2320,7 @@ export const MentionComposer = memo(
 
     useEffect(() => {
       closeMentionSession();
-    }, [normalizedWorkdir, closeMentionSession]);
+    }, [closeMentionSession]);
 
     useEffect(() => {
       return () => {

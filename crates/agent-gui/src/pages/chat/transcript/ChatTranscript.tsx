@@ -140,11 +140,11 @@ export const ChatTranscript = memo(function ChatTranscript(props: ChatTranscript
   // Conversation switches always land pinned to the latest message.
   useLayoutEffect(() => {
     scrollFollowHandle.stickToBottom();
-  }, [conversationId, scrollFollowHandle]);
+  }, [scrollFollowHandle]);
 
   useEffect(() => {
     closeTranscriptContextMenu();
-  }, [closeTranscriptContextMenu, conversationId]);
+  }, [closeTranscriptContextMenu]);
 
   useEffect(() => {
     if (!transcriptContextMenu) return;

@@ -734,7 +734,7 @@ export function GitReviewHistoryView(props: {
 
   useEffect(() => {
     maybeLoadMoreHistory(historyListRef.current, listPaneVisible);
-  }, [historyRows.length, listPaneVisible, maybeLoadMoreHistory]);
+  }, [listPaneVisible, maybeLoadMoreHistory]);
 
   const handleHistoryListScroll = useCallback(
     (event: ReactUIEvent<HTMLElement>) => {
