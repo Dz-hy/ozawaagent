@@ -281,7 +281,7 @@ export function useWorkspaceProjects(params: UseWorkspaceProjectsParams) {
       }
       activateWorkspaceProject(project);
     },
-    [activateWorkspaceProject, checkWorkspaceProjectDirectory],
+    [activateWorkspaceProject, checkWorkspaceProjectDirectory, setActiveView],
   );
 
   const handleNewConversationForProject = useCallback(
@@ -310,7 +310,13 @@ export function useWorkspaceProjects(params: UseWorkspaceProjectsParams) {
       activateWorkspaceProject(project);
       setSettings((prev) => openRightDockSingletonTab(prev, pathKey, "fileTree"));
     },
-    [activateWorkspaceProject, checkWorkspaceProjectDirectory, setSettings],
+    [
+      activateWorkspaceProject,
+      checkWorkspaceProjectDirectory,
+      setActiveView,
+      setRightDockOpen,
+      setSettings,
+    ],
   );
 
   const ensureSshTunnelToolTab = useCallback(

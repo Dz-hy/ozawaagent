@@ -153,7 +153,14 @@ export function useWorkspaceProjectRemoval(params: UseWorkspaceProjectRemovalPar
       setProjectRenamingId((current) => (current === project.id ? null : current));
       setProjectRenameDraft("");
     },
-    [archivedWorkspaceProjectPathKeys, setSettings, workspaceProjects],
+    [
+      archivedWorkspaceProjectPathKeys,
+      setActiveWorkspaceProjectId,
+      setProjectRenameDraft,
+      setProjectRenamingId,
+      setSettings,
+      workspaceProjects,
+    ],
   );
 
   const handleRemoveWorkspaceProject = useCallback(

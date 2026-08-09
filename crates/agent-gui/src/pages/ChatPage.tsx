@@ -966,7 +966,12 @@ export function ChatPage(props: ChatPageProps) {
       deleteConversationArtifacts(key);
       setQueuedChatTurnsState((current) => removeQueuedChatTurnsForConversation(current, key));
     },
-    [deleteConversationArtifacts, setPendingUploadsForConversation, setQueuedChatTurnsState],
+    [
+      deleteCachedComposerDraftState,
+      deleteConversationArtifacts,
+      setPendingUploadsForConversation,
+      setQueuedChatTurnsState,
+    ],
   );
 
   const pruneIdleConversationCaches = useCallback(

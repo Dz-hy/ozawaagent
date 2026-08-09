@@ -786,7 +786,7 @@ export function WorkspaceSftpPanel(props: WorkspaceSftpPanelProps) {
     void loadPane("local", localPane.path || INITIAL_LOCAL_PATH);
     void loadPane("remote", remotePane.path || INITIAL_REMOTE_PATH);
     // Initial active load only; explicit path changes call loadPane directly.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // biome-ignore lint/correctness/useExhaustiveDependencies: initial active load only
   }, [isActive, session.id]);
 
   useEffect(() => {
@@ -852,7 +852,10 @@ export function WorkspaceSftpPanel(props: WorkspaceSftpPanelProps) {
     });
   }, []);
 
-  const paneForSide = (side: SftpSide) => (side === "local" ? localPane : remotePane);
+  const paneForSide = useCallback(
+    (side: SftpSide) => (side === "local" ? localPane : remotePane),
+    [localPane, remotePane],
+  );
   const selectedItemsForSide = useCallback(
     (side: SftpSide) => {
       const pane = side === "local" ? localPane : remotePane;
@@ -912,10 +915,9 @@ export function WorkspaceSftpPanel(props: WorkspaceSftpPanelProps) {
 
   const refreshPane = useCallback(
     (side: SftpSide) => {
-      const pane = side === "local" ? localPane : remotePane;
-      void loadPane(side, pane.path);
+      void loadPane(side, paneForSide(side).path);
     },
-    [loadPane, localPane, remotePane],
+    [loadPane, paneForSide],
   );
 
   const openCreateFolderDialog = useCallback((side: SftpSide, basePath: string) => {
@@ -959,12 +961,11 @@ export function WorkspaceSftpPanel(props: WorkspaceSftpPanelProps) {
     creatingFolder,
     loadPane,
     onError,
+    paneForSide,
     projectPathKey,
     session.id,
     t,
     workdir,
-    localPane,
-    remotePane,
   ]);
 
   const openRenameEntryDialog = useCallback((side: SftpSide, path: string) => {
@@ -1020,8 +1021,7 @@ export function WorkspaceSftpPanel(props: WorkspaceSftpPanelProps) {
     session.id,
     t,
     workdir,
-    localPane,
-    remotePane,
+    paneForSide,
   ]);
 
   const deleteEntries = useCallback(
@@ -1063,18 +1063,7 @@ export function WorkspaceSftpPanel(props: WorkspaceSftpPanelProps) {
         setBusyMessage("");
       }
     },
-    [
-      client,
-      confirm,
-      loadPane,
-      onError,
-      projectPathKey,
-      session.id,
-      t,
-      workdir,
-      localPane,
-      remotePane,
-    ],
+    [client, confirm, loadPane, onError, projectPathKey, session.id, t, workdir, paneForSide],
   );
 
   const showCopyToast = useCallback(() => {
