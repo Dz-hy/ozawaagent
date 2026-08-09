@@ -396,9 +396,11 @@ export class GaWebSocketManager {
     void this.runtime()
       .then((runtime) => {
         if (this.stopped || this.ws) return;
-        const socket = new WebSocket(`${runtime.baseUrl.replace(/^http/, "ws")}/ws`, [
-          `ga-token.${runtime.token}`,
-        ]);
+        // The GA runtime's ws endpoint does not negotiate subprotocols; sending
+        // "ga-token.<token>" only produces "don't overlap server-known ones"
+        // warnings server-side (aiohttp logs, still upgrades). Authentication
+        // for /ws is handled by the runtime itself, so connect without protocols.
+        const socket = new WebSocket(`${runtime.baseUrl.replace(/^http/, "ws")}/ws`);
         this.ws = socket;
         socket.onopen = () => {
           this.reconnectAttempt = 0;

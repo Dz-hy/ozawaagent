@@ -210,7 +210,9 @@ test("WebSocket manager delivers duplicate event ids exactly once", async () => 
     sockets[0].onmessage({ data: duplicate });
     assert.equal(events.length, 1);
     assert.equal(events[0].event_id, "evt-1");
-    assert.deepEqual(sockets[0].protocols, [`ga-token.${runtime.token}`]);
+    // The runtime ws endpoint does not negotiate subprotocols; the client no
+    // longer sends a "ga-token.<token>" protocol (server-side noise only).
+    assert.equal(sockets[0].protocols, undefined);
     unsubscribe();
   } finally {
     globalThis.WebSocket = previousWebSocket;
