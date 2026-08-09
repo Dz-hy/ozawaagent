@@ -10,12 +10,14 @@ import {
   XCircle,
 } from "../../components/icons";
 import { Button } from "../../components/ui/button";
+import { useLocale } from "../../i18n";
 import { gaBridgeClient } from "../../lib/ga/GaBridgeClient";
 import type { GaConnectorInfo, GaMcpCallResult, GaMcpTool } from "../../lib/ga/types";
 
 type ExpandedTools = Record<string, GaMcpTool[]>;
 
 export function GaConnectorsSection() {
+  const { t } = useLocale();
   const [connectors, setConnectors] = useState<GaConnectorInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -122,16 +124,17 @@ export function GaConnectorsSection() {
             <Plug className="h-[18px] w-[18px] text-violet-500" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold">Connectors (MCP)</h3>
+            <h3 className="text-sm font-semibold">{t("settings.connectorsTitle")}</h3>
             <p className="text-xs text-muted-foreground">
-              Adapter-owned MCP servers under <span className="font-mono">connectors/</span>. Tools
-              can be expanded per server and searched across servers.
+              {t("settings.connectorsDesc")} <span className="font-mono">connectors/</span>
+              {t("settings.connectorsPeriod")}
+              {t("settings.connectorsDesc2")}
             </p>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          Refresh
+          {t("settings.connectorsRefresh")}
         </Button>
       </div>
 
@@ -147,7 +150,7 @@ export function GaConnectorsSection() {
         <input
           value={toolQuery}
           onChange={(event) => setToolQuery(event.target.value)}
-          placeholder="Search tools across servers (reverse lookup)"
+          placeholder={t("settings.connectorsSearchPlaceholder")}
           className="w-full rounded-xl border border-border/60 bg-background/60 py-2 pl-9 pr-3 text-xs outline-none focus:border-primary/50"
         />
       </div>
@@ -155,12 +158,10 @@ export function GaConnectorsSection() {
       {toolQuery.trim() ? (
         <section className="rounded-2xl border border-border/60 bg-card/40 p-4">
           <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Tool reverse lookup ({matchingTools.length})
+            {t("settings.connectorsReverseLookup")} ({matchingTools.length})
           </h4>
           {matchingTools.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              No loaded tools match. Expand connectors below to load their tools.
-            </p>
+            <p className="text-xs text-muted-foreground">{t("settings.connectorsNoMatch")}</p>
           ) : (
             <ul className="space-y-1.5">
               {matchingTools.map((row) => (
@@ -172,7 +173,8 @@ export function GaConnectorsSection() {
                     {row.tool.name}
                   </span>
                   <span className="text-muted-foreground">
-                    served by <span className="font-mono font-semibold">{row.connector}</span>
+                    {t("settings.connectorsServedBy")}{" "}
+                    <span className="font-mono font-semibold">{row.connector}</span>
                   </span>
                 </li>
               ))}
@@ -184,13 +186,13 @@ export function GaConnectorsSection() {
       {callResult ? (
         <section className="rounded-2xl border border-border/60 bg-card/40 p-4">
           <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Last call: {callResult.connector}/{callResult.tool}
+            {t("settings.connectorsLastCall")}: {callResult.connector}/{callResult.tool}
           </h4>
           <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-background/70 p-3 font-mono text-[11px] text-foreground/90">
             {callResult.content}
           </pre>
           {callResult.truncated ? (
-            <p className="mt-1 text-[11px] text-amber-600">Output truncated to 4 KB.</p>
+            <p className="mt-1 text-[11px] text-amber-600">{t("settings.connectorsTruncated")}</p>
           ) : null}
         </section>
       ) : null}
@@ -198,8 +200,9 @@ export function GaConnectorsSection() {
       <div className="grid gap-4 lg:grid-cols-2">
         {connectors?.length === 0 ? (
           <p className="text-xs text-muted-foreground">
-            No connectors found under <span className="font-mono">connectors/</span>. Drop a{" "}
-            <span className="font-mono">ga.connector.v1</span> JSON file there and refresh.
+            {t("settings.connectorsNonePrefix")} <span className="font-mono">connectors/</span>{" "}
+            {t("settings.connectorsNoneMid")} <span className="font-mono">ga.connector.v1</span>{" "}
+            {t("settings.connectorsNoneSuffix")}
           </p>
         ) : null}
         {(connectors ?? []).map((connector) => {
@@ -239,19 +242,21 @@ export function GaConnectorsSection() {
                   </p>
                 </div>
                 <span className="shrink-0 text-[11px] text-muted-foreground">
-                  {tools.length} tools
+                  {tools.length} {t("settings.connectorsToolsUnit")}
                 </span>
               </button>
 
               {connector.env_keys.length > 0 ? (
                 <p className="mt-1.5 text-[11px] text-muted-foreground">
-                  Env vars: <span className="font-mono">{connector.env_keys.join(", ")}</span>{" "}
-                  (values never leave the adapter)
+                  {t("settings.connectorsEnvVars")}:{" "}
+                  <span className="font-mono">{connector.env_keys.join(", ")}</span>{" "}
+                  {t("settings.connectorsEnvVarsNote")}
                 </p>
               ) : null}
               {connector.redact_keys.length > 0 ? (
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Redact keys: <span className="font-mono">{connector.redact_keys.join(", ")}</span>
+                  {t("settings.connectorsRedactKeys")}:{" "}
+                  <span className="font-mono">{connector.redact_keys.join(", ")}</span>
                 </p>
               ) : null}
               {!connector.valid && connector.error ? (
@@ -261,13 +266,17 @@ export function GaConnectorsSection() {
               {isOpen ? (
                 <div className="mt-3 space-y-2 border-t border-border/40 pt-3">
                   {busy === connector.name ? (
-                    <p className="text-[11px] text-muted-foreground">Listing tools…</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {t("settings.connectorsListing")}
+                    </p>
                   ) : null}
                   {toolError[connector.name] ? (
                     <p className="text-[11px] text-destructive">{toolError[connector.name]}</p>
                   ) : null}
                   {tools.length === 0 && busy !== connector.name ? (
-                    <p className="text-[11px] text-muted-foreground">No tools advertised.</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {t("settings.connectorsNoTools")}
+                    </p>
                   ) : null}
                   {tools.map((tool) => {
                     const argKeys = Object.keys(
@@ -288,7 +297,9 @@ export function GaConnectorsSection() {
                             disabled={running}
                             onClick={() => void runTool(connector.name, tool)}
                           >
-                            {running ? "Calling…" : "Call"}
+                            {running
+                              ? t("settings.connectorsCalling")
+                              : t("settings.connectorsCall")}
                           </Button>
                         </div>
                         {tool.description ? (
@@ -328,13 +339,10 @@ export function GaConnectorsSection() {
       </div>
 
       <p className="text-[11px] text-muted-foreground">
-        {connectors
-          ? `${connectors.length} connector${connectors.length === 1 ? "" : "s"} configured.`
-          : ""}{" "}
-        Connectors are re-scanned on every request; schema{" "}
-        <span className="font-mono">ga.connector.v1</span>, MCP protocol{" "}
-        <span className="font-mono">2024-11-05</span>. Tool results are truncated at 4 KB and
-        redacted through the adapter before leaving it.
+        {connectors ? `${connectors.length} ${t("settings.connectorsConfigured")}` : ""}{" "}
+        {t("settings.connectorsFooter1")} <span className="font-mono">ga.connector.v1</span>
+        {t("settings.connectorsProtocol")} <span className="font-mono">2024-11-05</span>
+        {t("settings.connectorsPeriod")} {t("settings.connectorsFooter2")}
       </p>
     </div>
   );

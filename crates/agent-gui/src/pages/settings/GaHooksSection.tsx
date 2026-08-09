@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, RefreshCw, Zap } from "../../components/icons";
 import { Button } from "../../components/ui/button";
+import { useLocale } from "../../i18n";
 import { gaBridgeClient } from "../../lib/ga/GaBridgeClient";
 import type { GaHooksSnapshot } from "../../lib/ga/types";
 
@@ -16,6 +17,7 @@ const EVENT_LABELS: Record<string, string> = {
 };
 
 export function GaHooksSection() {
+  const { t } = useLocale();
   const [snapshot, setSnapshot] = useState<GaHooksSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,15 +46,13 @@ export function GaHooksSection() {
             <Zap className="h-[18px] w-[18px] text-violet-500" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold">GenericAgent Hooks</h3>
-            <p className="text-xs text-muted-foreground">
-              Read-only lifecycle registrations loaded by the GenericAgent runtime.
-            </p>
+            <h3 className="text-sm font-semibold">{t("settings.hooksTitle")}</h3>
+            <p className="text-xs text-muted-foreground">{t("settings.hooksDesc")}</p>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          Refresh
+          {t("settings.hooksRefresh")}
         </Button>
       </div>
 
@@ -65,8 +65,7 @@ export function GaHooksSection() {
 
       {snapshot?.registry_state === "not_loaded" ? (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-muted-foreground">
-          The Hook Registry has not been loaded yet. Start a GenericAgent conversation, then
-          refresh.
+          {t("settings.hooksRegistryNotLoaded")}
         </div>
       ) : null}
 
@@ -87,7 +86,7 @@ export function GaHooksSection() {
               </div>
               <div className="mt-3 space-y-2">
                 {registrations.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No loaded callbacks</p>
+                  <p className="text-xs text-muted-foreground">{t("settings.hooksNoCallbacks")}</p>
                 ) : (
                   registrations.map((registration) => (
                     <div
@@ -108,14 +107,14 @@ export function GaHooksSection() {
       </div>
       <section className="rounded-2xl border border-border/60 bg-card p-4">
         <div className="flex items-center justify-between gap-3">
-          <h4 className="text-sm font-semibold">Recent lifecycle activity</h4>
+          <h4 className="text-sm font-semibold">{t("settings.hooksRecentActivity")}</h4>
           <span className="text-xs text-muted-foreground">
-            {snapshot?.observations.length ?? 0} buffered
+            {snapshot?.observations.length ?? 0} {t("settings.hooksBuffered")}
           </span>
         </div>
         <div className="mt-3 space-y-2">
           {(snapshot?.observations ?? []).length === 0 ? (
-            <p className="text-xs text-muted-foreground">No observed lifecycle events yet</p>
+            <p className="text-xs text-muted-foreground">{t("settings.hooksNoEventsYet")}</p>
           ) : (
             [...(snapshot?.observations ?? [])]
               .reverse()
@@ -134,10 +133,7 @@ export function GaHooksSection() {
           )}
         </div>
       </section>
-      <p className="text-xs text-muted-foreground">
-        Install or develop Python Hooks through GenericAgent. This view never imports, edits, or
-        executes plugin code.
-      </p>
+      <p className="text-xs text-muted-foreground">{t("settings.hooksFooter")}</p>
     </div>
   );
 }

@@ -12,6 +12,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Textarea } from "../../components/ui/textarea";
+import { useLocale } from "../../i18n";
 import { gaBridgeClient } from "../../lib/ga/GaBridgeClient";
 import type {
   GaAutomation,
@@ -32,13 +33,16 @@ const EMPTY_FORM: GaAutomationInput = {
   max_delay_hours: 6,
 };
 
-function formatRepeat(value: string) {
-  return value.startsWith("every_") ? value.replace("every_", "Every ") : value;
+function formatRepeat(value: string, t: (key: string) => string) {
+  return value.startsWith("every_")
+    ? value.replace("every_", `${t("settings.gaAutoEvery")} `)
+    : value;
 }
 
 type EditorState = { mode: "create" | "edit"; value: GaAutomationInput } | null;
 
 export function GaAutomationSection() {
+  const { t } = useLocale();
   const [snapshot, setSnapshot] = useState<GaAutomationsSnapshot>({
     automations: [],
     diagnostics: [],
@@ -153,10 +157,8 @@ export function GaAutomationSection() {
             <Clock3 className="h-[18px] w-[18px] text-amber-500" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold">GenericAgent Automation</h3>
-            <p className="text-xs text-muted-foreground">
-              Agent Prompt tasks executed by the native GenericAgent scheduler.
-            </p>
+            <h3 className="text-sm font-semibold">{t("settings.gaAutoTitle")}</h3>
+            <p className="text-xs text-muted-foreground">{t("settings.gaAutoDesc")}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -168,7 +170,12 @@ export function GaAutomationSection() {
             }`}
             title={scheduler?.lastError || undefined}
           >
-            Scheduler: {scheduler?.running ? "Running" : scheduler ? "Stopped" : "Unavailable"}
+            {t("settings.gaAutoScheduler")}:{" "}
+            {scheduler?.running
+              ? t("settings.gaAutoRunning")
+              : scheduler
+                ? t("settings.gaAutoStopped")
+                : t("settings.gaAutoUnavailable")}
           </span>
           <Button
             variant="outline"
@@ -176,15 +183,19 @@ export function GaAutomationSection() {
             onClick={() => void toggleScheduler()}
             disabled={!scheduler || schedulerBusy}
           >
-            {schedulerBusy ? "Updating…" : scheduler?.running ? "Stop" : "Start"}
+            {schedulerBusy
+              ? t("settings.gaAutoUpdating")
+              : scheduler?.running
+                ? t("settings.gaAutoStop")
+                : t("settings.gaAutoStart")}
           </Button>
           <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            {t("settings.gaAutoRefresh")}
           </Button>
           <Button size="sm" onClick={() => setEditor({ mode: "create", value: EMPTY_FORM })}>
             <Plus className="h-3.5 w-3.5" />
-            New task
+            {t("settings.gaAutoNewTask")}
           </Button>
         </div>
       </div>
@@ -198,7 +209,7 @@ export function GaAutomationSection() {
 
       {snapshot.diagnostics.length > 0 ? (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-xs text-muted-foreground">
-          {snapshot.diagnostics.length} invalid GenericAgent task definition(s) were isolated:{" "}
+          {snapshot.diagnostics.length} {t("settings.gaAutoInvalidIsolated")}:{" "}
           {snapshot.diagnostics.map((item) => item.id).join(", ")}
         </div>
       ) : null}
@@ -206,7 +217,7 @@ export function GaAutomationSection() {
       <div className="space-y-3">
         {!loading && snapshot.automations.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border/60 px-6 py-12 text-center text-sm text-muted-foreground">
-            No Agent Prompt tasks yet.
+            {t("settings.gaAutoNoTask")}
           </div>
         ) : null}
         {snapshot.automations.map((task) => (
@@ -216,7 +227,7 @@ export function GaAutomationSection() {
                 <div className="flex flex-wrap items-center gap-2">
                   <h4 className="text-sm font-semibold">{task.id}</h4>
                   <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-                    {task.schedule} · {formatRepeat(task.repeat)}
+                    {task.schedule} · {formatRepeat(task.repeat, t)}
                   </span>
                   <span
                     className={`rounded-md px-2 py-0.5 text-[11px] ${
@@ -225,7 +236,9 @@ export function GaAutomationSection() {
                         : "bg-muted text-muted-foreground"
                     }`}
                   >
-                    {task.enabled ? "Enabled" : "Disabled"}
+                    {task.enabled
+                      ? t("settings.gaAutoEnabledBadge")
+                      : t("settings.gaAutoDisabledBadge")}
                   </span>
                 </div>
                 <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-sm text-muted-foreground">
@@ -237,12 +250,12 @@ export function GaAutomationSection() {
               </div>
               <div className="flex shrink-0 flex-wrap justify-end gap-1">
                 <Button variant="ghost" size="sm" onClick={() => void toggleTask(task)}>
-                  {task.enabled ? "Disable" : "Enable"}
+                  {task.enabled ? t("settings.gaAutoDisable") : t("settings.gaAutoEnable")}
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
-                  title="Run reports"
+                  title={t("settings.gaAutoRunTitle")}
                   onClick={() => void showRuns(task.id)}
                 >
                   <Eye className="h-3.5 w-3.5" />
@@ -258,7 +271,11 @@ export function GaAutomationSection() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  title={deletePending === task.id ? "Click again to confirm deletion" : "Delete"}
+                  title={
+                    deletePending === task.id
+                      ? t("settings.gaAutoDeleteConfirm")
+                      : t("settings.gaAutoDelete")
+                  }
                   className={deletePending === task.id ? "text-destructive" : undefined}
                   onClick={() => void deleteTask(task.id)}
                   onBlur={() => setDeletePending(null)}
@@ -281,7 +298,7 @@ export function GaAutomationSection() {
           </div>
           <div className="mt-3 space-y-2">
             {runs.items.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No completed reports.</p>
+              <p className="text-xs text-muted-foreground">{t("settings.gaAutoNoReports")}</p>
             ) : null}
             {runs.items.map((run) => (
               <div
@@ -318,6 +335,7 @@ type AutomationEditorProps = {
 };
 
 function AutomationEditor({ state, saving, onChange, onSave, onClose }: AutomationEditorProps) {
+  const { t } = useLocale();
   const update = (patch: Partial<GaAutomationInput>) =>
     onChange({ ...state, value: { ...state.value, ...patch } });
   const valid =
@@ -337,27 +355,23 @@ function AutomationEditor({ state, saving, onChange, onSave, onClose }: Automati
           <h3 className="text-base font-semibold">
             {state.mode === "create" ? "New Agent Prompt task" : `Edit ${state.value.id}`}
           </h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Uses the local timezone and GenericAgent scheduler cadence.
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{t("settings.gaAutoTimezone")}</p>
         </div>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="ga-automation-id">Task ID</Label>
+            <Label htmlFor="ga-automation-id">{t("settings.gaAutoTaskId")}</Label>
             <Input
               id="ga-automation-id"
               value={state.value.id}
               disabled={state.mode === "edit"}
               maxLength={64}
-              placeholder="daily-review"
+              placeholder={t("settings.gaAutoPlaceholderTask")}
               onChange={(event) => update({ id: event.target.value })}
             />
-            <p className="text-[11px] text-muted-foreground">
-              Letters, numbers, underscore and hyphen.
-            </p>
+            <p className="text-[11px] text-muted-foreground">{t("settings.gaAutoTaskIdHint")}</p>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="ga-automation-schedule">Time</Label>
+            <Label htmlFor="ga-automation-schedule">{t("settings.gaAutoTime")}</Label>
             <Input
               id="ga-automation-schedule"
               type="time"
@@ -366,12 +380,12 @@ function AutomationEditor({ state, saving, onChange, onSave, onClose }: Automati
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="ga-automation-repeat">Repeat</Label>
+            <Label htmlFor="ga-automation-repeat">{t("settings.gaAutoRepeat")}</Label>
             <Input
               id="ga-automation-repeat"
               list="ga-automation-repeat-options"
               value={state.value.repeat}
-              placeholder="daily or every_30m"
+              placeholder={t("settings.gaAutoPlaceholderCadence")}
               onChange={(event) => update({ repeat: event.target.value })}
             />
             <datalist id="ga-automation-repeat-options">
@@ -379,12 +393,10 @@ function AutomationEditor({ state, saving, onChange, onSave, onClose }: Automati
                 <option key={repeat} value={repeat} />
               ))}
             </datalist>
-            <p className="text-[11px] text-muted-foreground">
-              Preset cadence or every_Nm / every_Nh / every_Nd.
-            </p>
+            <p className="text-[11px] text-muted-foreground">{t("settings.gaAutoCadenceHint")}</p>
           </div>
           <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="ga-automation-prompt">Agent Prompt</Label>
+            <Label htmlFor="ga-automation-prompt">{t("settings.gaAutoPrompt")}</Label>
             <Textarea
               id="ga-automation-prompt"
               rows={7}
@@ -394,7 +406,7 @@ function AutomationEditor({ state, saving, onChange, onSave, onClose }: Automati
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="ga-automation-delay">Late-start window (hours)</Label>
+            <Label htmlFor="ga-automation-delay">{t("settings.gaAutoLateWindow")}</Label>
             <Input
               id="ga-automation-delay"
               type="number"
@@ -416,10 +428,10 @@ function AutomationEditor({ state, saving, onChange, onSave, onClose }: Automati
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="outline" onClick={onClose} disabled={saving}>
-            Cancel
+            {t("settings.gaAutoCancel")}
           </Button>
           <Button onClick={onSave} disabled={!valid || saving}>
-            {saving ? "Saving…" : "Save task"}
+            {saving ? t("settings.gaAutoSaving") : t("settings.gaAutoSaveTask")}
           </Button>
         </div>
       </div>

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, Brain, RefreshCw, Upload } from "../../components/icons";
 import { Button } from "../../components/ui/button";
+import { useLocale } from "../../i18n";
 import { gaBridgeClient } from "../../lib/ga/GaBridgeClient";
 import type { GaKnowledgeCatalog, GaMemoryImportResult } from "../../lib/ga/types";
 
 export function GaMemorySection() {
+  const { t } = useLocale();
   const [catalog, setCatalog] = useState<GaKnowledgeCatalog | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,15 +57,13 @@ export function GaMemorySection() {
             <Brain className="h-[18px] w-[18px] text-violet-500" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold">GenericAgent Memory</h3>
-            <p className="text-xs text-muted-foreground">
-              Read-only layered memory metadata exposed by the GenericAgent runtime.
-            </p>
+            <h3 className="text-sm font-semibold">{t("settings.memoryTitle")}</h3>
+            <p className="text-xs text-muted-foreground">{t("settings.memoryDesc")}</p>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          Refresh
+          {t("settings.memoryRefresh")}
         </Button>
       </div>
 
@@ -77,10 +77,11 @@ export function GaMemorySection() {
       <section className="rounded-2xl border border-border/60 bg-card p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h4 className="text-sm font-semibold">Import memory</h4>
+            <h4 className="text-sm font-semibold">{t("settings.memoryImportTitle")}</h4>
             <p className="mt-1 text-xs text-muted-foreground">
-              Merge <code>memory/</code> and <code>temp/model_responses/</code> from another
-              GenericAgent directory into the current runtime (current memory is backed up first).
+              {t("settings.memoryImportDesc1")} <code>memory/</code>{" "}
+              {t("settings.memoryImportDesc2")} <code>temp/model_responses/</code>
+              {t("settings.memoryImportDesc3")}
             </p>
           </div>
         </div>
@@ -98,7 +99,7 @@ export function GaMemorySection() {
             onClick={() => void doImport()}
           >
             <Upload className={`h-3.5 w-3.5 ${importing ? "animate-pulse" : ""}`} />
-            {importing ? "Importing…" : "Import"}
+            {importing ? t("settings.memoryImporting") : t("settings.memoryImport")}
           </Button>
         </div>
         {importResult ? (
@@ -110,14 +111,8 @@ export function GaMemorySection() {
             }`}
           >
             {importResult.ok
-              ? `Imported ${importResult.memory_copied ?? 0} memory file(s), ${
-                  importResult.responses_copied ?? 0
-                } response(s) (${importResult.responses_skipped ?? 0} skipped)${
-                  importResult.sessions_imported
-                    ? `, ${importResult.sessions_imported} session(s)`
-                    : ""
-                }. Backup: ${importResult.backup_dir || "none"}.`
-              : `Import failed: ${importResult.error ?? "unknown error"}`}
+              ? `${t("settings.memoryImported")} ${importResult.memory_copied ?? 0} ${t("settings.memoryFiles")}, ${t("settings.memoryResponses")} ${importResult.responses_copied ?? 0} (${t("settings.memorySkipped")} ${importResult.responses_skipped ?? 0})${importResult.sessions_imported ? `, ${importResult.sessions_imported} ${t("settings.memorySessions")}` : ""}. ${t("settings.memoryBackup")} ${importResult.backup_dir || t("settings.memoryNone")}.`
+              : `${t("settings.memoryImportFailed")}: ${importResult.error ?? t("settings.memoryUnknown")}`}
           </div>
         ) : null}
       </section>
@@ -125,20 +120,18 @@ export function GaMemorySection() {
       <section className="rounded-2xl border border-border/60 bg-card p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h4 className="text-sm font-semibold">Layered memory</h4>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Runtime-owned layers and their declared purpose.
-            </p>
+            <h4 className="text-sm font-semibold">{t("settings.memoryLayeredTitle")}</h4>
+            <p className="mt-1 text-xs text-muted-foreground">{t("settings.memoryLayeredDesc")}</p>
           </div>
           <span className="text-xs text-muted-foreground">
-            {catalog?.memory.layers.length ?? 0} layers
+            {catalog?.memory.layers.length ?? 0} {t("settings.memoryLayers")}
           </span>
         </div>
 
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           {(catalog?.memory.layers ?? []).length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              {loading ? "Loading memory catalog…" : "No memory layers are available."}
+              {loading ? t("settings.memoryLoading") : t("settings.memoryNoLayers")}
             </p>
           ) : (
             catalog?.memory.layers.map((layer) => (
@@ -155,10 +148,7 @@ export function GaMemorySection() {
         </div>
       </section>
 
-      <p className="text-xs text-muted-foreground">
-        Memory content and file paths stay inside GenericAgent. This view does not run a local
-        organizer, extraction engine, or memory database.
-      </p>
+      <p className="text-xs text-muted-foreground">{t("settings.memoryFooter")}</p>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { useLocale } from "../../i18n";
 import { gaBridgeClient } from "../../lib/ga/GaBridgeClient";
 import type {
   GaModelApiMode,
@@ -189,6 +190,7 @@ function toInput(value: FormValue, creating: boolean): GaModelProfileInput {
 }
 
 export function GaModelProfilesSection() {
+  const { t } = useLocale();
   const [snapshot, setSnapshot] = useState<GaModelProfilesSnapshot>(EMPTY_SNAPSHOT);
   const [editor, setEditor] = useState<EditorState>(null);
   const [editorSection, setEditorSection] = useState<EditorSection>("connection");
@@ -339,9 +341,9 @@ export function GaModelProfilesSection() {
               <Server className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base font-semibold">Model profiles</h2>
+              <h2 className="text-base font-semibold">t("settings.gaModelTitle")</h2>
               <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                GenericAgent runtime models and request behavior.
+                t("settings.gaModelDesc")
               </p>
             </div>
           </div>
@@ -367,11 +369,11 @@ export function GaModelProfilesSection() {
               disabled={loading}
             >
               <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
-              Refresh
+              t("settings.gaModelRefresh")
             </Button>
             <Button type="button" size="sm" className="gap-1.5" onClick={openCreate}>
               <Plus className="h-3.5 w-3.5" />
-              Add model
+              t("settings.gaModelAdd")
             </Button>
           </div>
         </div>
@@ -388,10 +390,10 @@ export function GaModelProfilesSection() {
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  aria-label="Search model profiles"
+                  aria-label={t("settings.gaModelSearchLabel")}
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search profiles"
+                  placeholder={t("settings.gaModelSearchPlaceholder")}
                   className="h-9 rounded-lg pl-9 text-xs"
                 />
               </div>
@@ -446,7 +448,9 @@ export function GaModelProfilesSection() {
                             </span>
                             <span className="mt-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/80">
                               {readOnly ? "mix-in" : (profile.protocol ?? "unknown")}
-                              {profile.api_key_configured ? <span>• key ready</span> : null}
+                              {profile.api_key_configured ? (
+                                <span>• t("settings.gaModelKeyReady")</span>
+                              ) : null}
                             </span>
                           </span>
                         </div>
@@ -492,7 +496,7 @@ export function GaModelProfilesSection() {
                         onClick={() => void setDefault(selectedProfile)}
                         disabled={busyId !== null}
                       >
-                        Set default
+                        t("settings.gaModelSetDefault")
                       </Button>
                     ) : null}
                     {selectedProfile.kind !== "mixin" ? (
@@ -505,7 +509,7 @@ export function GaModelProfilesSection() {
                         disabled={busyId !== null}
                       >
                         <Pencil className="h-3.5 w-3.5" />
-                        Edit
+                        t("settings.gaModelEdit")
                       </Button>
                     ) : null}
                     {selectedProfile.kind !== "mixin" ? (
@@ -518,7 +522,7 @@ export function GaModelProfilesSection() {
                         disabled={busyId !== null || selectedProfile.active}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                        Delete
+                        t("settings.gaModelDelete")
                       </Button>
                     ) : null}
                   </div>
@@ -527,31 +531,30 @@ export function GaModelProfilesSection() {
                 <div className="min-h-0 flex-1 overflow-y-auto p-5">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <InfoTile
-                      label="API base"
+                      label={t("settings.gaModelApiBase")}
                       value={selectedProfile.apibase || "Not configured"}
                       wide
                     />
                     <InfoTile
-                      label="API key"
+                      label={t("settings.gaModelApiKey")}
                       value={selectedProfile.api_key_configured ? "Configured" : "Not configured"}
                       tone={selectedProfile.api_key_configured ? "success" : "muted"}
                     />
                     <InfoTile
-                      label="Protocol source"
+                      label={t("settings.gaModelProtocol")}
                       value={selectedProfile.protocol_source ?? "Unknown"}
                     />
                     <InfoTile
-                      label="Streaming"
+                      label={t("settings.gaModelStream")}
                       value={selectedProfile.stream === false ? "Disabled" : "Enabled"}
                     />
                   </div>
 
                   {selectedProfile.kind === "mixin" ? (
                     <div className="mt-5 rounded-xl border border-border/70 bg-muted/25 p-4">
-                      <h4 className="text-sm font-semibold">Read-only mix-in</h4>
+                      <h4 className="text-sm font-semibold">t("settings.gaModelReadonlyMix")</h4>
                       <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                        This profile is composed by GenericAgent and cannot be edited from the
-                        desktop UI.
+                        {t("settings.gaModelReadonlyDesc")}
                       </p>
                       {selectedProfile.members?.length ? (
                         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -569,24 +572,27 @@ export function GaModelProfilesSection() {
                   ) : (
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">
                       <SummaryTile
-                        label="API mode"
+                        label={t("settings.gaModelApiMode")}
                         value={selectedProfile.api_mode ?? "chat_completions"}
                       />
                       <SummaryTile
-                        label="Reasoning"
+                        label={t("settings.gaModelReasoning")}
                         value={selectedProfile.reasoning_effort || "Provider default"}
                       />
                       <SummaryTile
-                        label="Context window"
+                        label={t("settings.gaModelCtxWindow")}
                         value={formatNumber(selectedProfile.context_win)}
                       />
                       <SummaryTile
-                        label="Max output tokens"
+                        label={t("settings.gaModelMaxOutTokens")}
                         value={formatNumber(selectedProfile.max_tokens)}
                       />
-                      <SummaryTile label="Timeouts" value={formatTimeouts(selectedProfile)} />
                       <SummaryTile
-                        label="Security"
+                        label={t("settings.gaModelTimeouts")}
+                        value={formatTimeouts(selectedProfile)}
+                      />
+                      <SummaryTile
+                        label={t("settings.gaModelSecurity")}
                         value={
                           selectedProfile.verify === false ? "TLS verification off" : "TLS verified"
                         }
@@ -600,14 +606,13 @@ export function GaModelProfilesSection() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
                   <Server className="h-5 w-5" />
                 </div>
-                <h3 className="mt-4 text-sm font-semibold">No model profile selected</h3>
+                <h3 className="mt-4 text-sm font-semibold">t("settings.gaModelNoneSelected")</h3>
                 <p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">
-                  Add a GenericAgent model profile or select one from the list to review its runtime
-                  settings.
+                  {t("settings.gaModelNoneSelectedDesc")}
                 </p>
                 <Button type="button" size="sm" className="mt-4 gap-1.5" onClick={openCreate}>
                   <Plus className="h-3.5 w-3.5" />
-                  Add model
+                  t("settings.gaModelAdd")
                 </Button>
               </div>
             )}
@@ -637,7 +642,7 @@ export function GaModelProfilesSection() {
                       {editor.mode === "create" ? "Add model profile" : "Edit model profile"}
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">
-                      Changes are written to the GenericAgent runtime profile.
+                      t("settings.gaModelWriteNote")
                     </div>
                   </div>
                   <Button
@@ -647,7 +652,7 @@ export function GaModelProfilesSection() {
                     className="h-9 w-9 shrink-0 rounded-full border border-black/[0.06] bg-black/[0.04] text-muted-foreground hover:bg-black/[0.08] hover:text-foreground dark:border-white/10 dark:bg-white/[0.06] dark:hover:bg-white/[0.12]"
                     onClick={() => setEditor(null)}
                     disabled={saving}
-                    aria-label="Close editor"
+                    aria-label={t("settings.gaModelCloseEditor")}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -657,27 +662,27 @@ export function GaModelProfilesSection() {
                   <div className="grid min-h-0 gap-4 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
                     <aside className="h-fit rounded-2xl border border-black/[0.06] bg-white/[0.68] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] dark:border-white/[0.08] dark:bg-white/[0.04] dark:shadow-none">
                       <p className="px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                        Profile settings
+                        t("settings.gaModelProfileSettings")
                       </p>
                       <div className="space-y-1">
                         <EditorNavButton
                           active={editorSection === "connection"}
                           icon={<Server className="h-4 w-4" />}
-                          label="Connection"
+                          label={t("settings.gaModelLblConnection")}
                           description="Model and credentials"
                           onClick={() => setEditorSection("connection")}
                         />
                         <EditorNavButton
                           active={editorSection === "runtime"}
                           icon={<Settings2 className="h-4 w-4" />}
-                          label="Runtime"
+                          label={t("settings.gaModelLblRuntime")}
                           description="Generation behavior"
                           onClick={() => setEditorSection("runtime")}
                         />
                         <EditorNavButton
                           active={editorSection === "transport"}
                           icon={<Search className="h-4 w-4" />}
-                          label="Transport"
+                          label={t("settings.gaModelLblTransport")}
                           description="Headers and security"
                           onClick={() => setEditorSection("transport")}
                         />
@@ -693,7 +698,7 @@ export function GaModelProfilesSection() {
                           />
                           <div className="grid gap-4 sm:grid-cols-2">
                             <Field
-                              label="Display name"
+                              label={t("settings.gaModelDisplayName")}
                               htmlFor="model-profile-name"
                               hint="Optional label shown in the model picker."
                             >
@@ -701,11 +706,11 @@ export function GaModelProfilesSection() {
                                 id="model-profile-name"
                                 value={editor.value.name}
                                 onChange={(event) => updateForm("name", event.target.value)}
-                                placeholder="Production model"
+                                placeholder={t("settings.gaModelDisplayNamePh")}
                               />
                             </Field>
                             <Field
-                              label="Protocol"
+                              label={t("settings.gaModelProtocol")}
                               htmlFor="model-profile-protocol"
                               hint={
                                 editor.mode === "edit"
@@ -725,11 +730,11 @@ export function GaModelProfilesSection() {
                                   )
                                 }
                               >
-                                <option value="oai">OpenAI compatible</option>
-                                <option value="claude">Claude compatible</option>
+                                <option value="oai">t("settings.gaModelOpenAICompat")</option>
+                                <option value="claude">t("settings.gaModelClaudeCompat")</option>
                               </select>
                             </Field>
-                            <Field label="Model" htmlFor="model-profile-model">
+                            <Field label={t("settings.gaModelModel")} htmlFor="model-profile-model">
                               <Input
                                 id="model-profile-model"
                                 value={editor.value.model}
@@ -738,7 +743,10 @@ export function GaModelProfilesSection() {
                                 autoFocus={editor.mode === "create"}
                               />
                             </Field>
-                            <Field label="API base" htmlFor="model-profile-base">
+                            <Field
+                              label={t("settings.gaModelApiBase")}
+                              htmlFor="model-profile-base"
+                            >
                               <Input
                                 id="model-profile-base"
                                 value={editor.value.apibase}
@@ -748,7 +756,7 @@ export function GaModelProfilesSection() {
                             </Field>
                             <div className="sm:col-span-2">
                               <Field
-                                label="API key"
+                                label={t("settings.gaModelApiKey")}
                                 htmlFor="model-profile-key"
                                 hint={
                                   editor.mode === "edit"
@@ -781,7 +789,10 @@ export function GaModelProfilesSection() {
                             description="Tune retries, request limits, and generation behavior."
                           />
                           <div className="grid gap-4 sm:grid-cols-2">
-                            <Field label="Max retries" htmlFor="model-profile-retries">
+                            <Field
+                              label={t("settings.gaModelMaxRetries")}
+                              htmlFor="model-profile-retries"
+                            >
                               <Input
                                 id="model-profile-retries"
                                 type="number"
@@ -790,7 +801,10 @@ export function GaModelProfilesSection() {
                                 onChange={(event) => updateForm("max_retries", event.target.value)}
                               />
                             </Field>
-                            <Field label="Connect timeout" htmlFor="model-profile-connect">
+                            <Field
+                              label={t("settings.gaModelConnectTimeout")}
+                              htmlFor="model-profile-connect"
+                            >
                               <Input
                                 id="model-profile-connect"
                                 type="number"
@@ -801,7 +815,10 @@ export function GaModelProfilesSection() {
                                 }
                               />
                             </Field>
-                            <Field label="Read timeout" htmlFor="model-profile-read">
+                            <Field
+                              label={t("settings.gaModelReadTimeout")}
+                              htmlFor="model-profile-read"
+                            >
                               <Input
                                 id="model-profile-read"
                                 type="number"
@@ -817,9 +834,12 @@ export function GaModelProfilesSection() {
                                 checked={editor.value.stream}
                                 onChange={(event) => updateForm("stream", event.target.checked)}
                               />
-                              Stream responses
+                              t("settings.gaModelStream")
                             </label>
-                            <Field label="OpenAI API mode" htmlFor="model-profile-api-mode">
+                            <Field
+                              label={t("settings.gaModelApiMode")}
+                              htmlFor="model-profile-api-mode"
+                            >
                               <select
                                 id="model-profile-api-mode"
                                 className={SELECT_CLASS}
@@ -828,11 +848,18 @@ export function GaModelProfilesSection() {
                                   updateForm("api_mode", event.target.value as GaModelApiMode)
                                 }
                               >
-                                <option value="chat_completions">Chat Completions</option>
-                                <option value="responses">Responses</option>
+                                <option value="chat_completions">
+                                  t("settings.gaModelApiModeOpenAI")
+                                </option>
+                                <option value="responses">
+                                  t("settings.gaModelApiModeResponses")
+                                </option>
                               </select>
                             </Field>
-                            <Field label="Reasoning effort" htmlFor="model-profile-reasoning">
+                            <Field
+                              label={t("settings.gaModelReasonEffort")}
+                              htmlFor="model-profile-reasoning"
+                            >
                               <select
                                 id="model-profile-reasoning"
                                 className={SELECT_CLASS}
@@ -844,17 +871,20 @@ export function GaModelProfilesSection() {
                                   )
                                 }
                               >
-                                <option value="">Provider default</option>
-                                <option value="none">None</option>
-                                <option value="minimal">Minimal</option>
-                                <option value="low">Low</option>
-                                <option value="medium">Medium</option>
-                                <option value="high">High</option>
-                                <option value="xhigh">Extra high</option>
-                                <option value="max">Maximum</option>
+                                <option value="">t("settings.gaModelReasonDefault")</option>
+                                <option value="none">t("settings.gaModelReasonNone")</option>
+                                <option value="minimal">t("settings.gaModelReasonMinimal")</option>
+                                <option value="low">t("settings.gaModelReasonLow")</option>
+                                <option value="medium">t("settings.gaModelReasonMed")</option>
+                                <option value="high">t("settings.gaModelReasonHigh")</option>
+                                <option value="xhigh">t("settings.gaModelReasonXHigh")</option>
+                                <option value="max">t("settings.gaModelReasonMax")</option>
                               </select>
                             </Field>
-                            <Field label="Service tier" htmlFor="model-profile-service-tier">
+                            <Field
+                              label={t("settings.gaModelServiceTier")}
+                              htmlFor="model-profile-service-tier"
+                            >
                               <select
                                 id="model-profile-service-tier"
                                 className={SELECT_CLASS}
@@ -866,14 +896,17 @@ export function GaModelProfilesSection() {
                                   )
                                 }
                               >
-                                <option value="">Provider default</option>
-                                <option value="auto">Auto</option>
-                                <option value="default">Default</option>
-                                <option value="priority">Priority</option>
-                                <option value="flex">Flex</option>
+                                <option value="">t("settings.gaModelReasonDefault")</option>
+                                <option value="auto">t("settings.gaModelTierAuto")</option>
+                                <option value="default">t("settings.gaModelDefault")</option>
+                                <option value="priority">t("settings.gaModelTierPriority")</option>
+                                <option value="flex">t("settings.gaModelTierFlex")</option>
                               </select>
                             </Field>
-                            <Field label="Thinking mode" htmlFor="model-profile-thinking-type">
+                            <Field
+                              label={t("settings.gaModelThinking")}
+                              htmlFor="model-profile-thinking-type"
+                            >
                               <select
                                 id="model-profile-thinking-type"
                                 className={SELECT_CLASS}
@@ -885,14 +918,16 @@ export function GaModelProfilesSection() {
                                   )
                                 }
                               >
-                                <option value="">Provider default</option>
-                                <option value="adaptive">Adaptive</option>
-                                <option value="enabled">Enabled</option>
-                                <option value="disabled">Disabled</option>
+                                <option value="">t("settings.gaModelReasonDefault")</option>
+                                <option value="adaptive">
+                                  t("settings.gaModelThinkingAdaptive")
+                                </option>
+                                <option value="enabled">t("settings.gaModelThinkingOn")</option>
+                                <option value="disabled">t("settings.gaModelThinkingOff")</option>
                               </select>
                             </Field>
                             <Field
-                              label="Thinking budget tokens"
+                              label={t("settings.gaModelThinkBudget")}
                               htmlFor="model-profile-thinking-budget"
                             >
                               <Input
@@ -906,7 +941,10 @@ export function GaModelProfilesSection() {
                                 placeholder="32768"
                               />
                             </Field>
-                            <Field label="Temperature" htmlFor="model-profile-temperature">
+                            <Field
+                              label={t("settings.gaModelTemperature")}
+                              htmlFor="model-profile-temperature"
+                            >
                               <Input
                                 id="model-profile-temperature"
                                 type="number"
@@ -918,7 +956,10 @@ export function GaModelProfilesSection() {
                                 placeholder="1"
                               />
                             </Field>
-                            <Field label="Max output tokens" htmlFor="model-profile-max-tokens">
+                            <Field
+                              label={t("settings.gaModelMaxOutTokens")}
+                              htmlFor="model-profile-max-tokens"
+                            >
                               <Input
                                 id="model-profile-max-tokens"
                                 type="number"
@@ -928,7 +969,10 @@ export function GaModelProfilesSection() {
                                 placeholder="8192"
                               />
                             </Field>
-                            <Field label="Context window" htmlFor="model-profile-context-win">
+                            <Field
+                              label={t("settings.gaModelCtxWindow")}
+                              htmlFor="model-profile-context-win"
+                            >
                               <Input
                                 id="model-profile-context-win"
                                 type="number"
@@ -939,7 +983,7 @@ export function GaModelProfilesSection() {
                               />
                             </Field>
                             <Field
-                              label="Keep first messages when trimming"
+                              label={t("settings.gaModelKeepFirst")}
                               htmlFor="model-profile-trim-prefix"
                               hint="0 is valid and keeps the default trimming behavior."
                             >
@@ -967,7 +1011,7 @@ export function GaModelProfilesSection() {
                           <div className="grid gap-4 sm:grid-cols-2">
                             <div className="sm:col-span-2">
                               <Field
-                                label="Session proxy"
+                                label={t("settings.gaModelSessionProxy")}
                                 htmlFor="model-profile-proxy"
                                 hint="Credentials embedded in an existing proxy are hidden and preserved unless you replace the whole value."
                               >
@@ -979,7 +1023,10 @@ export function GaModelProfilesSection() {
                                 />
                               </Field>
                             </div>
-                            <Field label="User-Agent override" htmlFor="model-profile-user-agent">
+                            <Field
+                              label={t("settings.gaModelUaOverride")}
+                              htmlFor="model-profile-user-agent"
+                            >
                               <Input
                                 id="model-profile-user-agent"
                                 value={editor.value.user_agent}
@@ -987,7 +1034,10 @@ export function GaModelProfilesSection() {
                                 placeholder="codex_cli/0.139.0"
                               />
                             </Field>
-                            <Field label="Originator" htmlFor="model-profile-originator">
+                            <Field
+                              label={t("settings.gaModelOriginator")}
+                              htmlFor="model-profile-originator"
+                            >
                               <Input
                                 id="model-profile-originator"
                                 value={editor.value.originator}
@@ -998,33 +1048,33 @@ export function GaModelProfilesSection() {
                           </div>
                           <div className="border-t border-black/[0.06] pt-4 dark:border-white/[0.08]">
                             <p className="text-xs font-semibold text-foreground/80">
-                              Compatibility and security
+                              t("settings.gaModelCompatSecurity")
                             </p>
                             <div className="mt-3 grid gap-2 sm:grid-cols-2">
                               <ToggleField
                                 checked={editor.value.codex_client}
                                 onChange={(checked) => updateForm("codex_client", checked)}
-                                label="Codex client fingerprint"
+                                label={t("settings.gaModelCodexFingerprint")}
                               />
                               <ToggleField
                                 checked={editor.value.codex_client_metadata}
                                 onChange={(checked) => updateForm("codex_client_metadata", checked)}
-                                label="Send Codex client metadata"
+                                label={t("settings.gaModelSendCodex")}
                               />
                               <ToggleField
                                 checked={editor.value.fake_cc_system_prompt}
                                 onChange={(checked) => updateForm("fake_cc_system_prompt", checked)}
-                                label="Claude Code-compatible system prompt"
+                                label={t("settings.gaModelClaudePrompt")}
                               />
                               <ToggleField
                                 checked={editor.value.verify}
                                 onChange={(checked) => updateForm("verify", checked)}
-                                label="Verify TLS certificates"
+                                label={t("settings.gaModelVerifyTls")}
                               />
                               <ToggleField
                                 checked={editor.value.omit_thinking}
                                 onChange={(checked) => updateForm("omit_thinking", checked)}
-                                label="Omit thinking blocks from history"
+                                label={t("settings.gaModelOmitThinking")}
                               />
                             </div>
                           </div>
@@ -1041,7 +1091,7 @@ export function GaModelProfilesSection() {
                     onClick={() => setEditor(null)}
                     disabled={saving}
                   >
-                    Cancel
+                    t("settings.gaModelCancel")
                   </Button>
                   <Button type="button" onClick={() => void saveEditor()} disabled={saving}>
                     {saving ? "Saving…" : "Save profile"}

@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { GlassPanel, HubBackdrop, HubHeader } from "../../components/hub/HubChrome";
 import { BookOpen, Brain, Loader2, RefreshCw, Sparkles } from "../../components/icons";
 import { Button } from "../../components/ui/button";
+import { useLocale } from "../../i18n";
 import { gaBridgeClient } from "../../lib/ga/GaBridgeClient";
 import type { GaKnowledgeCatalog, GaMorphlingClassifyResult } from "../../lib/ga/types";
 
 export function KnowledgeHubPage(props: { sidebarOpen: boolean; onOpenSidebar: () => void }) {
+  const { t } = useLocale();
   const [catalog, setCatalog] = useState<GaKnowledgeCatalog | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,8 +50,8 @@ export function KnowledgeHubPage(props: { sidebarOpen: boolean; onOpenSidebar: (
       <HubBackdrop tone="neutral" />
       <HubHeader
         icon={<BookOpen className="h-5 w-5" />}
-        title="Knowledge"
-        subtitle="GenericAgent skills, layered memory, and Morphling capability absorption"
+        title={t("settings.gaKnowledgeTitle")}
+        subtitle={t("settings.gaKnowledgeSubtitle")}
         tone="neutral"
         sidebarOpen={props.sidebarOpen}
         onOpenSidebar={props.onOpenSidebar}
@@ -60,7 +62,7 @@ export function KnowledgeHubPage(props: { sidebarOpen: boolean; onOpenSidebar: (
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}
-            Refresh
+            {t("settings.gaKnowledgeRefresh")}
           </Button>
         }
       />
@@ -72,7 +74,7 @@ export function KnowledgeHubPage(props: { sidebarOpen: boolean; onOpenSidebar: (
         ) : null}
         {loading && !catalog ? (
           <div className="flex min-h-48 items-center justify-center text-muted-foreground">
-            <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading GA knowledge…
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" /> {t("settings.gaKnowledgeLoading")}
           </div>
         ) : null}
         {catalog ? (
@@ -108,7 +110,9 @@ export function KnowledgeHubPage(props: { sidebarOpen: boolean; onOpenSidebar: (
                             </span>
                           ))
                         ) : (
-                          <span className="text-xs text-muted-foreground">No trigger metadata</span>
+                          <span className="text-xs text-muted-foreground">
+                            {t("settings.gaKnowledgeNoTriggerMetadata")}
+                          </span>
                         )}
                       </div>
                     </GlassPanel>
@@ -214,11 +218,7 @@ export function KnowledgeHubPage(props: { sidebarOpen: boolean; onOpenSidebar: (
               </GlassPanel>
             </section>
 
-            <p className="text-center text-xs text-muted-foreground">
-              Read-only metadata from GenericAgent. File paths and knowledge content are never
-              exposed here. Skills and SOPs are discovered by the GA kernel on every request;
-              placing files in the GA skills directory takes effect on next refresh.
-            </p>
+            <p className="text-center text-xs text-muted-foreground"> </p>
           </div>
         ) : null}
       </main>
