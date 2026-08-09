@@ -2839,10 +2839,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.host != "127.0.0.1":
         parser.error("--host must be 127.0.0.1")
     source_root = resolve_ga_root(args.ga_root)
-    source_manifest = load_manifest(source_root / "runtime_manifest.json")
+    source_manifest_path = source_root / "runtime_manifest.json"
+    source_manifest = load_manifest(
+        source_manifest_path if source_manifest_path.is_file() else MANIFEST_PATH
+    )
     verify_official_bridge(source_root, source_manifest)
     root = prepare_data_root(source_root, Path(args.data_root), source_manifest) if args.data_root else source_root
-    runtime_manifest = load_manifest(root / "runtime_manifest.json")
+    runtime_manifest_path = root / "runtime_manifest.json"
+    runtime_manifest = load_manifest(
+        runtime_manifest_path if runtime_manifest_path.is_file() else MANIFEST_PATH
+    )
     verify_official_bridge(root, runtime_manifest)
     if args.check:
         print(json.dumps({"status": "compatible", "ga_commit": runtime_manifest["ga_commit"], "ga_root": str(root)}))
