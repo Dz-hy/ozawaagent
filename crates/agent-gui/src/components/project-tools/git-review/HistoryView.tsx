@@ -180,7 +180,6 @@ function commitRefChipClass(kind: CommitRefKind, selected: boolean) {
         baseClass,
         "border-sky-300/60 bg-sky-50 text-sky-700 ring-sky-200/70 dark:border-sky-300/35 dark:bg-sky-950/45 dark:text-sky-200 dark:ring-sky-300/15",
       );
-    case "ref":
     default:
       return cn(baseClass, "border-border/70 bg-muted/50 text-muted-foreground ring-border/60");
   }
@@ -197,7 +196,6 @@ function CommitRefTagIcon({ kind, variant }: { kind: CommitRefKind; variant: "li
       return <Cloud className={className} aria-hidden="true" />;
     case "tag":
       return <Tag className={className} aria-hidden="true" />;
-    case "ref":
     default:
       return <GitCommitHorizontal className={className} aria-hidden="true" />;
   }

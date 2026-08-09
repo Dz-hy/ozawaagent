@@ -19,7 +19,7 @@ export function resolveMemorySummaryModelSelection(
   const provider = settings.customProviders.find(
     (item) => item.id === summaryModel.customProviderId,
   );
-  if (!provider || !provider.activeModels.includes(summaryModel.model)) {
+  if (!provider?.activeModels.includes(summaryModel.model)) {
     return null;
   }
 
@@ -41,7 +41,7 @@ export function resolveConversationTitleModelSelection(
   }
 
   const provider = settings.customProviders.find((item) => item.id === titleModel.customProviderId);
-  if (!provider || !provider.activeModels.includes(titleModel.model)) {
+  if (!provider?.activeModels.includes(titleModel.model)) {
     return fallback;
   }
 

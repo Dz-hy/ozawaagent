@@ -1582,7 +1582,7 @@ export function normalizeAgentPromptTemplates(input: unknown): AgentPromptTempla
 export function normalizeSkillsSettings(input: unknown): SkillsSettings {
   const obj = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
   return {
-    enabled: obj.enabled === false ? false : true,
+    enabled: obj.enabled !== false,
     selected: mergeAlwaysEnabledSkillNames(normalizeStringArray(obj.selected)),
   };
 }

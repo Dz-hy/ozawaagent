@@ -183,7 +183,7 @@ export function expandIdentityPath(homePath: string, path: string) {
     if (trimmed.startsWith("$HOME/") || trimmed.startsWith("$HOME\\")) {
       return joinIdentityPath(homePath, trimmed.slice(6), profile);
     }
-    if (trimmed.startsWith("${HOME}/") || trimmed.startsWith("${HOME}\\")) {
+    if (trimmed.startsWith("$" + "{HOME}/") || trimmed.startsWith("$" + "{HOME}\\")) {
       return joinIdentityPath(homePath, trimmed.slice(8), profile);
     }
     if (/^%USERPROFILE%[\\/]/i.test(trimmed)) {
@@ -197,7 +197,8 @@ export function expandIdentityPath(homePath: string, path: string) {
   }
   if (trimmed.startsWith("~/")) return joinIdentityPath(homePath, trimmed.slice(2), profile);
   if (trimmed.startsWith("$HOME/")) return joinIdentityPath(homePath, trimmed.slice(6), profile);
-  if (trimmed.startsWith("${HOME}/")) return joinIdentityPath(homePath, trimmed.slice(8), profile);
+  if (trimmed.startsWith("$" + "{HOME}/"))
+    return joinIdentityPath(homePath, trimmed.slice(8), profile);
   if (trimmed.startsWith("/")) return trimmed.replace(/\/+$/, "");
   return joinIdentityPath(homePath, trimmed, profile);
 }

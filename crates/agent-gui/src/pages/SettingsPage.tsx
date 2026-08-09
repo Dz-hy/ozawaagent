@@ -53,8 +53,6 @@ function getSaveIndicator(state: SettingsPageProps["saveState"], t: (key: string
         text: t("settings.saveError"),
         title: state.message,
       };
-    case "saved":
-    case "idle":
     default:
       return {
         dotClass: "bg-emerald-500",
