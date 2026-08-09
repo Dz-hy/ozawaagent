@@ -107,9 +107,9 @@ export const RetryDetailsBlock = memo(function RetryDetailsBlock({
             {/* Index-keyed: attempt ordinals can repeat within one list (text
                 mode's tool-recovery loop restarts each wrapper's counter at 1)
                 and the list is append-only, so the index is the stable key. */}
-            {attempts.map((entry, index) => (
+            {attempts.map((entry) => (
               <div
-                key={`${index}-${entry.attempt}-${entry.maxAttempts}`}
+                key={String(entry.attempt)}
                 className="rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 text-[calc(12px*var(--zone-font-scale,1))] text-muted-foreground"
               >
                 <div className="font-medium text-foreground/80">

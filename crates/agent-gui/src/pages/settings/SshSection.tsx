@@ -298,7 +298,13 @@ function SshHostModal(props: {
       className="settings-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4"
       data-state={modalState}
     >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={requestClose} />
+      <button
+        type="button"
+        aria-hidden
+        tabIndex={-1}
+        className="absolute inset-0 cursor-default bg-black/60 backdrop-blur-sm"
+        onClick={requestClose}
+      />
       <div className="settings-modal-panel relative z-10 flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
         <div className="settings-modal-header flex items-center gap-3 border-b px-6 py-4">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500">
@@ -723,7 +729,13 @@ function SshImportModal(props: {
       className="settings-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4"
       data-state={modalState}
     >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={requestClose} />
+      <button
+        type="button"
+        aria-hidden
+        tabIndex={-1}
+        className="absolute inset-0 cursor-default bg-black/60 backdrop-blur-sm"
+        onClick={requestClose}
+      />
       <div className="settings-modal-panel relative z-10 flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
         <div className="settings-modal-header flex items-center gap-3 border-b px-6 py-4">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500">

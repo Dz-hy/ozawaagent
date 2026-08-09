@@ -222,6 +222,7 @@ export const ChatTranscript = memo(function ChatTranscript(props: ChatTranscript
   const jumpToBottomLabel = locale === "en-US" ? "Scroll to bottom" : "回到底部";
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: 转录区容器级右键菜单（复制选中文本），键盘操作经菜单项按钮
     <div
       ref={transcriptRootRef}
       className="relative min-h-0 flex-1"

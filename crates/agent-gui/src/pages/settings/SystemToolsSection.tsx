@@ -344,10 +344,11 @@ function ToolDetailModal(props: { detail: ToolDetail; onClose: () => void }) {
       className="settings-modal-overlay settings-tool-detail-overlay fixed inset-0 z-50 flex items-center justify-center p-4"
       data-state={modalState}
     >
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        role="presentation"
+      <button
+        type="button"
+        aria-hidden
         tabIndex={-1}
+        className="absolute inset-0 cursor-default bg-black/60 backdrop-blur-sm"
         onClick={requestClose}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {

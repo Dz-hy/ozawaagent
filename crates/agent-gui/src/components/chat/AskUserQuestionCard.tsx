@@ -319,6 +319,7 @@ export function AskUserQuestionCard({
             {/* UI 合成的“其他（自行输入）”行：固定在选项最底部，不属于模型给出的
                 options；选中后展开单行输入框，键入文本即该题应答。选项行是
                 button 而 input 不能嵌套其中，故此行用 div role="radio"。 */}
+            {/* biome-ignore lint/a11y/useSemanticElements: 选项行是自定义交互，按钮内不能嵌套 input，radio 语义由 role 承担 */}
             <div
               role="radio"
               aria-checked={activeCustomSelected}

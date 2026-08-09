@@ -94,10 +94,11 @@ export function GitRemoteSetupModal(props: {
       aria-modal="true"
       aria-labelledby={titleId}
     >
-      <div
-        className="absolute inset-0 bg-black/55 backdrop-blur-sm"
-        role="presentation"
+      <button
+        type="button"
+        aria-hidden
         tabIndex={-1}
+        className="absolute inset-0 cursor-default bg-black/55 backdrop-blur-sm"
         onClick={loading ? undefined : onClose}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
@@ -204,10 +205,11 @@ export function GitDiscardConfirmModal(props: {
       aria-modal="true"
       aria-labelledby={titleId}
     >
-      <div
-        className="absolute inset-0 bg-black/55 backdrop-blur-sm"
-        role="presentation"
+      <button
+        type="button"
+        aria-hidden
         tabIndex={-1}
+        className="absolute inset-0 cursor-default bg-black/55 backdrop-blur-sm"
         onClick={loading ? undefined : onClose}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
@@ -278,10 +280,11 @@ export function GitBranchFromCommitModal(props: {
       aria-modal="true"
       aria-labelledby={titleId}
     >
-      <div
-        className="absolute inset-0 bg-black/55 backdrop-blur-sm"
-        role="presentation"
+      <button
+        type="button"
+        aria-hidden
         tabIndex={-1}
+        className="absolute inset-0 cursor-default bg-black/55 backdrop-blur-sm"
         onClick={loading ? undefined : onClose}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
@@ -439,10 +442,11 @@ export function GitBranchSwitchConflictModal(props: {
       aria-modal="true"
       aria-labelledby={titleId}
     >
-      <div
-        className="absolute inset-0 bg-black/55 backdrop-blur-sm"
-        role="presentation"
+      <button
+        type="button"
+        aria-hidden
         tabIndex={-1}
+        className="absolute inset-0 cursor-default bg-black/55 backdrop-blur-sm"
         onClick={loading ? undefined : onClose}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {

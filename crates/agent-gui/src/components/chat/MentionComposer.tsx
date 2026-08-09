@@ -1822,6 +1822,7 @@ function Popup({
   }, [anchorRef]);
 
   return createPortal(
+    // biome-ignore lint/a11y/noStaticElementInteractions: mousedown 仅用于防止 blur 提前关闭 mention 会话（见下方注释），非交互控件
     <div
       ref={popupRef}
       className={cn(
@@ -1871,6 +1872,7 @@ function Popup({
             ? `${command.argHint}${command.argHint && command.description ? " — " : ""}${command.description}`
             : (skill?.description ?? (dirPath ? `${dirPath}/` : ""));
           return (
+            // biome-ignore lint/a11y/noStaticElementInteractions: mention 列表行 mousedown 即时录入（键盘导航与回车选择在容器层处理）
             <div
               key={
                 command
@@ -2030,6 +2032,7 @@ function CommitMentionTooltip({
   }, [maxWidth, minWidth]);
 
   return createPortal(
+    // biome-ignore lint/a11y/noStaticElementInteractions: tooltip 展示用 mousedown 防 blur，无键盘对等语义（纯展示）
     <div
       ref={tooltipRef}
       className="fixed z-[10000] overflow-y-auto rounded-xl border border-border bg-popover px-3 py-2.5 text-xs text-popover-foreground shadow-xl"

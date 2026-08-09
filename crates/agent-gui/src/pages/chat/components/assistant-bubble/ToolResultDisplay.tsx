@@ -405,7 +405,7 @@ export function ToolResultDisplay({
           <div className="overflow-hidden rounded-[10px] border border-black/[0.06] bg-white/[0.55] p-2 dark:border-white/[0.08] dark:bg-white/[0.04]">
             {images.map((image, index) => (
               <ToolResultImagePreview
-                key={`${details.path}-${index}`}
+                key={String(index)}
                 id={`${details.path}-${index}`}
                 image={image}
                 alt={details.path}
@@ -644,9 +644,9 @@ export function ToolResultDisplay({
           </ToolSurface>
         ) : (
           <ToolSurface className="max-h-64 overflow-auto space-y-2">
-            {details.matches.map((match, index) => (
+            {details.matches.map((match) => (
               <div
-                key={`${match.path}:${match.line}:${index}`}
+                key={`${match.path}:${match.line}`}
                 className="rounded-[8px] border border-black/[0.05] bg-white/[0.55] p-2 dark:border-white/[0.06] dark:bg-white/[0.03]"
               >
                 <div className="flex items-start gap-2">
@@ -867,7 +867,7 @@ export function ToolResultDisplay({
         <div className="overflow-hidden rounded-[10px] border border-black/[0.06] bg-white/[0.55] p-2 dark:border-white/[0.08] dark:bg-white/[0.04]">
           {images.map((image, index) => (
             <ToolResultImagePreview
-              key={`${item.toolCall.id}-${index}`}
+              key={String(index)}
               id={`${item.toolCall.id}-${index}`}
               image={image}
               alt={item.toolCall.name}

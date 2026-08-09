@@ -631,7 +631,7 @@ export function DiffContent(props: {
       diffHorizontalScrollTargetsRef.current = [];
       diffHorizontalActiveTargetRef.current = null;
     };
-  }, [diff?.patch, error, loading, patchChunks.length, updateDiffHorizontalScrollbar]);
+  }, [updateDiffHorizontalScrollbar]);
 
   const handleDiffHorizontalScrollbarPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {

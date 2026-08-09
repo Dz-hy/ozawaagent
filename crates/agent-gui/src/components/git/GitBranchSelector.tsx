@@ -149,9 +149,18 @@ function GitInitModal(props: {
       aria-modal="true"
       aria-labelledby={titleId}
     >
-      <div
-        className="absolute inset-0 bg-black/55 backdrop-blur-sm"
+      <button
+        type="button"
+        aria-hidden
+        tabIndex={-1}
+        className="absolute inset-0 cursor-default bg-black/55 backdrop-blur-sm"
         onClick={loading ? undefined : onClose}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " " || event.key === "Escape") {
+            event.preventDefault();
+            if (!loading) onClose();
+          }
+        }}
       />
       <form
         className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl border border-border/70 bg-background shadow-2xl"
@@ -322,9 +331,18 @@ function BranchActionsModal(props: {
       aria-modal="true"
       aria-labelledby={titleId}
     >
-      <div
-        className="absolute inset-0 bg-black/55 backdrop-blur-sm"
+      <button
+        type="button"
+        aria-hidden
+        tabIndex={-1}
+        className="absolute inset-0 cursor-default bg-black/55 backdrop-blur-sm"
         onClick={busy ? undefined : onClose}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " " || event.key === "Escape") {
+            event.preventDefault();
+            if (!busy) onClose();
+          }
+        }}
       />
       <form
         className="relative z-10 w-full max-w-sm overflow-hidden rounded-2xl border border-border/70 bg-background shadow-2xl"
@@ -1062,8 +1080,8 @@ export function GitBranchSelector(props: {
     >
       {isCurrent ? <Check className="h-3.5 w-3.5" /> : <GitBranch className="h-3.5 w-3.5" />}
       <span className="min-w-0 flex-1 truncate">{labelText}</span>
-      <span
-        role="button"
+      <button
+        type="button"
         tabIndex={-1}
         aria-label={t("git.branchSelector.branchActions")}
         title={t("git.branchSelector.branchActions")}
@@ -1077,6 +1095,13 @@ export function GitBranchSelector(props: {
         }}
         onPointerUp={(event) => event.stopPropagation()}
         onMouseUp={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            event.stopPropagation();
+            openBranchActions(branch);
+          }
+        }}
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -1084,7 +1109,7 @@ export function GitBranchSelector(props: {
         }}
       >
         <MoreHorizontal className="h-3.5 w-3.5" />
-      </span>
+      </button>
     </DropdownMenuItem>
   );
 

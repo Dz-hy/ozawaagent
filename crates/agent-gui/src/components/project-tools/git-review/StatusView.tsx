@@ -259,23 +259,6 @@ export function GitReviewStatusView(props: {
     [onStackedPaneChange, selectPath, useSplitReviewLayout],
   );
 
-  const openChangeContextMenu = useCallback(
-    (event: ReactMouseEvent, entry: GitStatusEntry, section: ChangeListSection) => {
-      event.preventDefault();
-      event.stopPropagation();
-      setChangesMenu(null);
-      const panelRect = panelRef.current?.getBoundingClientRect();
-      // Raw pointer position; the measured-clamp layout effect corrects it.
-      setChangeContextMenu({
-        x: panelRect ? event.clientX - panelRect.left : event.clientX,
-        y: panelRect ? event.clientY - panelRect.top : event.clientY,
-        path: entry.path,
-        section,
-      });
-    },
-    [panelRef],
-  );
-
   const toggleChangeSection = useCallback(
     (section: ChangeListSection) => {
       setChangeContextMenu((current) => (current?.section === section ? null : current));
@@ -418,7 +401,6 @@ export function GitReviewStatusView(props: {
           selected && "border-l-emerald-500 bg-emerald-500/10",
           contextMenuOpen && "border-l-primary bg-primary/10 ring-1 ring-inset ring-primary/35",
         )}
-        onContextMenu={(event) => openChangeContextMenu(event, entry, section)}
       >
         <button
           type="button"
@@ -683,7 +665,7 @@ export function GitReviewStatusView(props: {
           role="menu"
           className={cn("absolute z-[75] min-w-56", CONTEXT_MENU_CONTAINER_CLASS)}
           style={{ left: changesMenu.x, top: changesMenu.y, transform: "translateX(-100%)" }}
-          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
           onContextMenu={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -743,7 +725,7 @@ export function GitReviewStatusView(props: {
           role="menu"
           className={cn("absolute z-[80] min-w-56", CONTEXT_MENU_CONTAINER_CLASS)}
           style={{ left: changeContextMenu.x, top: changeContextMenu.y }}
-          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
           onContextMenu={(event) => {
             event.preventDefault();
             event.stopPropagation();

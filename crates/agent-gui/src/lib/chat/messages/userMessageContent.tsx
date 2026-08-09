@@ -589,6 +589,7 @@ function CommitReferenceTooltip({
   }, [maxWidth, minWidth]);
 
   return createPortal(
+    // biome-ignore lint/a11y/noStaticElementInteractions: 悬浮提示 tooltip（hover/focus 由 onMouseEnter/onMouseLeave 驱动，容器为 fixed 定位）
     <div
       ref={tooltipRef}
       className="fixed z-[10000] overflow-y-auto rounded-xl border border-border bg-popover px-3 py-2.5 text-xs text-popover-foreground shadow-xl"
@@ -742,6 +743,7 @@ function GitFileMentionChip({ file }: { file: GitFileDisplayReference }) {
   }, [normalized.githubUrl]);
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: git 文件 chip（无 githubUrl 时无键盘对等；有 URL 时 role=button 提供键盘支持）
     <span
       title={title}
       role={normalized.githubUrl ? "button" : undefined}
@@ -855,6 +857,7 @@ function CommitMentionChip({
 
   return (
     <>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: git commit chip（无 githubUrl 时无点击行为；有 URL 时 role=button 提供键盘支持） */}
       <span
         role={resolvedCommit.githubUrl ? "button" : undefined}
         tabIndex={resolvedCommit.githubUrl ? 0 : undefined}

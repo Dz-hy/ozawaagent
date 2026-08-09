@@ -233,7 +233,6 @@ function CommitRefTags({
         <span
           key={`${ref.kind}:${ref.label}`}
           title={ref.title}
-          aria-label={ref.title}
           className={cn(
             commitRefChipClass(ref.kind, selected),
             variant === "detail" ? "max-w-[12rem] shrink-0" : "max-w-[8.5rem] shrink",
@@ -379,7 +378,7 @@ function GitGraphSvgCell({ row }: { row: GraphRow }) {
             if (index !== row.commitCol) {
               return (
                 <path
-                  key={`join-${index}-${lane.id}`}
+                  key={`join-${lane.id}`}
                   d={graphCommitJoinPath(index, row.commitCol)}
                   fill="none"
                   stroke={graphColor(lane.color)}
@@ -399,7 +398,7 @@ function GitGraphSvgCell({ row }: { row: GraphRow }) {
               outputIndex++;
               return (
                 <path
-                  key={`lane-${index}-${lane.id}`}
+                  key={`lane-${lane.id}`}
                   d={graphVerticalPath(index)}
                   fill="none"
                   stroke={graphColor(lane.color)}
@@ -427,7 +426,7 @@ function GitGraphSvgCell({ row }: { row: GraphRow }) {
             outputIndex++;
             return (
               <path
-                key={`lane-${index}-${lane.id}`}
+                key={`lane-${lane.id}`}
                 d={d.join(" ")}
                 fill="none"
                 stroke={graphColor(lane.color)}
@@ -441,7 +440,7 @@ function GitGraphSvgCell({ row }: { row: GraphRow }) {
           return null;
         })}
 
-        {row.parents.slice(1).map((parentId, index) => {
+        {row.parents.slice(1).map((parentId) => {
           const parentIndex = findLastGraphLaneIndex(row.outputLanes, parentId);
           if (parentIndex === -1 || parentIndex === row.commitCol) {
             return null;
@@ -449,7 +448,7 @@ function GitGraphSvgCell({ row }: { row: GraphRow }) {
 
           return (
             <path
-              key={`parent-${index}-${parentId}`}
+              key={`parent-${parentId}`}
               d={graphParentBranchPath(row.commitCol, parentIndex)}
               fill="none"
               stroke={graphColor(row.outputLanes[parentIndex].color)}
@@ -512,7 +511,7 @@ function GitGraphContinuationCell({ row }: { row: GraphRow }) {
       >
         {row.outputLanes.map((lane, index) => (
           <path
-            key={`c${index}:${lane.id}:${lane.color}`}
+            key={`c${lane.id}:${lane.color}`}
             d={graphVerticalPath(index)}
             fill="none"
             stroke={graphColor(lane.color)}
@@ -1059,7 +1058,6 @@ export function GitReviewHistoryView(props: {
                         <div
                           className="git-review-history-row flex h-[22px] w-full min-w-0 select-none items-center gap-1 px-1.5 text-left text-xs text-muted-foreground transition-colors"
                           title={title}
-                          aria-label={title}
                         >
                           <GitGraphSvgCell row={graphRow} />
                           <span className="min-w-0 flex-1 truncate text-[calc(12px*var(--zone-font-scale,1))] font-medium">
@@ -1256,7 +1254,7 @@ export function GitReviewHistoryView(props: {
           role="menu"
           className={cn("absolute z-[75] min-w-56", CONTEXT_MENU_CONTAINER_CLASS)}
           style={{ left: historyContextMenu.x, top: historyContextMenu.y }}
-          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
           onContextMenu={(event) => {
             event.preventDefault();
             event.stopPropagation();

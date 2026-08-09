@@ -131,7 +131,7 @@ export function useProjectTerminals(params: UseProjectTerminalsParams) {
       cancelled = true;
       unlisten?.();
     };
-  }, [requestConfirmDialog, t]);
+  }, [requestConfirmDialog, setErrorMessage, t]);
 
   return {
     terminalSessions,

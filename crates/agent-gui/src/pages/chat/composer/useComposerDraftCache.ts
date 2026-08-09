@@ -1,4 +1,4 @@
-import { type MutableRefObject, useEffect, useRef } from "react";
+import { type MutableRefObject, useCallback, useEffect, useRef } from "react";
 import type {
   MentionComposerDraft,
   MentionComposerHandle,
@@ -22,62 +22,71 @@ export function useComposerDraftCache(params: UseComposerDraftCacheParams) {
   const composerDraftCacheRef = useRef<Map<string, MentionComposerDraft>>(new Map());
   const composerDraftOwnerRef = useRef(currentConversationId);
 
-  function cacheActiveComposerDraft(conversationId = composerDraftOwnerRef.current) {
-    const targetConversationId = conversationId.trim();
-    const composer = composerRef.current;
-    if (
-      !targetConversationId ||
-      composerDraftOwnerRef.current !== targetConversationId ||
-      !composer
-    ) {
-      return;
-    }
+  const cacheActiveComposerDraft = useCallback(
+    (conversationId = composerDraftOwnerRef.current) => {
+      const targetConversationId = conversationId.trim();
+      const composer = composerRef.current;
+      if (
+        !targetConversationId ||
+        composerDraftOwnerRef.current !== targetConversationId ||
+        !composer
+      ) {
+        return;
+      }
 
-    const draft = composer.getDraft();
-    if (draft.isEmpty || !draft.text.trim()) {
-      composerDraftCacheRef.current.delete(targetConversationId);
-      return;
-    }
+      const draft = composer.getDraft();
+      if (draft.isEmpty || !draft.text.trim()) {
+        composerDraftCacheRef.current.delete(targetConversationId);
+        return;
+      }
 
-    composerDraftCacheRef.current.set(targetConversationId, draft);
-  }
+      composerDraftCacheRef.current.set(targetConversationId, draft);
+    },
+    [composerRef.current],
+  );
 
-  function prepareComposerForConversationChange() {
+  const prepareComposerForConversationChange = useCallback(() => {
     cacheActiveComposerDraft();
     composerDraftOwnerRef.current = "";
-  }
+  }, [cacheActiveComposerDraft]);
 
-  function restoreCachedComposerDraft(conversationId: string) {
-    const targetConversationId = conversationId.trim();
-    const composer = composerRef.current;
-    if (!targetConversationId || !composer) {
-      return;
-    }
+  const restoreCachedComposerDraft = useCallback(
+    (conversationId: string) => {
+      const targetConversationId = conversationId.trim();
+      const composer = composerRef.current;
+      if (!targetConversationId || !composer) {
+        return;
+      }
 
-    const cachedDraft = composerDraftCacheRef.current.get(targetConversationId);
-    if (cachedDraft) {
-      composer.setDraft(cachedDraft);
-    } else {
-      composer.clear();
-    }
-    composerDraftOwnerRef.current = targetConversationId;
-  }
+      const cachedDraft = composerDraftCacheRef.current.get(targetConversationId);
+      if (cachedDraft) {
+        composer.setDraft(cachedDraft);
+      } else {
+        composer.clear();
+      }
+      composerDraftOwnerRef.current = targetConversationId;
+    },
+    [composerRef.current],
+  );
 
-  function clearCachedComposerDraft(conversationId = currentConversationIdRef.current) {
-    const targetConversationId = conversationId.trim();
-    if (!targetConversationId) {
-      return;
-    }
-    composerDraftCacheRef.current.delete(targetConversationId);
-  }
+  const clearCachedComposerDraft = useCallback(
+    (conversationId = currentConversationIdRef.current) => {
+      const targetConversationId = conversationId.trim();
+      if (!targetConversationId) {
+        return;
+      }
+      composerDraftCacheRef.current.delete(targetConversationId);
+    },
+    [currentConversationIdRef.current],
+  );
 
   /** Cache-eviction for deleted conversations (owner reset included). */
-  function deleteCachedComposerDraftState(conversationId: string) {
+  const deleteCachedComposerDraftState = useCallback((conversationId: string) => {
     composerDraftCacheRef.current.delete(conversationId);
     if (composerDraftOwnerRef.current === conversationId) {
       composerDraftOwnerRef.current = "";
     }
-  }
+  }, []);
 
   useEffect(() => {
     if (activeView !== "chat") {
@@ -103,7 +112,7 @@ export function useComposerDraftCache(params: UseComposerDraftCacheParams) {
     return () => {
       window.cancelAnimationFrame(frameId);
     };
-  }, [activeView, currentConversationId]);
+  }, [activeView, composerRef.current, currentConversationId, restoreCachedComposerDraft]);
 
   return {
     composerDraftCacheRef,

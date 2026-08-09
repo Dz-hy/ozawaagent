@@ -1000,6 +1000,7 @@ export function ChatPage(props: ChatPageProps) {
       deleteConversationLocalCaches,
       isConversationRunning,
       persistedConversationStateRef,
+      queuedChatTurnsRef,
     ],
   );
 
@@ -1157,11 +1158,14 @@ export function ChatPage(props: ChatPageProps) {
     }));
   }, [
     activeWorkspaceProjectPath,
+    conversationRuntimeCacheRef,
     conversationState.meta.totalMessageCount,
+    currentConversationIdRef,
     isAgentMode,
     isConversationRunning,
     isSending,
     pendingUploadedFiles.length,
+    persistedConversationStateRef,
     sidebarStore,
     updateConversationRuntimeEntry,
   ]);
@@ -1198,7 +1202,7 @@ export function ChatPage(props: ChatPageProps) {
     currentConversationIdRef.current = currentConversationId;
     // Per-conversation pending uploads are restored inside usePendingUploads
     // when its conversationId param changes.
-  }, [currentConversationId]);
+  }, [currentConversationId, currentConversationIdRef]);
 
   useEffect(() => {
     const currentItem = historyItems.find((item) => item.id === currentConversationId);
@@ -1245,10 +1249,12 @@ export function ChatPage(props: ChatPageProps) {
     sidebarStore.upsertLocal(pendingItem);
   }, [
     conversationState,
+    conversationRuntimeCacheRef,
     currentConversationCreatedAt,
     currentConversationId,
     currentConversationSessionId,
     historyItems,
+    isConversationRunning,
     isSending,
     activeSelectedModel,
     displayedConversationWorkdir,
@@ -1320,6 +1326,7 @@ export function ChatPage(props: ChatPageProps) {
     historyItems,
     hydrationFailedConversationId,
     hydratingConversationId,
+    isConversationRunning,
     isSending,
     openController,
     pendingUploadedFiles,
@@ -1418,7 +1425,13 @@ export function ChatPage(props: ChatPageProps) {
       workdir: isAgentMode ? activeWorkspaceProjectPath || undefined : undefined,
       projectId: isAgentMode ? activeWorkspaceProjectId : undefined,
     });
-  }, [activeWorkspaceProjectId, activeWorkspaceProjectPath, isAgentMode, openController]);
+  }, [
+    activeWorkspaceProjectId,
+    activeWorkspaceProjectPath,
+    isAgentMode,
+    openController,
+    prepareComposerForConversationChange,
+  ]);
 
   // 全局快捷键「新建对话」：Rust 端呼出窗口后发事件，这里切回对话视图
   // （可能停在 Skills/MCP Hub）、开新会话并聚焦输入框，行为对齐侧栏按钮。
@@ -1473,7 +1486,7 @@ export function ChatPage(props: ChatPageProps) {
       openController.open(targetConversationId);
       restoreCachedComposerDraft(targetConversationId);
     },
-    [openController],
+    [openController, prepareComposerForConversationChange, restoreCachedComposerDraft],
   );
 
   // Called by the sidebar container after the store confirmed a deletion:
@@ -1497,7 +1510,14 @@ export function ChatPage(props: ChatPageProps) {
       return;
     }
     void sendActionRef.current();
-  }, [enqueueCurrentComposerTurn, isConversationRunning]);
+  }, [
+    conversationRuntimeCacheRef,
+    currentConversationIdRef,
+    enqueueCurrentComposerTurn,
+    isConversationRunning,
+    queuedChatTurnEditSlotRef,
+    requestQueuedChatTurnProcessing,
+  ]);
 
   const handleStopSending = useCallback(() => {
     stopSendingActionRef.current();

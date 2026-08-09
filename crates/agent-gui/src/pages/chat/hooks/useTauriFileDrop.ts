@@ -57,7 +57,7 @@ export function useTauriFileDrop(params: UseTauriFileDropParams) {
         unlisten();
       }
     };
-  }, [canDropUpload, fileDropTitle, importReadableFilePaths]);
+  }, [canDropUpload, fileDropTitle, importReadableFilePaths, setErrorMessage]);
 
   return { isFileDropActive };
 }

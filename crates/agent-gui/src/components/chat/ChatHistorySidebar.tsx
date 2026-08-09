@@ -2015,24 +2015,20 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
                     <X className="h-3.5 w-3.5" />
                   </Button>
                 </>
-              ) : (
-                <>
-                  {items.length > 0 ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => enterSelectionMode()}
-                      disabled={selectableConversationIds.size === 0}
-                      className={PROJECT_ICON_BUTTON_CLASS}
-                      title={t("chat.conversationBulkSelectHint")}
-                      aria-label={t("chat.conversationBulkSelect")}
-                    >
-                      <ListChecks className="h-3.5 w-3.5" />
-                    </Button>
-                  ) : null}
-                </>
-              )}
+              ) : items.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => enterSelectionMode()}
+                  disabled={selectableConversationIds.size === 0}
+                  className={PROJECT_ICON_BUTTON_CLASS}
+                  title={t("chat.conversationBulkSelectHint")}
+                  aria-label={t("chat.conversationBulkSelect")}
+                >
+                  <ListChecks className="h-3.5 w-3.5" />
+                </Button>
+              ) : null}
             </div>
           </div>
 

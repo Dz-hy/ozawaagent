@@ -1381,8 +1381,8 @@
       animation: none;
     }
 
-    .sidebar-context-menu,
-    .sidebar-context-menu [role="menuitem"] {
+    :where(.sidebar-context-menu [role="menuitem"]),
+    :where(.sidebar-context-menu) {
       animation: none !important;
       transition: none !important;
     }
@@ -1645,12 +1645,12 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .composer-dropdown,
-    .composer-dropdown [role="menuitemcheckbox"],
-    .composer-dropdown [role="menuitem"],
-    .composer-branch-dropdown,
-    .model-selector-dropdown,
-    .model-selector-item {
+    :where(.composer-dropdown [role="menuitemcheckbox"]),
+    :where(.composer-dropdown [role="menuitem"]),
+    :where(.composer-dropdown),
+    :where(.composer-branch-dropdown),
+    :where(.model-selector-dropdown),
+    :where(.model-selector-item) {
       animation: none !important;
     }
 
@@ -2470,15 +2470,15 @@ body > div:not(#root) [data-streamdown="mermaid"] svg {
  * background, making the conversation title look blank.
  */
 /* Git review diff views live under app chrome that disables selection by default. */
-.git-review-diff-selectable-content,
-.git-review-diff-selectable-content pre,
-.git-review-diff-selectable-content .diff-tailwindcss-wrapper,
-.git-review-diff-selectable-content .diff-line-content,
-.git-review-diff-selectable-content .diff-line-content-item,
-.git-review-diff-selectable-content .diff-line-content-raw,
-.git-review-diff-selectable-content .diff-line-syntax-raw,
-.git-review-diff-selectable-content .diff-line-content-raw *,
-.git-review-diff-selectable-content .diff-line-syntax-raw * {
+:where(.git-review-diff-selectable-content .diff-line-content-item),
+:where(.git-review-diff-selectable-content .diff-line-content),
+:where(.git-review-diff-selectable-content .diff-line-content-raw),
+:where(.git-review-diff-selectable-content .diff-line-syntax-raw),
+:where(.git-review-diff-selectable-content .diff-tailwindcss-wrapper),
+:where(.git-review-diff-selectable-content pre),
+:where(.git-review-diff-selectable-content .diff-line-content-raw *),
+:where(.git-review-diff-selectable-content .diff-line-syntax-raw *),
+:where(.git-review-diff-selectable-content) {
   -webkit-user-select: text;
   user-select: text;
 }

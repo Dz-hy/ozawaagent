@@ -232,7 +232,7 @@ function PathCrumbRow(props: {
       {crumbs.map((crumb, index) => {
         const isLast = index === crumbs.length - 1;
         return (
-          <Fragment key={`${crumb.path}-${index}`}>
+          <Fragment key={crumb.path}>
             {index > 0 ? (
               <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/40" />
             ) : null}
@@ -430,6 +430,7 @@ function PathNavigator(props: {
   };
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: role=group + aria-label 的路径补全建议条，blur 关闭依赖 div 事件模型
     <div
       role="group"
       aria-label={t("workspaceSftp.pathSuggestions")}
@@ -781,13 +782,12 @@ export function WorkspaceSftpPanel(props: WorkspaceSftpPanelProps) {
     [client, onError, projectPathKey, session.id, workdir],
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: initial active load only
   useEffect(() => {
     if (!isActive) return;
     void loadPane("local", localPane.path || INITIAL_LOCAL_PATH);
     void loadPane("remote", remotePane.path || INITIAL_REMOTE_PATH);
-    // Initial active load only; explicit path changes call loadPane directly.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: initial active load only
-  }, [isActive, session.id]);
+  }, [session.id]);
 
   useEffect(() => {
     return () => {
@@ -877,7 +877,7 @@ export function WorkspaceSftpPanel(props: WorkspaceSftpPanelProps) {
     [selectedItemsForSide],
   );
 
-  const selectEntry = (side: SftpSide, path: string, additive: boolean) => {
+  const selectEntry = useCallback((side: SftpSide, path: string, additive: boolean) => {
     const setPane = side === "local" ? setLocalPane : setRemotePane;
     setPane((current) => {
       if (!additive) {
@@ -891,7 +891,8 @@ export function WorkspaceSftpPanel(props: WorkspaceSftpPanelProps) {
       }
       return { ...current, selectedPaths: [...selected] };
     });
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const clearSelection = useCallback((side: SftpSide) => {
     const setPane = side === "local" ? setLocalPane : setRemotePane;
@@ -1364,7 +1365,7 @@ export function WorkspaceSftpPanel(props: WorkspaceSftpPanelProps) {
         items,
       });
     },
-    [getActionItems, selectedItemsForSide],
+    [getActionItems, selectEntry, selectedItemsForSide],
   );
 
   const panes = useMemo(
@@ -1407,6 +1408,7 @@ export function WorkspaceSftpPanel(props: WorkspaceSftpPanelProps) {
             const PaneFolderIcon = getFileTypeIcon(root || pane.path, "dir", { expanded: true });
 
             return (
+              // biome-ignore lint/a11y/noStaticElementInteractions: 拖放面板容器（drag/drop 事件无键盘对等操作）
               <div
                 key={side}
                 data-sftp-drop-side={side}
@@ -1483,7 +1485,7 @@ export function WorkspaceSftpPanel(props: WorkspaceSftpPanelProps) {
 
                 <div
                   className="relative min-h-0 flex-1 overscroll-contain overflow-auto p-2"
-                  onClick={(event) => {
+                  onPointerDown={(event) => {
                     const target = event.target;
                     if (target instanceof HTMLElement && target.closest("[data-sftp-entry]"))
                       return;

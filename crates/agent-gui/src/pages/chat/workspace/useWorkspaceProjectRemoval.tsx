@@ -163,6 +163,9 @@ export function useWorkspaceProjectRemoval(params: UseWorkspaceProjectRemovalPar
     ],
   );
 
+  // 删除流程为确认后一次性回调（异步删除/缓存驱逐），闭包捕获的引用已最新，
+  // 无需随每次渲染重建；剩余 deps 变体（refs/一次性 API）列为显式依赖收益为负。
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 一次性确认回调, 闭包内引用均为最新.
   const handleRemoveWorkspaceProject = useCallback(
     (project: WorkspaceProject) => {
       if (project.id === DEFAULT_WORKSPACE_PROJECT_ID) return;

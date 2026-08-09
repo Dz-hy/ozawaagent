@@ -271,7 +271,14 @@ export function useWorkspaceProjects(params: UseWorkspaceProjectsParams) {
         });
       }
     },
-    [setSettings, workspaceProjects, activeWorkspaceProjectId, settings.system],
+    [
+      activeWorkspaceProjectId,
+      prepareComposerForConversationChangeActionRef.current,
+      setSettings,
+      settings.system,
+      startNewConversationActionRef.current,
+      workspaceProjects,
+    ],
   );
 
   const handleSelectWorkspaceProject = useCallback(
@@ -281,7 +288,7 @@ export function useWorkspaceProjects(params: UseWorkspaceProjectsParams) {
       }
       activateWorkspaceProject(project);
     },
-    [activateWorkspaceProject, checkWorkspaceProjectDirectory, setActiveView],
+    [activateWorkspaceProject, checkWorkspaceProjectDirectory],
   );
 
   const handleNewConversationForProject = useCallback(
@@ -292,7 +299,7 @@ export function useWorkspaceProjects(params: UseWorkspaceProjectsParams) {
       setActiveView("chat");
       activateWorkspaceProject(project, { startConversation: true });
     },
-    [activateWorkspaceProject, checkWorkspaceProjectDirectory],
+    [activateWorkspaceProject, checkWorkspaceProjectDirectory, setActiveView],
   );
 
   const handleBrowseWorkspaceProjectInFileTree = useCallback(

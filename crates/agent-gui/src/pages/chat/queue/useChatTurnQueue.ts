@@ -206,77 +206,92 @@ export function useChatTurnQueue(params: UseChatTurnQueueParams) {
     return true;
   }
 
-  function isQueuedChatTurnEditBlockingProcessing(conversationId: string) {
-    const slot = queuedChatTurnEditSlotRef.current;
-    if (!slot || slot.conversationId !== conversationId.trim()) return false;
-    const queue = queuedChatTurnsRef.current;
-    const firstQueuedIndex = queue.findIndex((item) => item.conversationId === slot.conversationId);
-    if (firstQueuedIndex < 0) return false;
-    return resolveQueuedChatTurnSlotIndex(queue, slot) <= firstQueuedIndex;
-  }
+  const isQueuedChatTurnEditBlockingProcessing = useCallback(
+    (conversationId: string) => {
+      const slot = queuedChatTurnEditSlotRef.current;
+      if (!slot || slot.conversationId !== conversationId.trim()) return false;
+      const queue = queuedChatTurnsRef.current;
+      const firstQueuedIndex = queue.findIndex(
+        (item) => item.conversationId === slot.conversationId,
+      );
+      if (firstQueuedIndex < 0) return false;
+      return resolveQueuedChatTurnSlotIndex(queue, slot) <= firstQueuedIndex;
+    },
+    [], // 仅读写 refs，引用保持恒定
+  );
 
-  function requestQueuedChatTurnProcessing(conversationId: string) {
-    const targetConversationId = conversationId.trim();
-    if (!targetConversationId) return;
-    if (queuedChatProcessingConversationIdsRef.current.has(targetConversationId)) return;
-    if (isConversationRunning(targetConversationId)) return;
-    if (isQueuedChatTurnEditBlockingProcessing(targetConversationId)) return;
-    if (!queuedChatTurnsRef.current.some((item) => item.conversationId === targetConversationId)) {
-      return;
-    }
+  const requestQueuedChatTurnProcessing = useCallback(
+    (conversationId: string) => {
+      const targetConversationId = conversationId.trim();
+      if (!targetConversationId) return;
+      if (queuedChatProcessingConversationIdsRef.current.has(targetConversationId)) return;
+      if (isConversationRunning(targetConversationId)) return;
+      if (isQueuedChatTurnEditBlockingProcessing(targetConversationId)) return;
+      if (
+        !queuedChatTurnsRef.current.some((item) => item.conversationId === targetConversationId)
+      ) {
+        return;
+      }
 
-    queuedChatProcessingConversationIdsRef.current.add(targetConversationId);
-    let inFlightQueuedTurn: QueuedChatTurn | null = null;
-    void Promise.resolve()
-      .then(async () => {
-        if (isConversationRunning(targetConversationId)) return;
-        const taken = takeNextQueuedChatTurn(queuedChatTurnsRef.current, targetConversationId);
-        if (!taken.item) return false;
-        const queuedTurn = taken.item;
-        inFlightQueuedTurn = queuedTurn;
-        setQueuedChatTurnsState(() => taken.queue);
-        const accepted = await sendActionRef.current({
-          composerDraftOverride: queuedTurn.draft,
-          uploadedFilesOverride: queuedTurn.uploadedFiles,
-          conversationIdOverride: targetConversationId,
-          executionModeOverride: queuedTurn.executionMode,
-          workdirOverride: queuedTurn.workdir,
-          selectedSystemToolIdsOverride: queuedTurn.selectedSystemToolIds,
-          runtimeControlsOverride: queuedTurn.runtimeControls,
-          preserveComposerOnStart: true,
+      queuedChatProcessingConversationIdsRef.current.add(targetConversationId);
+      let inFlightQueuedTurn: QueuedChatTurn | null = null;
+      void Promise.resolve()
+        .then(async () => {
+          if (isConversationRunning(targetConversationId)) return;
+          const taken = takeNextQueuedChatTurn(queuedChatTurnsRef.current, targetConversationId);
+          if (!taken.item) return false;
+          const queuedTurn = taken.item;
+          inFlightQueuedTurn = queuedTurn;
+          setQueuedChatTurnsState(() => taken.queue);
+          const accepted = await sendActionRef.current({
+            composerDraftOverride: queuedTurn.draft,
+            uploadedFilesOverride: queuedTurn.uploadedFiles,
+            conversationIdOverride: targetConversationId,
+            executionModeOverride: queuedTurn.executionMode,
+            workdirOverride: queuedTurn.workdir,
+            selectedSystemToolIdsOverride: queuedTurn.selectedSystemToolIds,
+            runtimeControlsOverride: queuedTurn.runtimeControls,
+            preserveComposerOnStart: true,
+          });
+          if (!accepted) {
+            setQueuedChatTurnsState((current) =>
+              promoteQueuedChatTurn(appendQueuedChatTurn(current, queuedTurn), queuedTurn.id),
+            );
+            inFlightQueuedTurn = null;
+          }
+          return accepted;
+        })
+        .then((accepted) => {
+          queuedChatProcessingConversationIdsRef.current.delete(targetConversationId);
+          if (
+            accepted &&
+            !isConversationRunning(targetConversationId) &&
+            queuedChatTurnsRef.current.some((item) => item.conversationId === targetConversationId)
+          ) {
+            requestQueuedChatTurnProcessing(targetConversationId);
+          }
+        })
+        .catch(() => {
+          const failedQueuedTurn = inFlightQueuedTurn;
+          if (failedQueuedTurn) {
+            setQueuedChatTurnsState((current) =>
+              promoteQueuedChatTurn(
+                appendQueuedChatTurn(current, failedQueuedTurn),
+                failedQueuedTurn.id,
+              ),
+            );
+            inFlightQueuedTurn = null;
+          }
+          queuedChatProcessingConversationIdsRef.current.delete(targetConversationId);
         });
-        if (!accepted) {
-          setQueuedChatTurnsState((current) =>
-            promoteQueuedChatTurn(appendQueuedChatTurn(current, queuedTurn), queuedTurn.id),
-          );
-          inFlightQueuedTurn = null;
-        }
-        return accepted;
-      })
-      .then((accepted) => {
-        queuedChatProcessingConversationIdsRef.current.delete(targetConversationId);
-        if (
-          accepted &&
-          !isConversationRunning(targetConversationId) &&
-          queuedChatTurnsRef.current.some((item) => item.conversationId === targetConversationId)
-        ) {
-          requestQueuedChatTurnProcessing(targetConversationId);
-        }
-      })
-      .catch(() => {
-        const failedQueuedTurn = inFlightQueuedTurn;
-        if (failedQueuedTurn) {
-          setQueuedChatTurnsState((current) =>
-            promoteQueuedChatTurn(
-              appendQueuedChatTurn(current, failedQueuedTurn),
-              failedQueuedTurn.id,
-            ),
-          );
-          inFlightQueuedTurn = null;
-        }
-        queuedChatProcessingConversationIdsRef.current.delete(targetConversationId);
-      });
-  }
+    },
+    [
+      isConversationRunning,
+      isQueuedChatTurnEditBlockingProcessing,
+      sendActionRef,
+      setQueuedChatTurnsState,
+    ],
+  );
 
   useEffect(() => {
     const previousRunningConversationIds = previousRunningConversationIdsRef.current;
@@ -289,7 +304,7 @@ export function useChatTurnQueue(params: UseChatTurnQueueParams) {
         requestQueuedChatTurnProcessing(conversationId);
       }
     }
-  }, [runningConversationIds, queuedChatTurns]);
+  }, [requestQueuedChatTurnProcessing, runningConversationIds]);
 
   function runQueuedTurnNow(id: string) {
     const queuedTurn = queuedChatTurnsRef.current.find((item) => item.id === id.trim());

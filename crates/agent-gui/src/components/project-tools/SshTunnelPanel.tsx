@@ -245,10 +245,6 @@ export function SshTunnelPanel(props: SshTunnelPanelProps) {
   const visibleSessions = scope === "project" ? projectSshSessions : sshSessions;
   const visibleSessionsRef = useRef(visibleSessions);
   visibleSessionsRef.current = visibleSessions;
-  const visibleSessionsKey = useMemo(
-    () => visibleSessions.map((session) => session.id).join("\n"),
-    [visibleSessions],
-  );
   const canCreateInScope = scope === "project";
   const createHosts = canCreateInScope ? associatedHosts : [];
   const hasCreateHosts = createHosts.length > 0;
@@ -371,7 +367,7 @@ export function SshTunnelPanel(props: SshTunnelPanelProps) {
     refreshConnectedLatencies();
     const timer = window.setInterval(refreshConnectedLatencies, 10_000);
     return () => window.clearInterval(timer);
-  }, [active, refreshSessionLatency, visibleSessionsKey]);
+  }, [active, refreshSessionLatency]);
 
   // Ends the create flow's form/pending state only. It deliberately never
   // touches the prompt: while a prompt is open its lifecycle belongs to the

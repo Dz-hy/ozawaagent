@@ -978,6 +978,7 @@ export function WorkspaceCodeEditorOverlay(props: WorkspaceCodeEditorOverlayProp
         </div>
       ) : null}
 
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: 编辑器画布区域级右键菜单（打开菜单），交互在菜单项按钮 */}
       <div className="relative min-h-0 flex-1 bg-background" onContextMenu={openEditorContextMenu}>
         <div ref={containerRef} className={cn("absolute inset-0", !activeTab && "hidden")} />
         {!activeTab ? (
@@ -1002,7 +1003,7 @@ export function WorkspaceCodeEditorOverlay(props: WorkspaceCodeEditorOverlayProp
           className="editor-context-menu absolute z-50 w-[220px] overflow-hidden rounded-xl border border-border/60 bg-popover/80 p-1 text-sm text-popover-foreground shadow-2xl ring-1 ring-black/[0.03] backdrop-blur-xl dark:ring-white/[0.06]"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           role="menu"
-          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.preventDefault()}
           onMouseDown={(event) => event.preventDefault()}
         >
