@@ -90,9 +90,10 @@ function PathSurface({ path }: { path: string }) {
 }
 
 export function FileToolArgsDisplay({ preview }: { preview: FileToolPreview }) {
+  const { t } = useLocale();
   if (preview.kind === "write") {
     if (!preview.path && !preview.content.has) {
-      return <StreamingArgPlaceholder label="Waiting for file content..." />;
+      return <StreamingArgPlaceholder label={t("chat.fileArgsWaitingFile")} />;
     }
     const fieldLabel = preview.field === "new_source" ? "new source" : "content";
     return (
@@ -118,7 +119,7 @@ export function FileToolArgsDisplay({ preview }: { preview: FileToolPreview }) {
   }
 
   if (!preview.path && !preview.oldString.has && !preview.newString.has) {
-    return <StreamingArgPlaceholder label="Waiting for replacement strings..." />;
+    return <StreamingArgPlaceholder label={t("chat.fileArgsWaitingReplacement")} />;
   }
   return (
     <div className="tool-expand flex flex-col gap-2">
@@ -152,13 +153,13 @@ export function FileToolArgsDisplay({ preview }: { preview: FileToolPreview }) {
       ) : (
         <>
           <StreamingTextPreviewSurface
-            label="old string"
-            emptyLabel="(empty old string)"
+            label={t("chat.fileArgsOld")}
+            emptyLabel={t("chat.fileArgsEmptyOld")}
             preview={preview.oldString}
           />
           <StreamingTextPreviewSurface
-            label="new string"
-            emptyLabel="(empty replacement)"
+            label={t("chat.fileArgsNew")}
+            emptyLabel={t("chat.fileArgsEmptyNew")}
             preview={preview.newString}
           />
         </>

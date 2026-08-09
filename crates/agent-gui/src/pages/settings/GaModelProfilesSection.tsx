@@ -341,9 +341,9 @@ export function GaModelProfilesSection() {
               <Server className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base font-semibold">t("settings.gaModelTitle")</h2>
+              <h2 className="text-base font-semibold">{t("settings.gaModelTitle")}</h2>
               <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                t("settings.gaModelDesc")
+                {t("settings.gaModelDesc")}
               </p>
             </div>
           </div>
@@ -369,11 +369,11 @@ export function GaModelProfilesSection() {
               disabled={loading}
             >
               <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
-              t("settings.gaModelRefresh")
+              {t("settings.gaModelRefresh")}
             </Button>
             <Button type="button" size="sm" className="gap-1.5" onClick={openCreate}>
               <Plus className="h-3.5 w-3.5" />
-              t("settings.gaModelAdd")
+              {t("settings.gaModelAdd")}
             </Button>
           </div>
         </div>
@@ -408,7 +408,7 @@ export function GaModelProfilesSection() {
               ) : filteredProfiles.length === 0 ? (
                 <div className="px-3 py-10 text-center text-xs leading-5 text-muted-foreground">
                   {snapshot.profiles.length === 0
-                    ? "No model profiles found. Add one to connect GenericAgent."
+                    ? t("settings.gaModelEmptyProfiles")
                     : "No profiles match this search."}
                 </div>
               ) : (
@@ -496,7 +496,7 @@ export function GaModelProfilesSection() {
                         onClick={() => void setDefault(selectedProfile)}
                         disabled={busyId !== null}
                       >
-                        t("settings.gaModelSetDefault")
+                        {t("settings.gaModelSetDefault")}
                       </Button>
                     ) : null}
                     {selectedProfile.kind !== "mixin" ? (
@@ -509,7 +509,7 @@ export function GaModelProfilesSection() {
                         disabled={busyId !== null}
                       >
                         <Pencil className="h-3.5 w-3.5" />
-                        t("settings.gaModelEdit")
+                        {t("settings.gaModelEdit")}
                       </Button>
                     ) : null}
                     {selectedProfile.kind !== "mixin" ? (
@@ -522,7 +522,7 @@ export function GaModelProfilesSection() {
                         disabled={busyId !== null || selectedProfile.active}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                        t("settings.gaModelDelete")
+                        {t("settings.gaModelDelete")}
                       </Button>
                     ) : null}
                   </div>
@@ -552,7 +552,7 @@ export function GaModelProfilesSection() {
 
                   {selectedProfile.kind === "mixin" ? (
                     <div className="mt-5 rounded-xl border border-border/70 bg-muted/25 p-4">
-                      <h4 className="text-sm font-semibold">t("settings.gaModelReadonlyMix")</h4>
+                      <h4 className="text-sm font-semibold">{t("settings.gaModelReadonlyMix")}</h4>
                       <p className="mt-1 text-xs leading-5 text-muted-foreground">
                         {t("settings.gaModelReadonlyDesc")}
                       </p>
@@ -606,13 +606,13 @@ export function GaModelProfilesSection() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
                   <Server className="h-5 w-5" />
                 </div>
-                <h3 className="mt-4 text-sm font-semibold">t("settings.gaModelNoneSelected")</h3>
+                <h3 className="mt-4 text-sm font-semibold">{t("settings.gaModelNoneSelected")}</h3>
                 <p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">
                   {t("settings.gaModelNoneSelectedDesc")}
                 </p>
                 <Button type="button" size="sm" className="mt-4 gap-1.5" onClick={openCreate}>
                   <Plus className="h-3.5 w-3.5" />
-                  t("settings.gaModelAdd")
+                  {t("settings.gaModelAdd")}
                 </Button>
               </div>
             )}
@@ -642,7 +642,7 @@ export function GaModelProfilesSection() {
                       {editor.mode === "create" ? "Add model profile" : "Edit model profile"}
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">
-                      t("settings.gaModelWriteNote")
+                      {t("settings.gaModelWriteNote")}
                     </div>
                   </div>
                   <Button
@@ -662,7 +662,7 @@ export function GaModelProfilesSection() {
                   <div className="grid min-h-0 gap-4 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
                     <aside className="h-fit rounded-2xl border border-black/[0.06] bg-white/[0.68] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] dark:border-white/[0.08] dark:bg-white/[0.04] dark:shadow-none">
                       <p className="px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                        t("settings.gaModelProfileSettings")
+                        {t("settings.gaModelProfileSettings")}
                       </p>
                       <div className="space-y-1">
                         <EditorNavButton
@@ -730,8 +730,8 @@ export function GaModelProfilesSection() {
                                   )
                                 }
                               >
-                                <option value="oai">t("settings.gaModelOpenAICompat")</option>
-                                <option value="claude">t("settings.gaModelClaudeCompat")</option>
+                                <option value="oai">{t("settings.gaModelOpenAICompat")}</option>
+                                <option value="claude">{t("settings.gaModelClaudeCompat")}</option>
                               </select>
                             </Field>
                             <Field label={t("settings.gaModelModel")} htmlFor="model-profile-model">
@@ -834,7 +834,7 @@ export function GaModelProfilesSection() {
                                 checked={editor.value.stream}
                                 onChange={(event) => updateForm("stream", event.target.checked)}
                               />
-                              t("settings.gaModelStream")
+                              {t("settings.gaModelStream")}
                             </label>
                             <Field
                               label={t("settings.gaModelApiMode")}
@@ -849,10 +849,10 @@ export function GaModelProfilesSection() {
                                 }
                               >
                                 <option value="chat_completions">
-                                  t("settings.gaModelApiModeOpenAI")
+                                  {t("settings.gaModelApiModeOpenAI")}
                                 </option>
                                 <option value="responses">
-                                  t("settings.gaModelApiModeResponses")
+                                  {t("settings.gaModelApiModeResponses")}
                                 </option>
                               </select>
                             </Field>
@@ -871,14 +871,16 @@ export function GaModelProfilesSection() {
                                   )
                                 }
                               >
-                                <option value="">t("settings.gaModelReasonDefault")</option>
-                                <option value="none">t("settings.gaModelReasonNone")</option>
-                                <option value="minimal">t("settings.gaModelReasonMinimal")</option>
-                                <option value="low">t("settings.gaModelReasonLow")</option>
-                                <option value="medium">t("settings.gaModelReasonMed")</option>
-                                <option value="high">t("settings.gaModelReasonHigh")</option>
-                                <option value="xhigh">t("settings.gaModelReasonXHigh")</option>
-                                <option value="max">t("settings.gaModelReasonMax")</option>
+                                <option value="">{t("settings.gaModelReasonDefault")}</option>
+                                <option value="none">{t("settings.gaModelReasonNone")}</option>
+                                <option value="minimal">
+                                  {t("settings.gaModelReasonMinimal")}
+                                </option>
+                                <option value="low">{t("settings.gaModelReasonLow")}</option>
+                                <option value="medium">{t("settings.gaModelReasonMed")}</option>
+                                <option value="high">{t("settings.gaModelReasonHigh")}</option>
+                                <option value="xhigh">{t("settings.gaModelReasonXHigh")}</option>
+                                <option value="max">{t("settings.gaModelReasonMax")}</option>
                               </select>
                             </Field>
                             <Field
@@ -896,11 +898,13 @@ export function GaModelProfilesSection() {
                                   )
                                 }
                               >
-                                <option value="">t("settings.gaModelReasonDefault")</option>
-                                <option value="auto">t("settings.gaModelTierAuto")</option>
-                                <option value="default">t("settings.gaModelDefault")</option>
-                                <option value="priority">t("settings.gaModelTierPriority")</option>
-                                <option value="flex">t("settings.gaModelTierFlex")</option>
+                                <option value="">{t("settings.gaModelReasonDefault")}</option>
+                                <option value="auto">{t("settings.gaModelTierAuto")}</option>
+                                <option value="default">{t("settings.gaModelDefault")}</option>
+                                <option value="priority">
+                                  {t("settings.gaModelTierPriority")}
+                                </option>
+                                <option value="flex">{t("settings.gaModelTierFlex")}</option>
                               </select>
                             </Field>
                             <Field
@@ -918,12 +922,12 @@ export function GaModelProfilesSection() {
                                   )
                                 }
                               >
-                                <option value="">t("settings.gaModelReasonDefault")</option>
+                                <option value="">{t("settings.gaModelReasonDefault")}</option>
                                 <option value="adaptive">
-                                  t("settings.gaModelThinkingAdaptive")
+                                  {t("settings.gaModelThinkingAdaptive")}
                                 </option>
-                                <option value="enabled">t("settings.gaModelThinkingOn")</option>
-                                <option value="disabled">t("settings.gaModelThinkingOff")</option>
+                                <option value="enabled">{t("settings.gaModelThinkingOn")}</option>
+                                <option value="disabled">{t("settings.gaModelThinkingOff")}</option>
                               </select>
                             </Field>
                             <Field
@@ -1048,7 +1052,7 @@ export function GaModelProfilesSection() {
                           </div>
                           <div className="border-t border-black/[0.06] pt-4 dark:border-white/[0.08]">
                             <p className="text-xs font-semibold text-foreground/80">
-                              t("settings.gaModelCompatSecurity")
+                              {t("settings.gaModelCompatSecurity")}
                             </p>
                             <div className="mt-3 grid gap-2 sm:grid-cols-2">
                               <ToggleField
@@ -1091,7 +1095,7 @@ export function GaModelProfilesSection() {
                     onClick={() => setEditor(null)}
                     disabled={saving}
                   >
-                    t("settings.gaModelCancel")
+                    {t("settings.gaModelCancel")}
                   </Button>
                   <Button type="button" onClick={() => void saveEditor()} disabled={saving}>
                     {saving ? "Saving…" : "Save profile"}

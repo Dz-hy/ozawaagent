@@ -82,7 +82,9 @@ export function KnowledgeHubPage(props: { sidebarOpen: boolean; onOpenSidebar: (
             <section>
               <div className="mb-3 flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-amber-500" />
-                <h2 className="text-base font-semibold">Registered skills</h2>
+                <h2 className="text-base font-semibold">
+                  {t("settings.gaKnowledgeRegisteredSkills")}
+                </h2>
                 <span className="rounded-full bg-foreground/[0.06] px-2 py-0.5 text-xs text-muted-foreground">
                   {catalog.skills.length}
                 </span>
@@ -128,7 +130,9 @@ export function KnowledgeHubPage(props: { sidebarOpen: boolean; onOpenSidebar: (
             <section>
               <div className="mb-3 flex items-center gap-2">
                 <Brain className="h-5 w-5 text-violet-500" />
-                <h2 className="text-base font-semibold">Layered memory</h2>
+                <h2 className="text-base font-semibold">
+                  {t("settings.gaKnowledgeLayeredMemory")}
+                </h2>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {catalog.memory.layers.map((layer) => (
@@ -164,7 +168,9 @@ export function KnowledgeHubPage(props: { sidebarOpen: boolean; onOpenSidebar: (
               <GlassPanel tone="amber" className="mt-3">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-amber-500" />
-                  <h3 className="text-sm font-semibold">Absorption wizard</h3>
+                  <h3 className="text-sm font-semibold">
+                    {t("settings.gaKnowledgeAbsorptionWizard")}
+                  </h3>
                 </div>
                 <p className="mt-2 text-xs leading-5 text-muted-foreground">
                   Paste a fragment and let the classifier suggest the correct absorption target. The
