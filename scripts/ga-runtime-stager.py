@@ -16,7 +16,7 @@ import subprocess
 import tarfile
 from pathlib import Path, PurePosixPath
 
-PINNED_COMMIT = "51f769295b3f20c9be62edc658b4462dae97525a"
+PINNED_COMMIT = "7083b9377eb4c4d6657f9dc61b80296cbcd2143a"
 ADAPTER_SOURCE = Path("runtime/ga/ga_bridge_adapter.py")
 MANIFEST_SOURCE = Path("runtime/ga/runtime_manifest.json")
 
@@ -131,13 +131,24 @@ def _safe_extract(archive: bytes, output: Path) -> None:
                 shutil.copyfileobj(source, target)
 
 
+def _worktree_file(repo: Path, path: str) -> bytes:
+    """Read a reviewed runtime file exactly as checked out (preserves EOL form).
+
+    Hashes and bundled bytes must match the files the official bridge actually
+    runs from disk; on Windows the checkout carries CRLF while the Git blob is
+    LF, so blob-based copying would break the pinned bridge hash in production.
+    """
+    _assert_clean_relative(path)
+    return (repo / path).read_bytes()
+
+
 def _copy_runtime_files(repo: Path, commit: str, output: Path) -> None:
-    """Copy reviewed files as exact Git blobs (avoid checkout line-ending filters)."""
+    """Copy reviewed files exactly as checked out (EOL-faithful working tree)."""
     for path in GA_RUNTIME_FILES:
         _assert_clean_relative(path)
         destination = output / Path(path)
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(_git_file(repo, commit, path))
+        destination.write_bytes(_worktree_file(repo, path))
 
 
 def _git_file(repo: Path, commit: str, path: str) -> bytes:
@@ -189,7 +200,7 @@ def stage(
     # Read all mutable-source inputs before replacing an existing staging tree.
     adapter_bytes = adapter_src.read_bytes()
     manifest_doc = json.loads(manifest_src.read_text(encoding="utf-8"))
-    bridge_bytes = _git_file(ga_repo, commit, "frontends/desktop_bridge.py")
+    bridge_bytes = _worktree_file(ga_repo, "frontends/desktop_bridge.py")
     bridge_sha256 = _sha256_bytes(bridge_bytes)
     expected_bridge_sha256 = manifest_doc.get("official_bridge", {}).get("sha256")
     if expected_bridge_sha256 and bridge_sha256 != expected_bridge_sha256:

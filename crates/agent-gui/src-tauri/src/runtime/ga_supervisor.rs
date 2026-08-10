@@ -166,7 +166,8 @@ impl GaRuntimeSupervisor {
         })?;
         let python = find_python(&root)?;
         validate_manifest(&root, &manifest)?;
-        let data_root = if is_bundled {
+        let use_app_data_root = external_root.is_none() && std::env::var_os("GA_ROOT").is_none();
+        let data_root = if use_app_data_root {
             let path = bundled_data_root
                 .ok_or_else(|| "Bundled GenericAgent data directory is unavailable".to_string())?;
             Some(

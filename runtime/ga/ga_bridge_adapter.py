@@ -273,8 +273,16 @@ def prepare_data_root(source_root: Path, data_root: Path, manifest: dict[str, An
     bridge_path = _safe_runtime_path(manifest["official_bridge"]["path"])
     if bridge_path not in relative_files:
         raise RuntimeError("staging allowlist does not contain the official bridge")
-    for relative in (*relative_files, PurePosixPath("ga_bridge_adapter.py"), PurePosixPath("runtime_manifest.json")):
+    for relative in relative_files:
         _copy_runtime_file(source_root, data_root, relative)
+    # The adapter and its manifest always ship together in the adapter's own
+    # directory: the bundled mirror in production and runtime/ga in source
+    # checkouts.  They must not be read from the GA engine source root, which
+    # never contains them in dev mode.
+    adapter_dir = Path(__file__).resolve().parent
+    for name in ("ga_bridge_adapter.py", "runtime_manifest.json"):
+        if (adapter_dir / name).is_file():
+            _copy_runtime_file(adapter_dir, data_root, PurePosixPath(name))
     return data_root
 
 
@@ -649,8 +657,12 @@ def _merge_manager_profile(manager: Any, profile: Any) -> dict[str, Any]:
 
 
 def _safe_manager_profiles(manager: Any) -> list[dict[str, Any]]:
+    # Mixin profiles are removed from the app-facing surface: they never appear
+    # in listings and cannot be selected, so the bridge can no longer construct
+    # a dict-based backend that the official agent loop rejects.
     return [safe_model_profile(_merge_manager_profile(manager, item))
-            for item in manager.list_model_profiles()]
+            for item in manager.list_model_profiles()
+            if item.get("kind") != "mixin"]
 
 
 def _safe_session_model(value: Any, llm_no: int) -> dict[str, Any]:
@@ -937,7 +949,10 @@ def _private_update_model_profile(manager: Any, profile_id: int, data: dict[str,
 
 
 def _manager_profile(manager: Any, profile_id: int) -> dict[str, Any]:
-    return _merge_manager_profile(manager, manager.get_model_profile(profile_id))
+    profile = _merge_manager_profile(manager, manager.get_model_profile(profile_id))
+    if profile.get("kind") == "mixin":
+        raise ValueError("mixin profiles are no longer supported")
+    return profile
 
 
 def normalize_automation(value: Any, *, automation_id: str | None = None) -> dict[str, Any]:

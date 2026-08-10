@@ -39,16 +39,12 @@ pub fn ga_runtime_start(
             resource_root.is_dir().then_some(resource_root)
         }
     };
-    let bundled_data = if bundled.is_some() {
-        Some(
-            app.path()
-                .app_data_dir()
-                .map_err(|e| format!("Cannot resolve OzawaAgent data directory: {e}"))?
-                .join("ga-runtime"),
-        )
-    } else {
-        None
-    };
+    let bundled_data = Some(
+        app.path()
+            .app_data_dir()
+            .map_err(|e| format!("Cannot resolve OzawaAgent data directory: {e}"))?
+            .join("ga-runtime"),
+    );
     let launch = GaRuntimeSupervisor::discover(
         ga_root.as_deref(),
         bundled.as_deref(),
