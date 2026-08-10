@@ -16,7 +16,7 @@ permissions:
 env:
   NODE_VERSION: 22.19.0
   GA_RUNTIME_REPOSITORY: https://github.com/lsdefine/GenericAgent.git
-  GA_RUNTIME_COMMIT: 51f769295b3f20c9be62edc658b4462dae97525a
+  GA_RUNTIME_COMMIT: 7083b9377eb4c4d6657f9dc61b80296cbcd2143a
 
 jobs:
   release-metadata:
@@ -79,7 +79,7 @@ jobs:
           ga_repo="$RUNNER_TEMP/genericagent-runtime"
           rm -rf "$ga_repo"
           git init "$ga_repo"
-          git -C "$ga_repo" config core.autocrlf false
+          git -C "$ga_repo" config core.autocrlf true
           git -C "$ga_repo" remote add origin "$GA_RUNTIME_REPOSITORY"
           git -C "$ga_repo" fetch --no-tags --filter=blob:none --depth=1 origin "$GA_RUNTIME_COMMIT"
           git -C "$ga_repo" checkout --detach "$GA_RUNTIME_COMMIT"
@@ -204,7 +204,7 @@ jobs:
           ga_repo="$RUNNER_TEMP/genericagent-runtime"
           rm -rf "$ga_repo"
           git init "$ga_repo"
-          git -C "$ga_repo" config core.autocrlf false
+          git -C "$ga_repo" config core.autocrlf true
           git -C "$ga_repo" remote add origin "$GA_RUNTIME_REPOSITORY"
           git -C "$ga_repo" fetch --no-tags --filter=blob:none --depth=1 origin "$GA_RUNTIME_COMMIT"
           git -C "$ga_repo" checkout --detach "$GA_RUNTIME_COMMIT"
@@ -304,7 +304,7 @@ jobs:
           ga_repo="$RUNNER_TEMP/genericagent-runtime"
           rm -rf "$ga_repo"
           git init "$ga_repo"
-          git -C "$ga_repo" config core.autocrlf false
+          git -C "$ga_repo" config core.autocrlf true
           git -C "$ga_repo" remote add origin "$GA_RUNTIME_REPOSITORY"
           git -C "$ga_repo" fetch --no-tags --filter=blob:none --depth=1 origin "$GA_RUNTIME_COMMIT"
           git -C "$ga_repo" checkout --detach "$GA_RUNTIME_COMMIT"
