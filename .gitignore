@@ -62,7 +62,13 @@ __pycache__/
 docs/phase0/
 docs/project/
 docs/worklog/
+docs/implementation_plan.md
+docs/project_memory.md
 
 # 本地审核报告副本（勿提交）
 CODE_REVIEW_REPORT.md
 *.tsbuildinfo
+
+# Local tool state (Mimosa/ZCode session artifacts, not for repo)
+.mimosa/
+.zcode/
