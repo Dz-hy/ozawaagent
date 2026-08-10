@@ -23,14 +23,8 @@ import {
   type PersistedSettingsLoadResult,
   persistSettings,
   persistSystemSettings,
-  publishGatewaySettingsSync,
   type SettingsSaveState,
 } from "./lib/settings/storage";
-import {
-  applyGatewaySettingsSyncPayload,
-  buildGatewaySettingsSyncPayload,
-  type GatewaySettingsSyncPayload,
-} from "./lib/settings/sync";
 import { applyStoredGlobalShortcuts } from "./lib/shortcuts/globalShortcuts";
 import { ChatPage } from "./pages/ChatPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -48,8 +42,6 @@ function asErrorMessage(error: unknown, fallback: string) {
   return text || fallback;
 }
 
-const GATEWAY_SETTINGS_SYNC_EVENT = "gateway:settings-sync";
-
 function AppChrome(props: { children: ReactNode }) {
   // Plain inputs get a shared cut/copy/paste menu; everything else keeps the
   // suppressed native menu (surfaces with their own menus opt out upstream).
@@ -65,54 +57,6 @@ function AppChrome(props: { children: ReactNode }) {
       <div className="relative min-h-0 flex-1 overflow-hidden bg-background">{props.children}</div>
       {menu}
     </div>
-  );
-}
-
-function hasSettingsSyncChanged(prev: AppSettings, next: AppSettings) {
-  return (
-    JSON.stringify(buildGatewaySettingsSyncPayload(prev)) !==
-    JSON.stringify(buildGatewaySettingsSyncPayload(next))
-  );
-}
-
-function hasSensitiveSettingsUpdates(settings: AppSettings) {
-  return (
-    settings.customProviders.some((provider) => provider.apiKey.trim().length > 0) ||
-    settings.ssh.hosts.some(
-      (host) => host.password.trim().length > 0 || host.privateKey.trim().length > 0,
-    )
-  );
-}
-
-function hasSensitiveSettingsUpdatesPayload(payload: unknown) {
-  const source =
-    payload && typeof payload === "object" && !Array.isArray(payload)
-      ? (payload as { providerApiKeyUpdates?: unknown; sshSecretUpdates?: unknown })
-      : {};
-  const providerUpdates = source.providerApiKeyUpdates;
-  if (
-    providerUpdates &&
-    typeof providerUpdates === "object" &&
-    !Array.isArray(providerUpdates) &&
-    Object.values(providerUpdates).some(
-      (value) => typeof value === "string" && value.trim().length > 0,
-    )
-  ) {
-    return true;
-  }
-  const sshUpdates = source.sshSecretUpdates;
-  return Boolean(
-    sshUpdates &&
-      typeof sshUpdates === "object" &&
-      !Array.isArray(sshUpdates) &&
-      Object.values(sshUpdates).some((value) => {
-        if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-        const update = value as { password?: unknown; privateKey?: unknown };
-        return (
-          (typeof update.password === "string" && update.password.trim().length > 0) ||
-          (typeof update.privateKey === "string" && update.privateKey.trim().length > 0)
-        );
-      }),
   );
 }
 
@@ -243,9 +187,6 @@ export default function App() {
           setSettingsState(loadedWithDefaults);
           setWorkspaceProjectPathConflicts(loadedPathConflicts);
           setSettingsSaveState({ status: "saved" });
-          void publishGatewaySettingsSync(loadedWithDefaults).catch((error) => {
-            console.error("publish gateway settings sync failed", error);
-          });
         }
       } catch (error) {
         if (!cancelled) {
@@ -272,20 +213,14 @@ export default function App() {
   }, []);
 
   const queueSettingsSave = useCallback(
-    (prev: AppSettings, next: AppSettings, fallback: string, publishSync: boolean) => {
+    (prev: AppSettings, next: AppSettings, fallback: string) => {
       const saveSequence = ++saveSequenceRef.current;
       setSettingsSaveState({ status: "saving" });
 
       saveChainRef.current = saveChainRef.current
         .catch(() => undefined)
         .then(() => persistSettings(prev, next))
-        .then(async (persistResult) => {
-          const publishTarget = persistResult.ssh
-            ? normalizeSettings({
-                ...next,
-                ssh: persistResult.ssh,
-              })
-            : next;
+        .then((persistResult) => {
           if (persistResult.ssh && saveSequenceRef.current === saveSequence) {
             const merged = normalizeSettings({
               ...settingsRef.current,
@@ -296,9 +231,6 @@ export default function App() {
           }
           if (persistResult.conflict) {
             throw new Error(persistResult.conflict);
-          }
-          if (publishSync) {
-            await publishGatewaySettingsSync(publishTarget);
           }
         })
         .then(() => {
@@ -329,12 +261,7 @@ export default function App() {
       );
       settingsRef.current = next;
       setSettingsState(next);
-      queueSettingsSave(
-        prev,
-        next,
-        "保存设置失败。",
-        hasSettingsSyncChanged(prev, next) || hasSensitiveSettingsUpdates(next),
-      );
+      queueSettingsSave(prev, next, "保存设置失败。");
     },
     [queueSettingsSave],
   );
@@ -507,39 +434,6 @@ export default function App() {
       return;
     }
   }, [settingsReady]);
-  useEffect(() => {
-    if (!settingsReady) {
-      return;
-    }
-
-    let cancelled = false;
-    const unlistenPromise = listen<GatewaySettingsSyncPayload>(
-      GATEWAY_SETTINGS_SYNC_EVENT,
-      (event) => {
-        if (cancelled) {
-          return;
-        }
-
-        const prev = settingsRef.current;
-        const next = applyRuntimeSystemDefaults(
-          applyGatewaySettingsSyncPayload(prev, event.payload),
-          defaultWorkdirRef.current,
-        );
-        const publicChanged = hasSettingsSyncChanged(prev, next);
-        if (!publicChanged && !hasSensitiveSettingsUpdatesPayload(event.payload)) {
-          return;
-        }
-        settingsRef.current = next;
-        setSettingsState(next);
-        queueSettingsSave(prev, next, "同步 WebUI 设置失败。", publicChanged);
-      },
-    );
-
-    return () => {
-      cancelled = true;
-      void unlistenPromise.then((unlisten) => unlisten());
-    };
-  }, [queueSettingsSave, settingsReady]);
 
   if (!settingsReady) {
     return (

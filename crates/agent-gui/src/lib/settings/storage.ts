@@ -21,7 +21,7 @@ import {
   type Theme,
   type WorkspaceProjectPathConflict,
 } from "./index";
-import { buildGatewaySettingsSyncPayload, buildGatewaySettingsSyncUpdatePayload } from "./sync";
+import { buildGatewaySettingsSyncUpdatePayload } from "./sync";
 
 const LOCAL_UI_SETTINGS_STORAGE_KEY = "ozawaagent.ui-settings.v1";
 
@@ -31,7 +31,6 @@ type PersistedSettingsResponse = {
   mcp?: unknown | null;
   agents?: unknown | null;
   ssh?: unknown | null;
-  remote?: unknown | null;
   memory?: unknown | null;
   defaultWorkdir?: unknown | null;
 };
@@ -212,7 +211,7 @@ export async function loadPersistedSettingsWithDefaults(): Promise<PersistedSett
     mcp: (persisted?.mcp ?? defaults.mcp) as AppSettings["mcp"],
     agents: (persisted?.agents ?? defaults.agents) as AppSettings["agents"],
     ssh: (persisted?.ssh ?? defaults.ssh) as AppSettings["ssh"],
-    remote: (persisted?.remote ?? defaults.remote) as AppSettings["remote"],
+    remote: defaults.remote,
     memory: (persisted?.memory ?? defaults.memory) as AppSettings["memory"],
     skills: localUi.skills,
     chatRuntimeControls: localUi.chatRuntimeControls,
@@ -303,14 +302,6 @@ export async function persistSettings(
     );
   }
 
-  if (hasChanged(prev.remote, next.remote)) {
-    tasks.push(
-      invoke("settings_save_remote", {
-        payload: next.remote,
-      } as any),
-    );
-  }
-
   if (hasChanged(prev.memory, next.memory)) {
     tasks.push(
       invoke("settings_save_memory", {
@@ -341,10 +332,4 @@ export async function persistSettings(
 
   await Promise.all(tasks);
   return result;
-}
-
-export async function publishGatewaySettingsSync(settings: AppSettings): Promise<void> {
-  await invoke("gateway_publish_settings_sync", {
-    payload: buildGatewaySettingsSyncPayload(settings),
-  } as any);
 }

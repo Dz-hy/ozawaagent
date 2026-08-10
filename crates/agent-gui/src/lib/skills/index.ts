@@ -1,9 +1,27 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { sortSkillsForDisplay } from "./builtin";
-import type { ClawHubSkillCard } from "./clawHub";
 
 const SKILLS_DISCOVERY_UPDATED_EVENT = "ozawaagent:skills-discovery-updated";
+
+// ClawHub 商店卡类型：仅保留 Rust SkillsManager 工具结果 schema 需要的字段
+// 形状（clawhubResults 等）。原 clawHub.ts 客户端模块（浏览/搜索/下载）已随
+// 商店页移除而删除，此处镜像 Rust 侧 schema 的类型定义独立保留。
+export type ClawHubSkillCard = {
+  slug: string;
+  displayName: string;
+  summary: string;
+  /** ClawHub 上的自由标签，用于本地分类与卡片标签展示。 */
+  topics: string[];
+  latestVersion: string | null;
+  downloads: number;
+  stars: number;
+  installsCurrent: number;
+  updatedAt: number | null;
+  ownerHandle: string | null;
+  webUrl?: string | null;
+  downloadUrl?: string | null;
+};
 
 export {
   isAlwaysEnabledSkillName,

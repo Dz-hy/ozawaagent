@@ -350,43 +350,6 @@ export const translations: Record<Locale, Record<string, string>> = {
     "sidebar.loadingMoreHistory": "正在加载更多历史记录...",
     "sidebar.continueLoadingHistory": "继续滚动加载更多",
 
-    /* ── Shared History ── */
-    "sharedHistory.title": "已分享会话",
-    "sharedHistory.managerLabel": "管理已分享会话",
-    "sharedHistory.subtitle": "统一查看公开只读链接，复制访问地址，或关闭不再需要的分享。",
-    "sharedHistory.close": "关闭",
-    "sharedHistory.summaryShared": "已分享",
-    "sharedHistory.summaryCopyable": "链接可复制",
-    "sharedHistory.summaryStatus": "状态",
-    "sharedHistory.syncing": "同步中",
-    "sharedHistory.synced": "已同步",
-    "sharedHistory.originUnavailable":
-      "当前 Gateway 地址无法用于生成公开链接，链接复制会暂时不可用；分享状态仍可关闭管理。",
-    "sharedHistory.originLoading": "正在读取当前 Gateway 公开访问地址...",
-    "sharedHistory.searchPlaceholder": "搜索标题、模型或路径",
-    "sharedHistory.refresh": "刷新",
-    "sharedHistory.emptyFilteredTitle": "没有匹配的分享会话",
-    "sharedHistory.emptyTitle": "暂无已分享会话",
-    "sharedHistory.emptyFilteredDesc": "换一个关键词可以继续查找标题、模型或会话路径。",
-    "sharedHistory.emptyDesc": "开启会话分享后，会在这里集中查看链接状态并关闭公开访问。",
-    "sharedHistory.timeUnknown": "时间未知",
-    "sharedHistory.messageCount": "{count} 条消息",
-    "sharedHistory.messageCountUnknown": "消息数未知",
-    "sharedHistory.publicBadge": "公开中",
-    "sharedHistory.redactedBadge": "已脱敏",
-    "sharedHistory.updatedAt": "更新于 {time}",
-    "sharedHistory.loadingLink": "正在读取分享链接...",
-    "sharedHistory.loadingGateway": "正在读取 Gateway 地址...",
-    "sharedHistory.linkPending": "分享链接状态待同步",
-    "sharedHistory.copyLink": "复制链接",
-    "sharedHistory.openLink": "打开链接",
-    "sharedHistory.redactionTitle": "工具调用脱敏",
-    "sharedHistory.redactionDescription": "隐藏参数、命令、返回内容与图片；工具卡片不可展开",
-    "sharedHistory.redactionDescriptionTitle":
-      "隐藏内置工具的参数、命令、返回内容与图片，并禁止展开工具卡片",
-    "sharedHistory.disableShare": "关闭分享",
-    "sharedHistory.retry": "重试",
-
     /* ── Project Tools ── */
     "projectTools.terminalTitle": "终端",
     "projectTools.fileTreeTitle": "文件树",
@@ -2614,47 +2577,6 @@ export const translations: Record<Locale, Record<string, string>> = {
     "sidebar.autoShowLater": "Recent saved conversations will appear automatically.",
     "sidebar.loadingMoreHistory": "Loading more history...",
     "sidebar.continueLoadingHistory": "Keep scrolling to load more",
-
-    /* ── Shared History ── */
-    "sharedHistory.title": "Shared conversations",
-    "sharedHistory.managerLabel": "Manage shared conversations",
-    "sharedHistory.subtitle":
-      "Review public read-only links, copy access URLs, or disable shares you no longer need.",
-    "sharedHistory.close": "Close",
-    "sharedHistory.summaryShared": "Shared",
-    "sharedHistory.summaryCopyable": "Copyable links",
-    "sharedHistory.summaryStatus": "Status",
-    "sharedHistory.syncing": "Syncing",
-    "sharedHistory.synced": "Synced",
-    "sharedHistory.originUnavailable":
-      "The current Gateway address cannot generate public links yet. Link copying is temporarily unavailable, but shares can still be managed.",
-    "sharedHistory.originLoading": "Reading the current Gateway public address...",
-    "sharedHistory.searchPlaceholder": "Search title, model, or path",
-    "sharedHistory.refresh": "Refresh",
-    "sharedHistory.emptyFilteredTitle": "No shared conversations match",
-    "sharedHistory.emptyTitle": "No shared conversations yet",
-    "sharedHistory.emptyFilteredDesc":
-      "Try another keyword to search titles, models, or conversation paths.",
-    "sharedHistory.emptyDesc":
-      "Shared conversations will appear here so you can review link state and disable public access.",
-    "sharedHistory.timeUnknown": "Time unknown",
-    "sharedHistory.messageCount": "{count} messages",
-    "sharedHistory.messageCountUnknown": "Message count unknown",
-    "sharedHistory.publicBadge": "Public",
-    "sharedHistory.redactedBadge": "Redacted",
-    "sharedHistory.updatedAt": "Updated {time}",
-    "sharedHistory.loadingLink": "Reading share link...",
-    "sharedHistory.loadingGateway": "Reading Gateway address...",
-    "sharedHistory.linkPending": "Share link state pending sync",
-    "sharedHistory.copyLink": "Copy link",
-    "sharedHistory.openLink": "Open link",
-    "sharedHistory.redactionTitle": "Tool call redaction",
-    "sharedHistory.redactionDescription":
-      "Hide arguments, commands, returned content, and images; tool cards cannot be expanded",
-    "sharedHistory.redactionDescriptionTitle":
-      "Hide built-in tool arguments, commands, returned content, and images, and prevent expanding tool cards",
-    "sharedHistory.disableShare": "Disable share",
-    "sharedHistory.retry": "Retry",
 
     /* ── Project Tools ── */
     "projectTools.terminalTitle": "Terminal",
