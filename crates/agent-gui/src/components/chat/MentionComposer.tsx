@@ -2284,10 +2284,19 @@ export const MentionComposer = memo(
               mentionFetchRef.current = { ...mentionFetchRef.current, truncated: resp.truncated };
             }
           })
-          .catch(() => {
+          .catch((err) => {
             if (requestSeq !== mentionSessionRequestSeqRef.current) return;
             setMentionSessionEntries([]);
-            setMentionSessionError("Could not index files");
+            // The only known failure mode for @-mention indexing is an invalid
+            // or vanished workdir (canonicalize_workdir) from stale session
+            // hints. Keep the list empty without a toast in that case; surface
+            // anything else as before.
+            const message = err instanceof Error ? err.message : String(err);
+            if (/canonicalize|workdir/i.test(message)) {
+              setMentionSessionError(null);
+            } else {
+              setMentionSessionError("Could not index files");
+            }
           })
           .finally(() => {
             if (requestSeq !== mentionSessionRequestSeqRef.current) return;

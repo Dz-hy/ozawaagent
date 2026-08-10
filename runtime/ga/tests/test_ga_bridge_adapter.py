@@ -1485,14 +1485,17 @@ async def test_conductor_snapshot_is_read_only_bounded_and_redacted(monkeypatch,
 
 
 @pytest.mark.asyncio
-async def test_conductor_snapshot_failure_is_generic_503(monkeypatch, client):
+async def test_conductor_snapshot_failure_degrades_200(monkeypatch, client):
     async def fail(_session, _path):
         raise RuntimeError("upstream secret C:\\private\\conductor.log")
 
     monkeypatch.setattr(adapter, "_read_conductor_json", fail)
     response = await client.get("/api/v1/conductor", headers=AUTH)
-    assert response.status == 503
+    # The UI depends on a stable conductor.snapshot envelope; failures degrade
+    # to an empty, non-available snapshot instead of a 5xx that breaks the page.
+    assert response.status == 200
     body = await response.text()
+    assert '"available": false' in body
     assert "conductor_unavailable" in body
     assert "conductor.log" not in body
     assert "C:\\\\private" not in body

@@ -4,11 +4,15 @@ import type {
   MentionComposerDraft,
   MentionComposerHandle,
 } from "../../../components/chat/MentionComposer";
-import type { HistoryMessageRef } from "../../../lib/chat/conversation/conversationState";
+import type {
+  ConversationViewState,
+  HistoryMessageRef,
+} from "../../../lib/chat/conversation/conversationState";
 import {
   mergePendingUploadedFiles,
   type PendingUploadedFile,
 } from "../../../lib/chat/messages/uploadedFiles";
+import { buildFallbackConversationTitle } from "../../../lib/chat/page/chatPageHelpers";
 import type { ScrollFollowHandle } from "../../../lib/chat-scroll/useScrollFollow";
 import { gaBridgeClient } from "../../../lib/ga/GaBridgeClient";
 import { registerGaAskSender } from "../../../lib/ga/gaAskUser";
@@ -138,6 +142,7 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
     getConversationLiveTranscriptStore,
     appendDraftAssistantText,
     requestQueuedChatTurnProcessing,
+    persistConversation,
   } = params;
 
   async function send(overrides?: {
@@ -304,6 +309,31 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
     setConversationSendingState(conversationId, true);
     if (visible) scrollFollowRef.current?.stickToBottom();
 
+    const persistCurrent = (stateOverride?: ConversationViewState) => {
+      const providerId =
+        modelMode === "legacy" ? (legacySelection?.providerId ?? "genericagent") : "genericagent";
+      const model =
+        modelMode === "legacy" ? (legacySelection?.model ?? "genericagent") : "genericagent";
+      return persistConversation({
+        conversationId,
+        sessionId: runtimeEntry.sessionId,
+        providerId,
+        model,
+        cwd: effectiveWorkdir || undefined,
+        state:
+          stateOverride ??
+          conversationRuntimeCacheRef.current.get(conversationId)?.state ??
+          baseState,
+        fallbackTitle: buildFallbackConversationTitle(text || expandedText),
+        createdAt: runtimeEntry.createdAt,
+        titlePromise: null,
+      });
+    };
+    // Initial persist: create/refresh the local history row before the turn
+    // starts so interrupted runs still leave a record (restored from the
+    // pre-refactor send path that was dropped by 4688c8ac).
+    void persistCurrent(baseState).catch(() => undefined);
+
     try {
       if (modelMode === "legacy" && legacySelection && legacyProvider) {
         const transcriptStore = getConversationLiveTranscriptStore(conversationId);
@@ -358,6 +388,9 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
             })),
         });
       }
+      // Terminal persist: flush the finished turn into local history and
+      // sync events once the session reached a terminal state.
+      await persistCurrent();
       return true;
     } catch (error) {
       const message = asErrorMessage(error, "GenericAgent request failed");
@@ -375,6 +408,7 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
           setPendingUploadsForConversation(conversationId, savedUploads);
         }
       }
+      void persistCurrent().catch(() => undefined);
       return true;
     } finally {
       setConversationAbortController(conversationId, null);

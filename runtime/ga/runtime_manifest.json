@@ -16,6 +16,7 @@
       "mykey_template.py",
       "mykey_template_en.py",
       "frontends/desktop_bridge.py",
+      "frontends/slash_cmds.py",
       "frontends/plan_state.py",
       "frontends/cost_tracker.py",
       "frontends/conductor.py",

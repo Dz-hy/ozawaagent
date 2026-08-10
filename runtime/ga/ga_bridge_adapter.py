@@ -304,7 +304,7 @@ def load_module_from_path(module_name: str, path: Path):
     return module
 
 
-def load_official_module(root: Path, manifest: dict[str, Any]):
+def load_official_module(root: Path, manifest: dict[str, Any], writable_root: Path | None = None):
     path = root / manifest["official_bridge"]["path"]
     # The official bridge is normally executed as a script, where Python puts
     # its `frontends` directory on sys.path automatically.  The desktop
@@ -318,7 +318,65 @@ def load_official_module(root: Path, manifest: dict[str, Any]):
     module = load_module_from_path("ozawaagent_official_ga_bridge", path)
     if not callable(getattr(module, "create_app", None)):
         raise RuntimeError("Official GenericAgent bridge has no create_app contract")
+    if writable_root is not None:
+        _wire_desktop_ga_root(module, writable_root)
     return module
+
+
+def _ensure_writable_runtime(root: Path) -> None:
+    """Pre-seed the writable runtime root so the official bridge's lazy
+    initializers (mykey.py, desktop_sessions, uploads) never fall back to the
+    bundled, read-only GenericAgent source tree."""
+    (root / "temp" / "desktop_sessions").mkdir(parents=True, exist_ok=True)
+    template = root / "mykey_template.py"
+    target = root / "mykey.py"
+    if template.is_file() and not target.is_file():
+        shutil.copy2(template, target)
+
+
+def _wire_desktop_ga_root(module: Any, root: Path) -> None:
+    """Redirect the official bridge's module-level singletons (DEFAULT_GA_ROOT,
+    manager, services) to the writable data root.
+
+    The official bridge resolves its root once at import time, so bundled-mode
+    launches built from a packaged template would otherwise bind sessions,
+    mykey.py and uploads to the immutable GenericAgent source tree.
+    """
+    _ensure_writable_runtime(root)
+    root_text = str(root)
+    module.DEFAULT_GA_ROOT = root
+    manager = getattr(module, "manager", None)
+    if manager is not None:
+        try:
+            manager.ga_root = root_text
+            manager._sessions_dir = Path(root_text) / "temp" / "desktop_sessions"
+            manager._sessions_file = Path(root_text) / "temp" / "desktop_sessions.json"
+            # The import-time load may have read an empty or foreign root;
+            # startup is single-threaded, so re-loading from the data root is safe.
+            manager.sessions = {}
+            manager._load_sessions()
+        except Exception:
+            pass
+    services = getattr(module, "services", None)
+    if services is not None:
+        try:
+            services.ga_root = Path(root_text)
+            discover_im = getattr(module, "discover_im_services", None)
+            discover_extra = getattr(module, "discover_extra_services", None)
+            if callable(discover_im) and callable(discover_extra):
+                services._im_catalog = {s["id"]: s for s in discover_im(Path(root_text))}
+                services._catalog = {
+                    **services._im_catalog,
+                    **{s["id"]: s for s in discover_extra(Path(root_text))},
+                }
+        except Exception:
+            pass
+    upload_dir = getattr(module, "_WEB_UPLOAD_DIR", None)
+    if upload_dir is not None:
+        try:
+            module._WEB_UPLOAD_DIR = Path(root_text) / "temp" / "desktop_uploads"
+        except Exception:
+            pass
 
 
 HOOK_OBSERVATIONS: deque[dict[str, str]] = deque(maxlen=100)
@@ -1850,10 +1908,19 @@ async def conductor_snapshot_handler(request: web.Request) -> web.Response:
             },
         }
     except Exception:
-        return _json("error", {
-            "code": "conductor_unavailable",
-            "message": "GenericAgent Conductor is unavailable",
-        }, 503, request.headers.get("X-Request-Id", ""))
+        degraded = {
+            "schema": "ga.conductor.v1",
+            "read_only": True,
+            "available": False,
+            "subagents": [],
+            "chat": [],
+            "counts": {"running": 0, "stopped": 0},
+            "error": {
+                "code": "conductor_unavailable",
+                "message": "GenericAgent Conductor is unavailable",
+            },
+        }
+        return _json("conductor.snapshot", degraded, 200, request.headers.get("X-Request-Id", ""))
     return _json("conductor.snapshot", payload, 200, request.headers.get("X-Request-Id", ""))
 
 
@@ -2871,7 +2938,9 @@ def main(argv: list[str] | None = None) -> int:
     token = os.environ.get("GA_BRIDGE_TOKEN", "")
     if len(token) < 32:
         parser.error("GA_BRIDGE_TOKEN must contain at least 32 characters")
-    module = load_official_module(root, runtime_manifest)
+    module = load_official_module(
+        root, runtime_manifest, writable_root=root if args.data_root else None
+    )
     app = create_app(official_module=module, token=token,
                      allowed_origins=parse_origins(os.environ.get("GA_BRIDGE_ALLOWED_ORIGINS")), manifest=runtime_manifest,
                      ga_root=root)
