@@ -1274,7 +1274,27 @@ def _redact_extra(value: Any, extra_keys: list[str]) -> Any:
 async def _mcp_stdio(connector: dict[str, Any],
                      requests: list[tuple[str, dict[str, Any]]],
                      timeout: float) -> list[dict[str, Any]]:
-    """Run JSON-RPC 2.0 requests over a stdio MCP subprocess (no shell)."""
+    """Run JSON-RPC 2.0 requests over a stdio MCP subprocess (no shell).
+
+    Security boundary: the subprocess is spawned with
+    ``asyncio.create_subprocess_exec`` (never a shell), so ``command``/``args``
+    are executed literally and never interpreted. Their values, like ``env``,
+    come from connector declarations under the user-owned data dir — string
+    fields already validated by ``_load_connectors``. We additionally reject
+    obvious shell-command misconfigurations here so failures surface as
+    actionable errors instead of cryptic OS-level spawn errors.
+    """
+    name = connector.get("name", "?")
+    command = connector.get("command")
+    if not isinstance(command, str) or not command.strip():
+        raise ValueError(
+            f"MCP stdio connector '{name}' has an empty 'command'; "
+            "set it to the executable path or name to spawn")
+    if re.search(r"[\s;&|<>$`(){}\[\]]", command):
+        raise ValueError(
+            f"MCP stdio connector '{name}' has shell metacharacters in 'command' "
+            f"({command!r}); 'command' must be a single executable path/name and "
+            "any arguments belong in 'args'")
     env = dict(os.environ)
     env.update(connector["env"])
     proc = await asyncio.create_subprocess_exec(
