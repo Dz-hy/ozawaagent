@@ -1,4 +1,10 @@
-import type { Model, ModelThinkingLevel, OpenAICompletionsCompat } from "@earendil-works/pi-ai";
+import type {
+  Api,
+  KnownProvider,
+  Model,
+  ModelThinkingLevel,
+  OpenAICompletionsCompat,
+} from "@earendil-works/pi-ai";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import {
@@ -26,13 +32,24 @@ const CODEX_CHAT_COMPLETIONS_SUFFIX = "/chat/completions";
 
 type CodexApi = "openai-responses" | "openai-completions";
 
+// getBuiltinModel 的 modelId 键是生成目录的穷举字面量，无法静态索引运行时
+// 任意模型 id；目录条目恒满足 Model<Api>（具体 api 可赋给 Api），这里仅在
+// 调用边界收窄一次函数签名，避免 any 渗入业务代码。
+function getBuiltinModelAny(
+  provider: "openai" | "anthropic" | "google",
+  modelId: string,
+): Model<Api> | undefined {
+  const lookup = getBuiltinModel as (provider: KnownProvider, modelId: string) => Model<Api>;
+  return lookup(provider, modelId) ?? undefined;
+}
+
 function resolveKnownModel(
   provider: "openai" | "anthropic" | "google",
   modelId: string,
   baseUrl: string,
-): Model<any> | undefined {
-  const known = getBuiltinModel(provider as any, modelId as any) as Model<any> | undefined;
-  return known?.api ? ({ ...known, baseUrl } as Model<any>) : undefined;
+): Model<Api> | undefined {
+  const known = getBuiltinModelAny(provider, modelId);
+  return known?.api ? ({ ...known, baseUrl } as Model<Api>) : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -48,7 +65,7 @@ function resolveKnownAnthropicModel(
   modelId: string,
   baseUrl: string,
   upstreamBaseUrl?: string,
-): Model<any> | undefined {
+): Model<"anthropic-messages"> | undefined {
   const known = findBuiltinAnthropicModel(modelId);
   if (!known?.api) return undefined;
   const endpointBaseUrl = upstreamBaseUrl?.trim() || baseUrl;
@@ -57,7 +74,7 @@ function resolveKnownAnthropicModel(
     baseUrl,
     id: resolveAnthropicWireModelId(modelId, endpointBaseUrl),
     name: modelId,
-  } as Model<any>;
+  };
 }
 
 // 目录彻底未命中的三方改名 id（如 claude-4.6-sonnet）退回 ee8dba1 之前的 id 启发式：
@@ -149,7 +166,7 @@ function supportsOpenAICompletionsImageInputModel(modelId: string) {
   );
 }
 
-function resolveCodexModelInput(api: CodexApi, modelId: string): Model<any>["input"] {
+function resolveCodexModelInput(api: CodexApi, modelId: string): ("text" | "image")[] {
   if (api === "openai-responses" || supportsOpenAICompletionsImageInputModel(modelId)) {
     return ["text", "image"];
   }
@@ -286,6 +303,10 @@ function inferCodexApi(requestFormat?: CodexRequestFormat, preferredApi?: CodexA
   return requestFormat ?? preferredApi ?? "openai-responses";
 }
 
+type BuiltinModel = Model<
+  "openai-responses" | "openai-completions" | "anthropic-messages" | "google-generative-ai"
+>;
+
 export function createModelFromConfig(
   providerId: ProviderId,
   modelId: string,
@@ -293,7 +314,7 @@ export function createModelFromConfig(
   requestFormat?: CodexRequestFormat,
   modelConfig?: ProviderModelConfig,
   upstreamBaseUrl?: string,
-): Model<any> {
+): BuiltinModel {
   const defaults = getProviderModelDefaults(providerId, modelId);
   const configuredContextWindow = modelConfig?.contextWindow ?? defaults.contextWindow;
   const contextWindow =
@@ -349,13 +370,12 @@ export function createModelFromConfig(
           upstreamBaseUrl,
           modelId,
         },
-      );
+      ) as Model<CodexApi>;
     }
 
-    const custom: Model<any> = {
+    const customBase = {
       id: modelId,
       name: modelId,
-      api,
       provider: "openai",
       baseUrl: normalizedBaseUrl,
       // 目录之外的自定义模型无法从 id 可靠判断推理能力，与 anthropic/gemini
@@ -367,21 +387,34 @@ export function createModelFromConfig(
       contextWindow,
       maxTokens,
     };
-    if (api === "openai-responses" && responsesCompat) {
-      custom.compat = responsesCompat;
-    } else if (api === "openai-completions") {
-      const overrides = resolveCodexOpenAICompletionsOverrides({
+    if (api === "openai-responses") {
+      const custom: Model<"openai-responses"> = {
+        ...customBase,
+        api,
+        ...(responsesCompat ? { compat: responsesCompat } : {}),
+      };
+      return applyDeepSeekModelDefaults(custom, {
+        providerId,
         baseUrl: normalizedBaseUrl,
         upstreamBaseUrl,
         modelId,
       });
-      if (overrides) {
-        custom.compat = overrides.compat;
-        if (overrides.thinkingLevelMap) {
-          custom.thinkingLevelMap = overrides.thinkingLevelMap;
-        }
-      }
     }
+    const overrides = resolveCodexOpenAICompletionsOverrides({
+      baseUrl: normalizedBaseUrl,
+      upstreamBaseUrl,
+      modelId,
+    });
+    const custom: Model<"openai-completions"> = {
+      ...customBase,
+      api,
+      ...(overrides
+        ? {
+            compat: overrides.compat,
+            ...(overrides.thinkingLevelMap ? { thinkingLevelMap: overrides.thinkingLevelMap } : {}),
+          }
+        : {}),
+    };
     return applyDeepSeekModelDefaults(custom, {
       providerId,
       baseUrl: normalizedBaseUrl,
@@ -399,7 +432,7 @@ export function createModelFromConfig(
         contextWindow,
         maxTokens,
         ...(configuredCost ? { cost: configuredCost } : {}),
-      };
+      } as Model<"google-generative-ai">;
     }
 
     const custom: Model<"google-generative-ai"> = {
