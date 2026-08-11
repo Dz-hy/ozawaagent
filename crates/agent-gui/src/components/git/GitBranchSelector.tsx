@@ -821,15 +821,17 @@ export function GitBranchSelector(props: {
 
   const selectBranch = useCallback(
     (branch: GitBranchInfo) => {
-      void runBranchMutation(() => gitClient!.switchBranch(workdir, branch.fullName, branch.kind));
+      if (!gitClient) return;
+      void runBranchMutation(() => gitClient.switchBranch(workdir, branch.fullName, branch.kind));
     },
     [gitClient, runBranchMutation, workdir],
   );
 
   const createBranch = useCallback(() => {
+    if (!gitClient) return;
     const name = draftBranch.trim();
     if (!name) return;
-    void runBranchMutation(() => gitClient!.createBranch(workdir, name)).then((ok) => {
+    void runBranchMutation(() => gitClient.createBranch(workdir, name)).then((ok) => {
       if (!ok) return;
       // Close through the shared handler: a bare setMenuOpen(false) skips
       // onOpenChange, leaving the draft/filter cleanup behind.
@@ -910,18 +912,18 @@ export function GitBranchSelector(props: {
   );
 
   const submitBranchAction = useCallback(() => {
-    if (!branchAction) return;
+    if (!branchAction || !gitClient) return;
     const name = actionDraft.trim();
     if (!name) return;
     const { mode, branch } = branchAction;
     if (mode === "createFrom") {
-      void runSheetMutation(() => gitClient!.createBranch(workdir, name, branch.fullName)).then(
+      void runSheetMutation(() => gitClient.createBranch(workdir, name, branch.fullName)).then(
         (ok) => {
           if (ok) resetBranchAction();
         },
       );
     } else if (mode === "rename") {
-      void runSheetMutation(() => gitClient!.renameBranch(workdir, branch.fullName, name)).then(
+      void runSheetMutation(() => gitClient.renameBranch(workdir, branch.fullName, name)).then(
         (ok) => {
           if (ok) resetBranchAction();
         },
@@ -1150,7 +1152,10 @@ export function GitBranchSelector(props: {
                   type="button"
                   className={HEADER_ICON_BUTTON_CLASS}
                   disabled={!canWrite || mutating}
-                  onClick={() => runRemoteAction("fetch", () => gitClient!.fetch(workdir))}
+                  onClick={() => {
+                    if (!gitClient) return;
+                    runRemoteAction("fetch", () => gitClient.fetch(workdir));
+                  }}
                   title={!canWrite ? disabledMessage : t("git.branchSelector.fetch")}
                   aria-label={t("git.branchSelector.fetch")}
                 >
@@ -1165,7 +1170,10 @@ export function GitBranchSelector(props: {
                     type="button"
                     className={HEADER_ICON_BUTTON_CLASS}
                     disabled={!canWrite || mutating}
-                    onClick={() => runRemoteAction("pull", () => gitClient!.pull(workdir))}
+                    onClick={() => {
+                      if (!gitClient) return;
+                      runRemoteAction("pull", () => gitClient.pull(workdir));
+                    }}
                     title={!canWrite ? disabledMessage : t("git.branchSelector.pull")}
                     aria-label={t("git.branchSelector.pull")}
                   >
@@ -1186,7 +1194,10 @@ export function GitBranchSelector(props: {
                     type="button"
                     className={HEADER_ICON_BUTTON_CLASS}
                     disabled={!canWrite || mutating}
-                    onClick={() => runRemoteAction("push", () => gitClient!.push(workdir))}
+                    onClick={() => {
+                      if (!gitClient) return;
+                      runRemoteAction("push", () => gitClient.push(workdir));
+                    }}
                     title={!canWrite ? disabledMessage : t("git.branchSelector.push")}
                     aria-label={t("git.branchSelector.push")}
                   >
@@ -1433,7 +1444,10 @@ export function GitBranchSelector(props: {
                     <DropdownMenuSubContent className="min-w-44">
                       <DropdownMenuItem
                         disabled={!canWrite || mutating || dirtyTotal === 0}
-                        onSelect={() => void runBranchMutation(() => gitClient!.stashPush(workdir))}
+                        onSelect={() => {
+                          if (!gitClient) return;
+                          void runBranchMutation(() => gitClient.stashPush(workdir));
+                        }}
                         className="gap-2 text-xs"
                       >
                         <Download className="h-3.5 w-3.5" />
@@ -1441,7 +1455,10 @@ export function GitBranchSelector(props: {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         disabled={!canWrite || mutating || state.stashCount === 0}
-                        onSelect={() => void runBranchMutation(() => gitClient!.stashPop(workdir))}
+                        onSelect={() => {
+                          if (!gitClient) return;
+                          void runBranchMutation(() => gitClient.stashPop(workdir));
+                        }}
                         className="gap-2 text-xs"
                       >
                         <Upload className="h-3.5 w-3.5" />

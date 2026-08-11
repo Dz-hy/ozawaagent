@@ -297,16 +297,18 @@ export function GitReviewStatusView(props: {
 
   const stageEntry = useCallback(
     (entry: GitStatusEntry) => {
+      if (!gitClient) return;
       setChangeContextMenu(null);
-      void runOperation("stage", () => gitClient!.stage(cwd, entry.path));
+      void runOperation("stage", () => gitClient.stage(cwd, entry.path));
     },
     [cwd, gitClient, runOperation],
   );
 
   const unstageEntry = useCallback(
     (entry: GitStatusEntry) => {
+      if (!gitClient) return;
       setChangeContextMenu(null);
-      void runOperation("unstage", () => gitClient!.unstage(cwd, entry.path));
+      void runOperation("unstage", () => gitClient.unstage(cwd, entry.path));
     },
     [cwd, gitClient, runOperation],
   );
@@ -322,20 +324,23 @@ export function GitReviewStatusView(props: {
 
   const addEntryToGitignore = useCallback(
     (entry: GitStatusEntry) => {
+      if (!gitClient) return;
       setChangeContextMenu(null);
-      void runOperation("add_to_gitignore", () => gitClient!.addToGitignore(cwd, entry.path));
+      void runOperation("add_to_gitignore", () => gitClient.addToGitignore(cwd, entry.path));
     },
     [cwd, gitClient, runOperation],
   );
 
   const stageAllChanges = useCallback(() => {
+    if (!gitClient) return;
     setChangesMenu(null);
-    void runOperation("stage_all", () => gitClient!.stageAll(cwd));
+    void runOperation("stage_all", () => gitClient.stageAll(cwd));
   }, [cwd, gitClient, runOperation]);
 
   const unstageAllChanges = useCallback(() => {
+    if (!gitClient) return;
     setChangesMenu(null);
-    void runOperation("unstage_all", () => gitClient!.unstageAll(cwd));
+    void runOperation("unstage_all", () => gitClient.unstageAll(cwd));
   }, [cwd, gitClient, runOperation]);
 
   const discardAllChanges = useCallback(() => {
@@ -349,14 +354,14 @@ export function GitReviewStatusView(props: {
   }, [busy]);
 
   const confirmDiscardChanges = useCallback(async () => {
-    if (!discardConfirm) return;
+    if (!discardConfirm || !gitClient) return;
     if (discardConfirm.kind === "all") {
-      await runOperation("discard_all", () => gitClient!.discardAll(cwd), "discard_all");
+      await runOperation("discard_all", () => gitClient.discardAll(cwd), "discard_all");
     } else {
       const target = discardConfirm;
       await runOperation(
         "discard",
-        () => gitClient!.discard(cwd, target.path, target.oldPath ?? undefined),
+        () => gitClient.discard(cwd, target.path, target.oldPath ?? undefined),
         "discard",
       );
     }
@@ -616,9 +621,10 @@ export function GitReviewStatusView(props: {
               size="sm"
               disabled={writeDisabled || operationBusy || !commitMessage.trim()}
               onClick={() => {
+                if (!gitClient) return;
                 void runOperation(
                   "commit",
-                  () => gitClient!.commit(cwd, commitMessage),
+                  () => gitClient.commit(cwd, commitMessage),
                   "commit",
                 ).then((ok) => {
                   if (ok) onCommitMessageChange("");

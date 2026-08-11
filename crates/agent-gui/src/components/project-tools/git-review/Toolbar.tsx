@@ -896,7 +896,17 @@ export function GitReviewToolbar(props: {
           title={t("projectTools.gitReview.push")}
           aria-label={t("projectTools.gitReview.push")}
           className="h-7 w-7 px-0"
-          onClick={() => void runOperation("push", () => gitClient!.push(cwd), "push")}
+          onClick={() =>
+            void runOperation(
+              "push",
+              () => {
+                const client = gitClient;
+                if (!client) return Promise.reject(new Error("git client unavailable"));
+                return client.push(cwd);
+              },
+              "push",
+            )
+          }
         >
           {busy === "push" ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />

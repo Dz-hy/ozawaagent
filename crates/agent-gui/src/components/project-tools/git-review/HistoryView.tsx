@@ -869,6 +869,7 @@ export function GitReviewHistoryView(props: {
   }, [data]);
 
   const confirmCreateBranchFromCommit = useCallback(async () => {
+    if (!gitClient) return;
     const target = branchFromCommit;
     if (!target) return;
     const branchName = branchFromCommitName.trim();
@@ -879,7 +880,7 @@ export function GitReviewHistoryView(props: {
     setBranchFromCommitError("");
     const ok = await runOperation(
       "create_branch",
-      () => gitClient!.createBranch(cwd, branchName, target.commitSha),
+      () => gitClient.createBranch(cwd, branchName, target.commitSha),
       "create_branch",
     );
     if (ok) {
@@ -1260,13 +1261,13 @@ export function GitReviewHistoryView(props: {
             event.stopPropagation();
           }}
         >
-          {historyContextMenu.kind === "file" ? (
+          {historyContextMenu.kind === "file" && historyContextFile ? (
             <>
               <button
                 type="button"
                 role="menuitem"
                 className={CHANGE_CONTEXT_MENU_ITEM_CLASS}
-                onClick={() => openHistoryCommitDiff(historyContextCommit, historyContextFile!)}
+                onClick={() => openHistoryCommitDiff(historyContextCommit, historyContextFile)}
               >
                 <Eye className="h-3.5 w-3.5" />
                 <span>{t("projectTools.gitReview.openChange")}</span>
@@ -1276,7 +1277,7 @@ export function GitReviewHistoryView(props: {
                 role="menuitem"
                 className={CHANGE_CONTEXT_MENU_ITEM_CLASS}
                 disabled={!onInsertGitFileMention}
-                onClick={() => addHistoryFileToContext(historyContextCommit, historyContextFile!)}
+                onClick={() => addHistoryFileToContext(historyContextCommit, historyContextFile)}
               >
                 <MessageSquareText className="h-3.5 w-3.5" />
                 <span>{t("projectTools.gitReview.addToContext")}</span>
