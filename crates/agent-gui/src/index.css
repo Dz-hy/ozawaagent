@@ -529,6 +529,7 @@
   .project-terminal-viewport .xterm-viewport,
   .project-terminal-viewport .xterm-screen,
   .project-terminal-viewport .xterm-scrollable-element {
+    /* biome-ignore lint/complexity/noImportantStyles: xterm injects its own theme background; this override must win. */
     background: var(--project-terminal-background) !important;
   }
   .project-terminal-viewport .xterm-scrollable-element > .scrollbar.vertical > .slider {
@@ -1381,15 +1382,15 @@
       animation: none;
     }
 
-    :where(.sidebar-context-menu [role="menuitem"]),
-    :where(.sidebar-context-menu) {
-      animation: none !important;
-      transition: none !important;
+    .sidebar-context-menu,
+    .sidebar-context-menu[data-open] [role="menuitem"] {
+      animation: none;
+      transition: none;
     }
 
     .confirm-action-popover-popup {
-      animation: none !important;
-      transition: none !important;
+      animation: none;
+      transition: none;
     }
 
     .ssh-auth-panel,
@@ -1645,13 +1646,13 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    :where(.composer-dropdown [role="menuitemcheckbox"]),
-    :where(.composer-dropdown [role="menuitem"]),
-    :where(.composer-dropdown),
-    :where(.composer-branch-dropdown),
-    :where(.model-selector-dropdown),
-    :where(.model-selector-item) {
-      animation: none !important;
+    .composer-dropdown,
+    .composer-branch-dropdown,
+    .model-selector-dropdown,
+    .composer-dropdown[data-state="open"] [role="menuitemcheckbox"],
+    .composer-dropdown[data-state="open"] [role="menuitem"],
+    .model-selector-dropdown[data-open] .model-selector-item {
+      animation: none;
     }
 
     .composer-reasoning-trigger,
@@ -1660,7 +1661,7 @@
     .model-selector-dropdown,
     .model-selector-trigger,
     .model-selector-trigger svg {
-      transition: none !important;
+      transition: none;
     }
   }
 
@@ -1796,7 +1797,7 @@
     .ask-question-enter-forward,
     .ask-question-enter-backward,
     .ask-custom-input-enter {
-      animation: none !important;
+      animation: none;
     }
   }
 
@@ -2336,7 +2337,7 @@
     .skills-drawer-backdrop-closing,
     .skills-drawer-panel,
     .skills-drawer-panel-closing {
-      animation: none !important;
+      animation: none;
     }
     .hub-frost-spinner > i {
       opacity: 0.4;
@@ -2389,7 +2390,7 @@
     .file-drop-overlay,
     .file-drop-overlay-card,
     .file-drop-overlay-zone {
-      animation: none !important;
+      animation: none;
     }
   }
 }
@@ -2417,7 +2418,7 @@
   }
 
   .settings-hover-actions {
-    opacity: 1 !important;
+    opacity: 1;
   }
 
   .settings-card-row {
@@ -2431,7 +2432,7 @@
  * exists. Hover-revealed action clusters must stay visible there. */
 @media (hover: none) {
   .settings-hover-actions {
-    opacity: 1 !important;
+    opacity: 1;
   }
 }
 
