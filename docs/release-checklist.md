@@ -7,7 +7,7 @@
 - [x] `pnpm exec tsc --noEmit` 0 错误
 - [x] `pnpm build`（vite 生产构建）
 - [x] `pnpm test:frontend --run` 全绿（settings/chat/debug/memory/providers/subagents/tools/i18n/skills/context-menu/system）
-- [x] `pnpm test:release --run`（后端 release 契约）
+- [x] `pnpm test:release --run`（后端 release 契约，含 shipping build 不得引入 `tauri-plugin-mcp-bridge` / `mcp-bridge`）
 - [x] `git diff --check` 无空白错误
 
 ## B. CI（push 后盯 GitHub Actions 全绿）
@@ -45,5 +45,6 @@
 - [x] Phase 9 剩余-高级 Hook 编辑：**判定闭环**（2026-08-06 P5.8）——官方 plugins/hooks.py 为纯内存注册表（无编辑/持久化/超时语义），保留只读快照入口，不建编辑面
 - [x] 质量加固冲刺（2026-08-11）：Biome 104 → 0 warnings；Remote/Gateway residue 移除；死 i18n 键经模板感知 census 清除（833 键/locale，1666 行）；Tauri/GA bridge threat model 见 [`threat-model-2026-08-11.md`](threat-model-2026-08-11.md)。对应提交 `f26a0ead`–`0dfafde8`、`baf46f9b`、`3ccaad87`、`d4189da7`。
 - [x] Phase 6 最终删除复核（2026-08-11）：`crates/agent-gateway/` 和 `railway.json` 已分别由 `f9224d4a` / `ce9fa68a` 删除；HEAD、工作树及 live-reference 检查均为 0（本地 ignored 的 `docs/project/phase6_final_deletion.md` 保留完整命令输出与物证）。
-- [ ] 接受残留（发布引用，非“已安全”结论）：39 个 vendored GenericAgent findings（仅上游可修）；Mimosa `scanner_enobufs` / `entryPoints=0`（人工 threat model 已补，但扫描仍不完整）；`src/index.css` xterm `!important`（第三方主题覆盖，已注释）；WebView 持有 bridge bearer token（**最高风险边界：XSS = bridge/Tauri capability compromise**）。
+- [x] 无认证 desktop MCP bridge 处置（2026-08-11）：`tauri-plugin-mcp-bridge`（修复前默认 `0.0.0.0:9223`、无认证 WebView JS/截屏/IPC 控制面）已从产品 dependency、Rust builder 与 main-window capability 完整移除；`test/backend/release-mcp-bridge.test.mjs` 防止回归。每次 Windows desktop smoke 仍应确认 `ozawaagent.exe` 不监听 9223–9322。
+- [ ] 接受残留（发布引用，非“已安全”结论）：39 个 vendored GenericAgent findings（仅上游可修）；Mimosa `scanner_enobufs` / `entryPoints=0`（人工 threat model 已补，但扫描仍不完整）；`src/index.css` xterm `!important`（第三方主题覆盖，已注释）；WebView 持有 **GA runtime bridge** bearer token（**最高风险边界：XSS = bridge/Tauri capability compromise**）。
 - [ ] Phase 9 剩余-发布态受控安装：**保持后置**（2026-08-09 用户指示先不构建产物；放开后按 Phase 8 安装验收矩阵执行）

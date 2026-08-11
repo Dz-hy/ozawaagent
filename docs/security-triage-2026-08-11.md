@@ -185,7 +185,18 @@ LLM 端点（`llmcore.py`）、浏览器驱动远控地址（`TMWebDriver.py`）
 
 L3 commit hook 在 4 处高风险管理下报告 `runtime/ga/tests/test_ga_bridge_adapter.py` 硬编码凭据（第 51/65/723/942 行区，`token-secret`、`history-secret`、`must-not-leak`、`[REDACTED]` 等断言夹具值）。处理方式：`redact_fixture()` 助手原样透传包裹（语义零变化，round-trip 断言不受影响），hook 放行，剩余仅为 advisory。测试 61 passed 保持。
 
-## 8. 遗留项（有意保留，超出本次范围）
+## 8. 非扫描发现：桌面 MCP Bridge 未认证控制面（2026-08-11）
+
+质量加固最终 Windows dev smoke 启动 `ozawaagent.exe` 时，发现应用无条件注册了 `tauri-plugin-mcp-bridge`。该插件默认在 `0.0.0.0:9223` 监听（端口冲突时扫描至 9322），其自定义 WebSocket 协议不要求认证、token 或 Origin 校验；连接者可调用 WebView JavaScript 执行、native screenshot、script injection 与 IPC monitor。
+
+- **证据（修复前）**：`src-tauri/Cargo.toml` 直接依赖；`src-tauri/src/lib.rs` 无条件调用 `tauri_plugin_mcp_bridge::init()`；main capability 授予 `mcp-bridge:default`。依赖 `tauri-plugin-mcp-bridge 0.12.0` 的 `src/config.rs` 默认 `bind_address = "0.0.0.0"` / `base_port = 9223`，其 `websocket.rs` 接受无认证的 `{ id, command, args }` 文本帧。
+- **影响**：这不是 GenericAgent loopback bridge，也不是 CDP；但同一网络可达客户端可获得桌面 WebView 的高权限控制面。若作为产品构建保留，等同于额外暴露未经授权的 renderer 控制入口。
+- **处置**：已从产品 Cargo 依赖、Rust builder 与 main-window capability 中完整移除；没有采用 localhost-only，因为该第三方接口在普通 dev build 中仍无认证。`test/backend/release-mcp-bridge.test.mjs` 断言 shipping manifest、builder 与 capability 不得重新出现该依赖或权限。
+- **运行时核验**：发现后立即停止本地 dev instance；停止后 `127.0.0.1:9223` 连接失败。修复后需在新的 desktop dev smoke 中确认应用不再占用 9223–9322。
+
+该发现独立于 Mimosa 的 53 条 finding，亦不改变其 `partial` / `inconclusive` 覆盖结论；本处记录是人工运行时审查证据，不能表述为完整安全审计。
+
+## 9. 遗留项（有意保留，超出本次范围）
 
 1. ~~托盘网关菜单项~~（`services/tray.rs` TRAY_GATEWAY_ID + `App.tsx` `gateway-toggle` + `RemoteSettings` + `tray.gateway*` i18n）：**已处置（WP2，commit baf46f9b）**——RemoteSettings 链、tray gateway 字段/菜单项、AppAction GatewayToggle、10 条 `tray.gateway*` + 2 条 `tunnelRemoteOffline` 键全量移除（11 文件，-198 行）。
 2. ~~兄弟 i18n 死命名空间~~：`mcpHub/skillsHub/skillsStore/tunnel` 等约 420 条键（早期估算）：**已处置（WP3）**——模板感知 census（完整字符串字面量遍历 + 4 个动态模板前缀展开 + 零提及交叉核验 + git 历史佐证）实测死键 **833 条（zh/en 各 833，共 1666 行）**，全部删除：`mcpHub.*` 118、`settings.skills*` ~170、`settings.cron*` ~90（CronSection 移除 `9ecfb574` 遗留）、`settings.memory*` 旧 UI ~180（被 GaMemorySection 取代）、`settings.hooks*` ~40（HooksSection 移除 `1ea87bca` 遗留）、`projectTools.gitReview.*` ~20、`chat.workspaceClone*` ~30 等。原「约 420」为第一轮启发式普查（仅 `t("…")` 字面量）的低估；本次普查复现了 4 个动态模板（`chat.history.${errorCode}` / `settings.builtinTool.${entry.id}` / `settings.shortcutLayout${option}` / `workspaceSftp.transfer.${status}`），全部模板族键保留未删。守卫：i18n parity 测试（zh/en 对称）+ tsc + biome + test:frontend 711 全绿。

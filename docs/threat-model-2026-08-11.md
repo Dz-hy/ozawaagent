@@ -11,7 +11,8 @@
 | 领域 | 已检查入口/证据 | 覆盖内容 |
 |---|---|---|
 | Tauri IPC | `crates/agent-gui/src-tauri/src/lib.rs:41-196` | `generate_handler!` 注册的 142 个 `#[tauri::command]`；命令输入、文件、Git、终端、SFTP、设置、自动化与生命周期边界。 |
-| Tauri capability / WebView | `src-tauri/capabilities/default.json:1-15`、`src-tauri/tauri.conf.json:12-26` | main window 获得的 capability、CSP 配置、XSS 对本地能力的影响。 |
+| Tauri capability / WebView | `src-tauri/capabilities/default.json:1-14`、`src-tauri/tauri.conf.json:12-26` | main window 获得的 capability、CSP 配置、XSS 对本地能力的影响。 |
+| 移除的 desktop debug bridge | `src-tauri/Cargo.toml`、`src-tauri/src/lib.rs`、`src-tauri/capabilities/default.json`、`test/backend/release-mcp-bridge.test.mjs` | `tauri-plugin-mcp-bridge` 已从产品构建、builder 与 main-window capability 移除；发布契约防止无认证 WebSocket 控制面回归。 |
 | GA supervisor | `src-tauri/src/runtime/ga_supervisor.rs:237-525`、`commands/runtime/ga_runtime.rs:7-62` | 随机 loopback port、bridge token 的产生、进程启动、token 返回给 WebView、origin allowlist。 |
 | GA HTTP / WS bridge | `runtime/ga/ga_bridge_adapter.py:123-198, 2120-2948`、`src/lib/ga/GaBridgeClient.ts:54-403` | token / origin / loopback middleware、adapter-owned 路由、官方 bridge 继承路由、WebSocket 及敏感返回值处理。 |
 | GenericAgent / MCP | `runtime/ga/runtime_manifest.json:1-83`、`runtime/ga/ga_bridge_adapter.py:1215-1364` | 固定上游来源、MCP connector 声明、stdio 子进程及 HTTP connector 边界。 |
@@ -157,7 +158,7 @@ WebView Settings
 1. `ga_runtime_start` 由 Tauri command 向 WebView 返回 `{ baseUrl, token }`（`commands/runtime/ga_runtime.rs:7-62`）。
 2. `GaBridgeClient` 将 token 保存在 JS 对象字段 `runtime`，每个 HTTP request 附 `Authorization: Bearer <token>`（`GaBridgeClient.ts:54-96`）。
 3. Bridge 的 global middleware 要求 loopback peer、Origin allowlist 和常量时间 token 比较（`ga_bridge_adapter.py:145-177`）。
-4. 因而，**在 WebView 执行任意 JavaScript（XSS / unsafe HTML / 不安全 preload 依赖）= 可读取 bearer token = 可作为桌面 GUI 对 bridge 发出已认证请求**。再加上 default capability 给 main window 的 `core:default`、`mcp-bridge:default`、`opener:default`，XSS 同时是 Tauri IPC 能力沦陷风险。
+4. 因而，**在 WebView 执行任意 JavaScript（XSS / unsafe HTML / 不安全 preload 依赖）= 可读取 bearer token = 可作为桌面 GUI 对 GA bridge 发出已认证请求**。default capability 仍给 main window `core:default` 与 `opener:default`，所以 XSS 同时是 Tauri IPC 能力沦陷风险；此前 `mcp-bridge:default` 的独立 desktop debug bridge 权限已移除。
 
 | 判定 | 风险等级 | 原因 | 当前处理 |
 |---|---|---|---|
@@ -212,6 +213,7 @@ Authenticated bridge request
 | TM-10 | Settings SQLite、history、uploads、runtime log 在本机被读取。 | API/SSH key、private project content、token 或 prompt 泄露。 | 不把 GA token 持久化；bridge response redaction；app-local storage。 | 依赖 OS user-profile ACL；desktop app 无法防御同用户恶意进程。需要确保 debug log 与 UI error 不写入 secrets。 |
 | TM-11 | 供应链：Tauri plugin、Python runtime、GenericAgent 上游、MCP/Skill bundle。 | 任意代码执行或 renderer compromise。 | runtime manifest 固定 official bridge SHA-256，并在 startup 验证（`ga_supervisor.rs:15-31`、adapter `verify_official_bridge`）；vendored staging 有 CI 编排。 | 39 项 vendored GA residual 只能上游修复；发布前执行上游评估并记录 commit / artifact hash。 |
 | TM-12 | Tauri command/event 模型被误当作细粒度 authorization。 | 任意 XSS 执行 UI 有权 command，事件欺骗 UI state。 | command registry 显式、main window capability scoped。 | 无逐 command principal / policy，故 renderer integrity 是前提；敏感 event 只作 UI notification，后端必须自行验证所有 command input。 |
+| TM-13 | 第三方 desktop debug bridge 监听未认证的外部接口。 | 网络可达主体执行 WebView JS、截屏、注入脚本或观测 IPC。 | **已移除**：`tauri-plugin-mcp-bridge` 不再是 Cargo dependency、不再注册 builder、不再授予 main-window capability。 | `release-mcp-bridge.test.mjs` 防回归；若未来需要可控桌面调试，必须以不进入产品构建、loopback-only 且每会话强认证为最低前提，另行设计与审查。 |
 
 ## 6. CWE 分类的边界说明
 
@@ -231,12 +233,14 @@ Authenticated bridge request
 - Bridge adapter tests：`runtime/ga/tests/test_ga_bridge_adapter.py` 61 passed（包含 token minimum length、origin defaults、WS credential extraction、response redaction、stdio launcher allowlist）。
 - Frontend suite：`pnpm test:frontend` 711/711 passed（包含 bridge client Authorization header / typed routes，以及 WS manager 的 duplicate handling）。
 - Rust 侧的 workspace path tests 覆盖 relative traversal 与越界 symlink；`cargo check --tests` 应持续执行。
+- Shipping 配置契约：`test/backend/release-mcp-bridge.test.mjs` 断言产品 manifest、Rust builder 与 main-window capability 不引入 `tauri-plugin-mcp-bridge` / `mcp-bridge`；桌面 dev smoke 还应确认没有 9223–9322 listener。
 - 每次 commit 的 Mimosa hook 在本冲刺中仍报告 `scanner_enobufs`，因此不把 hook 放行表述成“完整扫描已通过”。
 
 ### 7.2 最终 Windows smoke（本模型新增安全观测项）
 
 | 场景 | 操作 | 必须观察到 |
 |---|---|---|
+| desktop listener | 启动 desktop dev app，检查 `ozawaagent.exe` listener。 | 不监听 9223–9322；产品不含 `tauri-plugin-mcp-bridge` 的无认证 WebView 控制接口。 |
 | bridge start | 打开 chat，触发 `ga_runtime_start`。 | 动态端口绑定 127.0.0.1；token 不出现在 UI、normal log 或错误 toast；health request 需要 token。 |
 | bridge HTTP | 新建 session、stream、读取 profile / automation。 | `Authorization` 存在于 HTTP client；错误 envelope / console 不回显 API key、SSH key、token、真实 upload path。 |
 | bridge WebSocket | 开 chat 后观察 events/reconnect。 | WS 要么按照 adapter contract 携带可验证 credential 并成功升级，要么明确显示/记录其等效机制；绝不以移除 token middleware 换取“可用”。 |
