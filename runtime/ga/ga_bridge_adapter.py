@@ -1231,7 +1231,6 @@ def _load_connectors(ga_root: Path) -> list[dict[str, Any]]:
                                "error": "invalid connector name", "transport": ""})
             continue
         transport = str(data.get("transport", "stdio"))
-        resolved_command = ""
         if transport not in ("stdio", "http"):
             connectors.append({"name": name, "valid": False,
                                "error": f"unsupported transport '{transport}'",
@@ -1250,8 +1249,7 @@ def _load_connectors(ga_root: Path) -> list[dict[str, Any]]:
                                             "MCP_STDIO_ALLOWED_COMMANDS allowlist",
                                    "transport": transport})
                 continue
-            resolved_command = shutil.which(stdio_command)
-            if resolved_command is None:
+            if shutil.which(stdio_command) is None:
                 connectors.append({"name": name, "valid": False,
                                    "error": f"stdio command '{stdio_command}' not found on PATH",
                                    "transport": transport})
@@ -1270,7 +1268,7 @@ def _load_connectors(ga_root: Path) -> list[dict[str, Any]]:
             continue
         connectors.append({
             "name": name, "valid": True, "transport": transport,
-            "command": resolved_command or str(data.get("command", "")),
+            "command": stdio_command if transport == "stdio" else str(data.get("command", "")),
             "args": [str(a) for a in (data.get("args") or [])],
             "url": str(data.get("url", "")),
             "headers": {str(k): str(v) for k, v in (data.get("headers") or {}).items()},
@@ -1300,22 +1298,25 @@ async def _mcp_stdio(connector: dict[str, Any],
     Security boundary: the spawn uses ``asyncio.create_subprocess_exec`` (never
     a shell), so the executable and ``args`` are executed literally. The
     executable is never taken from the connector declaration directly: stdio
-    connectors must name one of ``MCP_STDIO_ALLOWED_COMMANDS``, and
-    ``_load_connectors`` resolves it via ``shutil.which`` to an absolute path
-    before this function can run (non-allowlisted connectors are marked
-    ``valid: False`` and never reach spawn). This guard re-checks fail-closed
-    so an empty/unresolved command surfaces as an actionable error.
+    connectors must name one of ``MCP_STDIO_ALLOWED_COMMANDS``, and we resolve
+    the name via ``shutil.which`` right here at spawn time (``_load_connectors``
+    already rejects non-allowlisted or unresolvable commands, so connectors
+    that reach this point never carry an arbitrary path).
     """
     name = connector.get("name", "?")
     command = connector.get("command")
-    if not isinstance(command, str) or not command.strip():
+    if command not in MCP_STDIO_ALLOWED_COMMANDS:
         raise ValueError(
-            f"MCP stdio connector '{name}' has an empty 'command'; allowlisted "
-            "launcher could not be resolved to an executable")
+            f"MCP stdio connector '{name}' refused: command {command!r} is not "
+            "in MCP_STDIO_ALLOWED_COMMANDS")
+    executable = shutil.which(command)
+    if executable is None:
+        raise ValueError(
+            f"MCP stdio connector '{name}' command {command!r} not found on PATH")
     env = dict(os.environ)
     env.update(connector["env"])
     proc = await asyncio.create_subprocess_exec(
-        connector["command"], *connector["args"],
+        executable, *connector["args"],
         stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL, env=env)
     try:
