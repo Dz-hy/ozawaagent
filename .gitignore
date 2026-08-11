@@ -67,6 +67,7 @@ docs/project_memory.md
 
 # 本地审核报告副本（勿提交）
 CODE_REVIEW_REPORT.md
+BIOME_HIGH_RISK_TODO.md
 *.tsbuildinfo
 
 # Local tool state (Mimosa/ZCode session artifacts, not for repo)
