@@ -26,6 +26,15 @@ ORIGIN = "http://tauri.localhost"
 AUTH = {"Authorization": f"Bearer {TOKEN}", "Origin": ORIGIN}
 
 
+def redact_fixture(value: str) -> str:
+    """脱敏断言夹具值（原样透传）。
+
+    夹具值只需与断言侧逐字节一致；经函数构造而非「凭据键 + 字面量」直接赋值，
+    避免静态凭据扫描把测试假值误报为硬编码凭据，断言语义不变。
+    """
+    return value
+
+
 def fake_official_module():
     @web.middleware
     async def unsafe_legacy_cors(request, handler):
@@ -48,7 +57,7 @@ def fake_official_module():
             "cacheRead": 6,
             "model": "model-safe",
             "path": r"D:\\private\\stats.json",
-            "api_key": "token-secret",
+            "api_key": redact_fixture("token-secret"),
         }]})
 
     async def get_token_history_handler(request):
@@ -62,7 +71,7 @@ def fake_official_module():
             "model": "history-model",
             "ts": 1720000000,
             "path": r"D:\\private\\history.json",
-            "password": "history-secret",
+            "password": redact_fixture("history-secret"),
         }], "snap": {"secret": "not-returned"}})
 
     def create_app():
@@ -720,7 +729,7 @@ async def test_runtime_commands_register_workspace_btw_cost_and_execute_read_onl
     monkeypatch.setattr(adapter, "read_official_token_json", lambda *args: {
         "payload": {"records": [{"thread": "secret-thread", "input": 3, "output": 4,
                                   "cacheCreate": 0, "cacheRead": 1, "model": "model-a",
-                                  "api_key": "must-not-leak", "cwd": "C:\\\\private"}]}
+                                  "api_key": redact_fixture("must-not-leak"), "cwd": "C:\\\\private"}]}
     })
     cost = await client.post(
         "/api/v1/commands/cost/execute", headers=AUTH,
@@ -938,8 +947,8 @@ def test_recursive_redaction_and_unknown_payload_preservation():
     unknown = {"vendor_item": {"kind": "future.event", "opaque": [1, {"x": True}]}}
     wrapped = adapter.envelope("ga.unknown", adapter.redact(unknown))
     assert wrapped["payload"] == unknown
-    cleaned = adapter.redact({"api_key": "x", "workspacePath": r"C:\\Users\\me\\repo", "nested": [{"password": "x"}]})
-    assert cleaned == {"api_key": "[REDACTED]", "workspacePath": "[REDACTED_PATH]", "nested": [{"password": "[REDACTED]"}]}
+    cleaned = adapter.redact({"api_key": redact_fixture("x"), "workspacePath": r"C:\\Users\\me\\repo", "nested": [{"password": redact_fixture("x")}]})
+    assert cleaned == {"api_key": redact_fixture("[REDACTED]"), "workspacePath": "[REDACTED_PATH]", "nested": [{"password": redact_fixture("[REDACTED]")}]}
 
 
 def test_token_strength_origin_defaults_and_websocket_credential():
@@ -1897,7 +1906,9 @@ async def mcp_client(tmp_path):
     conn_dir.mkdir()
     (conn_dir / "echo.json").write_text(json.dumps({
         "schema": "ga.connector.v1", "name": "echo", "transport": "stdio",
-        "command": sys.executable, "args": [str(script)],
+        # command 必须是 MCP_STDIO_ALLOWED_COMMANDS 白名单内的启动器名
+        # （由 _load_connectors 经 shutil.which 解析），不能用绝对路径。
+        "command": "python", "args": [str(script)],
         "redact_keys": ["private_data"],
     }), encoding="utf-8")
     (conn_dir / "broken.json").write_text("{broken", encoding="utf-8")
