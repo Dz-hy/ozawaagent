@@ -1,4 +1,4 @@
-import type { Model, ToolCall, ToolResultMessage } from "@earendil-works/pi-ai";
+import type { Api, Model, ToolCall, ToolResultMessage } from "@earendil-works/pi-ai";
 import type { HostedSearchBlock } from "../chat/messages/hostedSearch";
 import type { ProviderId } from "../settings";
 import { isRecord } from "./runtime/common";
@@ -42,12 +42,12 @@ export const ANTHROPIC_WEB_SEARCH_TOOL_TYPES = {
   dynamicFiltering: "web_search_20260318",
 } as const;
 
-export function supportsAnthropicDynamicFilteringWebSearch(model: Model<any>): boolean {
+export function supportsAnthropicDynamicFilteringWebSearch(model: Model<Api>): boolean {
   return supportsAdaptiveAnthropicThinking(model);
 }
 
 export function resolveAnthropicWebSearchToolType(
-  model: Model<any>,
+  model: Model<Api>,
 ): (typeof ANTHROPIC_WEB_SEARCH_TOOL_TYPES)[keyof typeof ANTHROPIC_WEB_SEARCH_TOOL_TYPES] {
   return supportsAnthropicDynamicFilteringWebSearch(model)
     ? ANTHROPIC_WEB_SEARCH_TOOL_TYPES.dynamicFiltering

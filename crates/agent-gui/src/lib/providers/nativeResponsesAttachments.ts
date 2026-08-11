@@ -1,4 +1,4 @@
-import type { Context, Model } from "@earendil-works/pi-ai";
+import type { Api, Context, Message, Model } from "@earendil-works/pi-ai";
 import { invoke } from "@tauri-apps/api/core";
 
 import {
@@ -6,7 +6,7 @@ import {
   type PendingUploadedFile,
 } from "../chat/messages/uploadedFiles";
 
-type PayloadHook = (payload: unknown, model: Model<any>) => unknown | Promise<unknown>;
+type PayloadHook = (payload: unknown, model: Model<Api>) => unknown | Promise<unknown>;
 
 export type StreamOptionsWithPayloadHook = {
   onPayload?: PayloadHook;
@@ -150,30 +150,30 @@ function normalizeMimeType(value: unknown) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
-function isOpenAIResponsesModel(model: Model<any>) {
+function isOpenAIResponsesModel(model: Model<Api>) {
   return model.api === "openai-responses";
 }
 
-function isOpenAICompletionsModel(model: Model<any>) {
+function isOpenAICompletionsModel(model: Model<Api>) {
   return model.api === "openai-completions";
 }
 
-function isAnthropicMessagesModel(model: Model<any>) {
+function isAnthropicMessagesModel(model: Model<Api>) {
   return model.api === "anthropic-messages";
 }
 
-function isGoogleGenerativeAIModel(model: Model<any>) {
+function isGoogleGenerativeAIModel(model: Model<Api>) {
   return model.api === "google-generative-ai";
 }
 
-function modelSupportsImageInput(model: Model<any>) {
+function modelSupportsImageInput(model: Model<Api>) {
   return Array.isArray(model.input) && model.input.includes("image");
 }
 
 function getUserMessageNativeAttachmentBatches(context: Context) {
   return context.messages
     .filter((message) => message.role === "user")
-    .map((message) => getUserMessageAttachments(message as any));
+    .map((message) => getUserMessageAttachments(message as Message & Record<string, unknown>));
 }
 
 function buildDataUrl(mimeType: string, data: string) {
@@ -228,7 +228,7 @@ async function readNativeAttachment(params: {
 
 async function buildNativeAttachmentContentPart(params: {
   workdir: string;
-  model: Model<any>;
+  model: Model<Api>;
   file: PendingUploadedFile;
 }): Promise<NativeAttachmentContentPart | null> {
   const { file, model, workdir } = params;
@@ -258,7 +258,7 @@ async function buildNativeAttachmentContentPart(params: {
 
 async function buildOpenAIChatCompletionsNativeAttachmentContentPart(params: {
   workdir: string;
-  model: Model<any>;
+  model: Model<Api>;
   file: PendingUploadedFile;
 }): Promise<OpenAIChatCompletionsNativeAttachmentContentPart | null> {
   const { file, model, workdir } = params;
@@ -413,7 +413,7 @@ function isAnthropicToolResultTurn(message: Record<string, unknown>) {
 
 async function buildNativeContentParts(params: {
   workdir: string;
-  model: Model<any>;
+  model: Model<Api>;
   files: PendingUploadedFile[];
 }) {
   const parts: NativeAttachmentContentPart[] = [];
@@ -437,7 +437,7 @@ async function buildNativeContentParts(params: {
 
 async function buildOpenAIChatCompletionsNativeContentParts(params: {
   workdir: string;
-  model: Model<any>;
+  model: Model<Api>;
   files: PendingUploadedFile[];
 }) {
   const parts: OpenAIChatCompletionsNativeAttachmentContentPart[] = [];
@@ -531,7 +531,7 @@ async function buildAnthropicNativeContentParts(params: {
 
 async function buildGeminiNativeAttachmentContentPart(params: {
   workdir: string;
-  model: Model<any>;
+  model: Model<Api>;
   file: PendingUploadedFile;
 }): Promise<GeminiNativeAttachmentCandidate | null> {
   const { file, model, workdir } = params;
@@ -568,7 +568,7 @@ async function buildGeminiNativeAttachmentContentPart(params: {
 
 async function buildGeminiNativeContentParts(params: {
   workdir: string;
-  model: Model<any>;
+  model: Model<Api>;
   files: PendingUploadedFile[];
   availableRequestBytes: number;
 }) {
@@ -624,7 +624,7 @@ function isGeminiSyntheticToolImageTurn(item: Record<string, unknown>) {
 async function applyNativeAttachmentsToResponsesPayload(params: {
   payload: unknown;
   context: Context;
-  model: Model<any>;
+  model: Model<Api>;
   workdir: string;
 }) {
   const payload = params.payload;
@@ -676,7 +676,7 @@ async function applyNativeAttachmentsToResponsesPayload(params: {
 async function applyNativeAttachmentsToOpenAICompletionsPayload(params: {
   payload: unknown;
   context: Context;
-  model: Model<any>;
+  model: Model<Api>;
   workdir: string;
 }) {
   const payload = params.payload;
@@ -734,7 +734,7 @@ async function applyNativeAttachmentsToOpenAICompletionsPayload(params: {
 async function applyNativeAttachmentsToAnthropicPayload(params: {
   payload: unknown;
   context: Context;
-  model: Model<any>;
+  model: Model<Api>;
   workdir: string;
 }) {
   const payload = params.payload;
@@ -785,7 +785,7 @@ async function applyNativeAttachmentsToAnthropicPayload(params: {
 async function applyNativeAttachmentsToGeminiPayload(params: {
   payload: unknown;
   context: Context;
-  model: Model<any>;
+  model: Model<Api>;
   workdir: string;
 }) {
   const payload = params.payload;
@@ -850,7 +850,7 @@ export function attachOpenAIResponsesNativeAttachments<
   options: TOptions,
   params: {
     context?: Context;
-    model: Model<any>;
+    model: Model<Api>;
     providerId: string;
     workdir?: string;
   },
@@ -891,7 +891,7 @@ export function attachOpenAICompletionsNativeAttachments<
   options: TOptions,
   params: {
     context?: Context;
-    model: Model<any>;
+    model: Model<Api>;
     providerId: string;
     workdir?: string;
   },
@@ -932,7 +932,7 @@ export function attachAnthropicMessagesNativeAttachments<
   options: TOptions,
   params: {
     context?: Context;
-    model: Model<any>;
+    model: Model<Api>;
     providerId: string;
     workdir?: string;
   },
@@ -973,7 +973,7 @@ export function attachGeminiGenerativeAINativeAttachments<
   options: TOptions,
   params: {
     context?: Context;
-    model: Model<any>;
+    model: Model<Api>;
     providerId: string;
     workdir?: string;
   },

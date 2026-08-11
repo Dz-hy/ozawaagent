@@ -1,4 +1,4 @@
-import type { Context, Model } from "@earendil-works/pi-ai";
+import type { Api, Context, Model } from "@earendil-works/pi-ai";
 import type { StreamDebugLogger } from "../../debug/agentDebug";
 import type { ProviderId } from "../../settings";
 import { attachDeepSeekProviderPayloadAdapter } from "../deepSeekProviderAdapter";
@@ -27,7 +27,7 @@ export type FinalizeProviderStreamOptionsParams = {
   baseUrl: string;
   options: StreamOptionsEx;
   context?: Context;
-  model?: Model<any>;
+  model?: Model<Api>;
   workdir?: string;
   nativeWebSearch?: boolean;
   debugLogger?: StreamDebugLogger;
