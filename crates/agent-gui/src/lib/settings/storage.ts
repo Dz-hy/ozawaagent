@@ -239,7 +239,7 @@ export async function loadPersistedSettings(): Promise<AppSettings> {
 export async function persistSystemSettings(system: AppSettings["system"]): Promise<void> {
   await invoke("settings_save_system", {
     payload: system,
-  } as any);
+  });
 }
 
 export async function persistSettings(
@@ -253,7 +253,7 @@ export async function persistSettings(
     tasks.push(
       invoke("settings_save_providers", {
         payload: next.customProviders,
-      } as any),
+      }),
     );
   }
 
@@ -261,7 +261,7 @@ export async function persistSettings(
     tasks.push(
       invoke("settings_save_system", {
         payload: next.system,
-      } as any),
+      }),
     );
   }
 
@@ -269,7 +269,7 @@ export async function persistSettings(
     tasks.push(
       invoke("settings_save_mcp", {
         payload: next.mcp,
-      } as any),
+      }),
     );
   }
 
@@ -277,7 +277,7 @@ export async function persistSettings(
     tasks.push(
       invoke("settings_save_agents", {
         payload: next.agents,
-      } as any),
+      }),
     );
   }
 
@@ -291,7 +291,7 @@ export async function persistSettings(
           sshPatch: update.sshPatch ?? {},
           sshSecretUpdates: update.sshSecretUpdates,
         },
-      } as any).then((response) => {
+      }).then((response) => {
         if (response?.ssh) {
           result.ssh = normalizeSettings({ ssh: response.ssh as AppSettings["ssh"] }).ssh;
         }
@@ -306,7 +306,7 @@ export async function persistSettings(
     tasks.push(
       invoke("settings_save_memory", {
         payload: next.memory,
-      } as any),
+      }),
     );
   }
 

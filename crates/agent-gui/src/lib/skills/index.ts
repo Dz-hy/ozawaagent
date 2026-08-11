@@ -423,7 +423,7 @@ async function maybeAttachReadmeFallbackInline(skill: SkillSummary): Promise<Ski
   try {
     const metadata = await invoke<SystemReadSkillMetadataResponse>("system_read_skill_metadata", {
       path: skill.skillFile,
-    } as any);
+    });
     const hasDeclaredMetadata = Boolean(
       typeof metadata.name === "string" &&
         metadata.name.trim() &&
@@ -557,7 +557,7 @@ export async function readSkillText(params: {
     path: params.path,
     offset: params.offset,
     length: params.length,
-  } as any);
+  });
 }
 
 export async function manageSkill(
@@ -565,7 +565,7 @@ export async function manageSkill(
 ): Promise<SystemManageSkillResponse> {
   const response = await invoke<SystemManageSkillResponse>("system_manage_skill", {
     payload: params,
-  } as any);
+  });
   const action = typeof params.action === "string" ? params.action : "";
   if (
     action === "install" ||
