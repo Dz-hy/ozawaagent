@@ -187,7 +187,7 @@ L3 commit hook 在 4 处高风险管理下报告 `runtime/ga/tests/test_ga_bridg
 
 ## 8. 遗留项（有意保留，超出本次范围）
 
-1. **托盘网关菜单项**（`services/tray.rs` TRAY_GATEWAY_ID + `App.tsx` `gateway-toggle` + `RemoteSettings` + `tray.gateway*` i18n）：修复后为无报错的内存态开关（Rust `tray.rs` 保留）；全量移除涉及 Rust 测试与状态模型改动，另行立项。
-2. **兄弟 i18n 死命名空间**：`mcpHub/skillsHub/skillsStore/tunnel` 等约 420 条键仍存在（与 `sharedHistory` 同批的商店/隧道残留），本次仅删用户点名的 66 条 `sharedHistory.*`。
+1. ~~托盘网关菜单项~~（`services/tray.rs` TRAY_GATEWAY_ID + `App.tsx` `gateway-toggle` + `RemoteSettings` + `tray.gateway*` i18n）：**已处置（WP2，commit baf46f9b）**——RemoteSettings 链、tray gateway 字段/菜单项、AppAction GatewayToggle、10 条 `tray.gateway*` + 2 条 `tunnelRemoteOffline` 键全量移除（11 文件，-198 行）。
+2. ~~兄弟 i18n 死命名空间~~：`mcpHub/skillsHub/skillsStore/tunnel` 等约 420 条键（早期估算）：**已处置（WP3）**——模板感知 census（完整字符串字面量遍历 + 4 个动态模板前缀展开 + 零提及交叉核验 + git 历史佐证）实测死键 **833 条（zh/en 各 833，共 1666 行）**，全部删除：`mcpHub.*` 118、`settings.skills*` ~170、`settings.cron*` ~90（CronSection 移除 `9ecfb574` 遗留）、`settings.memory*` 旧 UI ~180（被 GaMemorySection 取代）、`settings.hooks*` ~40（HooksSection 移除 `1ea87bca` 遗留）、`projectTools.gitReview.*` ~20、`chat.workspaceClone*` ~30 等。原「约 420」为第一轮启发式普查（仅 `t("…")` 字面量）的低估；本次普查复现了 4 个动态模板（`chat.history.${errorCode}` / `settings.builtinTool.${entry.id}` / `settings.shortcutLayout${option}` / `workspaceSftp.transfer.${status}`），全部模板族键保留未删。守卫：i18n parity 测试（zh/en 对称）+ tsc + biome + test:frontend 711 全绿。
 3. **vendored 修复点**：eval/exec 收敛、文件工具路径白名单、SSRF 目标白名单均需在 GenericAgent 上游（固定 commit `7083b93` 之后的版本）演进，本仓库只负责在编排时同步上游。
 4. **扫描覆盖缺口**：历轮（第 1-4 轮）均 `runStatus: inconclusive`——threatModel 阶段未产出 entryPoints（扫描器 enobufs 中断）。后续应针对 Tauri 命令面与 GA bridge HTTP 面补一次威胁建模专项（修复性改动不影响该缺口，需另行触发）。
