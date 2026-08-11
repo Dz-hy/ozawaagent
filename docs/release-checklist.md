@@ -43,4 +43,7 @@
 - [x] Phase 7（旧数据归档与首启迁移）：**已取消**（2026-08-08 用户拍板：全新 Agent，无旧内核 LiveAgent 用户，不做旧数据迁移；旧内核数据原样不动，GA 新数据天然隔离）
 - [x] Phase 9 剩余-Hive 可视化：**判定闭环**（2026-08-09）——官方 `/hive` 仅为提示词入口（build_hive_prompt→Goal Hive 多 worker 模式），无独立状态端点；多 Agent 运行态已由 GaConductorSection（ga.conductor.v1 快照：subagents/messages/counts）覆盖，按"不建第二真相源"原则不新增专用端点
 - [x] Phase 9 剩余-高级 Hook 编辑：**判定闭环**（2026-08-06 P5.8）——官方 plugins/hooks.py 为纯内存注册表（无编辑/持久化/超时语义），保留只读快照入口，不建编辑面
+- [x] 质量加固冲刺（2026-08-11）：Biome 104 → 0 warnings；Remote/Gateway residue 移除；死 i18n 键经模板感知 census 清除（833 键/locale，1666 行）；Tauri/GA bridge threat model 见 [`threat-model-2026-08-11.md`](threat-model-2026-08-11.md)。对应提交 `f26a0ead`–`0dfafde8`、`baf46f9b`、`3ccaad87`、`d4189da7`。
+- [x] Phase 6 最终删除复核（2026-08-11）：`crates/agent-gateway/` 和 `railway.json` 已分别由 `f9224d4a` / `ce9fa68a` 删除；HEAD、工作树及 live-reference 检查均为 0（本地 ignored 的 `docs/project/phase6_final_deletion.md` 保留完整命令输出与物证）。
+- [ ] 接受残留（发布引用，非“已安全”结论）：39 个 vendored GenericAgent findings（仅上游可修）；Mimosa `scanner_enobufs` / `entryPoints=0`（人工 threat model 已补，但扫描仍不完整）；`src/index.css` xterm `!important`（第三方主题覆盖，已注释）；WebView 持有 bridge bearer token（**最高风险边界：XSS = bridge/Tauri capability compromise**）。
 - [ ] Phase 9 剩余-发布态受控安装：**保持后置**（2026-08-09 用户指示先不构建产物；放开后按 Phase 8 安装验收矩阵执行）
