@@ -344,7 +344,7 @@ export default function App() {
     setOverlay("leaving");
   }, []);
 
-  // 动作总线（Rust `app:action`）中 App 拥有的动作：主题/打开设置/网关开关/
+  // 动作总线（Rust `app:action`）中 App 拥有的动作：主题/打开设置/
   // 检查更新，以及「新建对话」时先收起设置覆盖层（会话侧由 ChatPage 处理）。
   const closeSettingsRef = useRef(closeSettings);
   closeSettingsRef.current = closeSettings;
@@ -382,15 +382,6 @@ export default function App() {
           runUpdateCheckRef.current();
           break;
         }
-        case "gateway-toggle": {
-          // 与设置页远程开关同一条路径：settings 保存链会落库并 apply_config，
-          // DB / 控制器 / 设置页开关三方保持一致（勿改为 Rust 直连开关）。
-          setSettings((prev) => ({
-            ...prev,
-            remote: { ...prev.remote, enabled: !prev.remote.enabled },
-          }));
-          break;
-        }
         default:
           break;
       }
@@ -411,7 +402,7 @@ export default function App() {
         unlisten();
       }
     };
-  }, [setSettings]);
+  }, []);
 
   const handleTransitionEnd = useCallback(() => {
     if (overlay === "leaving") {

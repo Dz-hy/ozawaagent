@@ -857,10 +857,6 @@ test("gateway settings sync redacts ssh secrets and preserves configured state",
         "/workspace/project": ["prod", "missing", "prod"],
       },
     },
-    remote: {
-      enableWebTerminal: true,
-      enableWebSshTerminal: true,
-    },
   });
 
   const payload = sync.buildGatewaySettingsSyncPayload(appSettings);
@@ -876,12 +872,6 @@ test("gateway settings sync redacts ssh secrets and preserves configured state",
     "/workspace/project": ["prod"],
   });
   assert.equal(payload.sshSecretUpdates, undefined);
-  assert.deepEqual(payload.remote, {
-    enableWebTerminal: true,
-    enableWebSshTerminal: true,
-    enableWebGit: false,
-    enableWebTunnels: false,
-  });
 
   const updatePayload = sync.buildGatewaySettingsSyncPayload(appSettings, {
     includeProviderApiKeyUpdates: true,
@@ -1394,7 +1384,7 @@ test("only one agent prompt template remains enabled after normalization", () =>
   );
 });
 
-test("mcp and remote settings normalize transport, selection, ports, and tokens", () => {
+test("mcp settings normalize transport, selection, and args", () => {
   const mcp = settings.normalizeMcpSettings({
     servers: [
       { id: "server-a", enabled: true, transport: "http", url: " https://mcp.example.com ", timeoutMs: "-1" },
@@ -1408,30 +1398,6 @@ test("mcp and remote settings normalize transport, selection, ports, and tokens"
   assert.equal(mcp.servers[0].timeoutMs, 60_000);
   assert.equal(mcp.servers[1].transport, "stdio");
   assert.deepEqual(mcp.servers[1].args, ["server.js"]);
-
-  const remote = settings.normalizeRemoteSettings({
-    enabled: true,
-    gatewayUrl: " http:/127.0.0.1:8787/ ",
-    gatewayPort: "0",
-    token: " secret ",
-    agentId: " agent-550e8400-e29b-41d4-a716-446655440000 ",
-    autoReconnect: false,
-    heartbeatInterval: "15.8",
-    enableWebSshTerminal: true,
-  });
-
-  assert.equal(remote.gatewayUrl, "http://127.0.0.1:8787");
-  assert.equal(remote.gatewayPort, 443);
-  assert.equal(remote.token, "secret");
-  assert.equal(remote.agentId, "agent-550e8400-e29b-41d4-a716-446655440000");
-  assert.equal(remote.autoReconnect, false);
-  assert.equal(remote.heartbeatInterval, 15);
-  assert.equal(remote.enableWebSshTerminal, true);
-
-  const remoteWithOversizedPort = settings.normalizeRemoteSettings({
-    gatewayPort: "70000",
-  });
-  assert.equal(remoteWithOversizedPort.gatewayPort, 65_535);
 });
 
 test("font scale settings normalize invalid values to 1 and clamp out-of-range values", () => {

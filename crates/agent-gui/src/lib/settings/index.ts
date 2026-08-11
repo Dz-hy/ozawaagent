@@ -290,27 +290,12 @@ export const CLOSE_WINDOW_BEHAVIOR_OPTIONS = [
 
 const SYSTEM_THEME_MEDIA_QUERY = "(prefers-color-scheme: dark)";
 
-export type RemoteSettings = {
-  enabled: boolean;
-  gatewayUrl: string;
-  gatewayPort: number;
-  token: string;
-  agentId: string;
-  autoReconnect: boolean;
-  heartbeatInterval: number;
-  enableWebTerminal: boolean;
-  enableWebSshTerminal: boolean;
-  enableWebGit: boolean;
-  enableWebTunnels: boolean;
-};
-
 export type AppSettings = {
   system: SystemSettings;
   customProviders: CustomProvider[];
   mcp: McpSettings;
   agents: AgentPromptTemplate[];
   ssh: SshSettings;
-  remote: RemoteSettings;
   memory: MemorySettings;
   customSettings: CustomSettings;
   skills: SkillsSettings;
@@ -1039,23 +1024,6 @@ function normalizeIntegerInRange(
 ): number {
   const value = normalizePositiveInteger(input, fallback);
   return Math.min(max, Math.max(min, value));
-}
-
-export function normalizeRemoteSettings(input: unknown): RemoteSettings {
-  const obj = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
-  return {
-    enabled: obj.enabled === true,
-    gatewayUrl: normalizeBaseUrl(typeof obj.gatewayUrl === "string" ? obj.gatewayUrl : ""),
-    gatewayPort: normalizeIntegerInRange(obj.gatewayPort, 1, 65_535, 443),
-    token: normalizeApiKey(typeof obj.token === "string" ? obj.token : ""),
-    agentId: normalizeOptionalText(obj.agentId),
-    autoReconnect: obj.autoReconnect !== false,
-    heartbeatInterval: normalizePositiveInteger(obj.heartbeatInterval, 30),
-    enableWebTerminal: obj.enableWebTerminal === true,
-    enableWebSshTerminal: obj.enableWebSshTerminal === true,
-    enableWebGit: obj.enableWebGit === true,
-    enableWebTunnels: obj.enableWebTunnels === true,
-  };
 }
 
 function toKnownProvider(providerId: ProviderId): KnownProvider {
@@ -2062,19 +2030,6 @@ export function getDefaultSettings(): AppSettings {
       hosts: [],
       projectHostAssociations: {},
     },
-    remote: {
-      enabled: false,
-      gatewayUrl: "",
-      gatewayPort: 443,
-      token: "",
-      agentId: "",
-      autoReconnect: true,
-      heartbeatInterval: 30,
-      enableWebTerminal: false,
-      enableWebSshTerminal: false,
-      enableWebGit: false,
-      enableWebTunnels: false,
-    },
     memory: normalizeMemorySettings({}, customProviders),
     customSettings: normalizeCustomSettings({}, customProviders),
     skills: {
@@ -2106,7 +2061,6 @@ export function normalizeSettings(input?: Partial<AppSettings> | null): AppSetti
     mcp: normalizeMcpSettings(obj.mcp ?? defaults.mcp),
     agents: normalizeAgentPromptTemplates(obj.agents ?? defaults.agents),
     ssh: normalizeSshSettings(obj.ssh ?? defaults.ssh),
-    remote: normalizeRemoteSettings(obj.remote ?? defaults.remote),
     memory: normalizeMemorySettings(obj.memory ?? defaults.memory, customProviders),
     customSettings: normalizeCustomSettings(
       obj.customSettings ?? defaults.customSettings,

@@ -256,7 +256,6 @@ enum AppAction {
     StopRun(String),
     StopAllRuns,
     ToggleCronTask(String),
-    GatewayToggle,
     SetTheme(&'static str),
     OpenSettings,
     CheckUpdates,
@@ -297,7 +296,6 @@ fn tray_menu_action(id: &str) -> Option<AppAction> {
         tray_ids::TRAY_PIN_ID => Some(AppAction::TogglePin),
         tray_ids::TRAY_RECENT_VIEW_ALL_ID => Some(AppAction::ViewAllConversations),
         tray_ids::TRAY_RUN_STOP_ALL_ID => Some(AppAction::StopAllRuns),
-        tray_ids::TRAY_GATEWAY_ID => Some(AppAction::GatewayToggle),
         tray_ids::TRAY_THEME_LIGHT_ID => Some(AppAction::SetTheme("light")),
         tray_ids::TRAY_THEME_DARK_ID => Some(AppAction::SetTheme("dark")),
         tray_ids::TRAY_THEME_SYSTEM_ID => Some(AppAction::SetTheme("system")),
@@ -361,7 +359,6 @@ fn dispatch_app_action(app: &tauri::AppHandle, action: AppAction) {
         }
         AppAction::StopRun(id) => forward_app_action(app, "stop-run", Some(id), None, false),
         AppAction::StopAllRuns => forward_app_action(app, "stop-all-runs", None, None, false),
-        AppAction::GatewayToggle => forward_app_action(app, "gateway-toggle", None, None, false),
         AppAction::SetTheme(theme) => {
             forward_app_action(app, "set-theme", None, Some(theme.to_string()), false);
         }

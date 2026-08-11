@@ -37,10 +37,6 @@ export type GatewaySettingsSyncPayload = {
   mcp: AppSettings["mcp"];
   agents: AppSettings["agents"];
   ssh: AppSettings["ssh"];
-  remote?: Pick<
-    AppSettings["remote"],
-    "enableWebTerminal" | "enableWebSshTerminal" | "enableWebGit" | "enableWebTunnels"
-  >;
   memory: AppSettings["memory"];
   customSettings: GatewaySettingsSyncCustomSettings;
   skills: AppSettings["skills"];
@@ -63,7 +59,6 @@ const GATEWAY_SETTINGS_SYNC_FIELDS = [
   "mcp",
   "agents",
   "ssh",
-  "remote",
   "memory",
   "customSettings",
   "skills",
@@ -338,12 +333,6 @@ export function buildGatewaySettingsSyncPayload(
     mcp: settings.mcp,
     agents: settings.agents,
     ssh: redactSshSettingsForGateway(settings.ssh),
-    remote: {
-      enableWebTerminal: settings.remote.enableWebTerminal,
-      enableWebSshTerminal: settings.remote.enableWebSshTerminal,
-      enableWebGit: settings.remote.enableWebGit,
-      enableWebTunnels: settings.remote.enableWebTunnels,
-    },
     memory: settings.memory,
     customSettings: syncableCustomSettings(settings.customSettings),
     skills: settings.skills,

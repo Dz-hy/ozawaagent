@@ -51,10 +51,6 @@ export function useTrayMenuSync(params: UseTrayMenuSyncParams): void {
         activeWorkspaceProjectId: activeWorkspaceProjectId ?? undefined,
         archivedWorkspaceProjectPaths,
         cronTasks: automation.cron.tasks,
-        remote: settings.remote,
-        // 桌面端当前没有独立的网关在线探测：连接态由 cron/设置表达，
-        // 托盘仅显示“已配置/未配置”；未来接入网关心跳后再启用实时值。
-        gatewayOnline: false,
         prefs: trayPrefs,
       });
       void syncTrayMenu(model);
@@ -65,7 +61,6 @@ export function useTrayMenuSync(params: UseTrayMenuSyncParams): void {
   }, [
     sidebarStore,
     settings.theme,
-    settings.remote,
     workspaceProjects,
     activeWorkspaceProjectId,
     archivedWorkspaceProjectPaths,
