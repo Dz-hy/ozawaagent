@@ -486,7 +486,8 @@ function formatCommitTooltipDate(value: string | undefined, locale: string) {
     { unit: "minute", seconds: 60 },
     { unit: "second", seconds: 1 },
   ];
-  const selected = units.find(({ seconds }) => Math.abs(deltaSeconds) >= seconds) ?? units.at(-1)!;
+  const selected =
+    units.find(({ seconds }) => Math.abs(deltaSeconds) >= seconds) ?? units[units.length - 1];
   const relative = new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(
     Math.round(deltaSeconds / selected.seconds),
     selected.unit,
@@ -647,7 +648,7 @@ function CommitReferenceTooltip({
           <button
             type="button"
             className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-primary hover:bg-primary/10"
-            onClick={() => void openUrl(commit.githubUrl!)}
+            onClick={() => commit.githubUrl && void openUrl(commit.githubUrl)}
           >
             <GitHubMarkIcon className="h-3 w-3" />
             {t("chat.composer.commitTooltipOpenGithub")}

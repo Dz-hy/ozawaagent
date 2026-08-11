@@ -185,9 +185,10 @@ function requestMatchesProbe(
 
 function installFetchProbe() {
   if (originalFetch || typeof globalThis.fetch !== "function") return;
-  originalFetch = globalThis.fetch.bind(globalThis);
+  const fetchImpl = globalThis.fetch.bind(globalThis);
+  originalFetch = fetchImpl;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const response = await originalFetch!(input, init);
+    const response = await fetchImpl(input, init);
     const probe = [...activeFetchProbes].find((candidate) =>
       requestMatchesProbe(candidate, input, init, response),
     );
