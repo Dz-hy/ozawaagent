@@ -146,9 +146,26 @@ LLM 端点（`llmcore.py`）、浏览器驱动远控地址（`TMWebDriver.py`）
 - 残留检查：`sharedHistory/hubFetch/runtimeEnv/clawHub/settings_save_remote/gateway_publish_settings_sync/GATEWAY_SETTINGS_SYNC_EVENT` 在 `src/` 与 `test/` 中均无引用 ✅
 - Rust 侧无代码改动（测试夹具按计划不动），未跑 cargo
 
-## 7. 遗留项（有意保留，超出本次范围）
+## 7. 复扫核对（第 2 轮，2026-08-11）
+
+| 项 | 第 1 轮（基线） | 第 2 轮（修复后复扫） |
+| --- | --- | --- |
+| Scan ID | `scan-2026-08-10T13-46-49.527Z-1df3b4b007a5` | `scan-2026-08-11T00-02-29.697Z-d10b33a52969` |
+| Seal（sha256） | `b756e544f9f80fdf014cb9208ea0b771116a8b893bd2b7db5cc7810b92253d96` | `deefdc6470f74a58d3f72755b63dc85906d74b16c653cada3e611d4a801e7bc8` |
+| Findings | 53（49 high / 4 low） | 53（49 high / 4 low），逐条锚点（path:line + findingId + instance hash）与第 1 轮**完全一致** |
+| 变化 | — | 0 移除 / 0 新增 |
+| 依赖 | 768 包扫描，0 命中 | 768 包扫描，0 命中（offline advisory 可用） |
+| 覆盖 | partial / inconclusive | 同前：threatModel 0 entryPoints，扫描器 enobufs 中断依旧 |
+
+核对结论：
+
+- **处置映射全部保持有效**：前端 A1-A7 修复面本来 0 finding，复扫未产生任何新增或漂移；vendored 39 条（by-design 26 / 占位 9 / 误报 2 / 随编排覆盖 1）与本地 13 条不改项（测试夹具 12 / 误报 1）处置不变。
+- **CWE-78 #24（`runtime/ga/ga_bridge_adapter.py`）**：加固后该静态模式仍被上报——静态分析器按「外部数据进入进程执行接口」的代码形态报数据流候选，不评估守卫逻辑，锚点与 instance hash 因此未变。处置维持 **FIXED（运行时防御已生效）**：`command` 非空校验 + shell 元字符拒绝在 spawn 前拦截，两个调用点均捕获 `ValueError` 转 JSON 错误响应；若要让静态面消失需将 `command` 改为白名单/枚举加载（属上游演进，见遗留项 3）。
+- **seal 变更属预期**：新 seal 覆盖第 2 轮全量产物（manifest 时间戳/产物哈希不同）；两轮 finding 内容一致。
+
+## 8. 遗留项（有意保留，超出本次范围）
 
 1. **托盘网关菜单项**（`services/tray.rs` TRAY_GATEWAY_ID + `App.tsx` `gateway-toggle` + `RemoteSettings` + `tray.gateway*` i18n）：修复后为无报错的内存态开关（Rust `tray.rs` 保留）；全量移除涉及 Rust 测试与状态模型改动，另行立项。
 2. **兄弟 i18n 死命名空间**：`mcpHub/skillsHub/skillsStore/tunnel` 等约 420 条键仍存在（与 `sharedHistory` 同批的商店/隧道残留），本次仅删用户点名的 66 条 `sharedHistory.*`。
 3. **vendored 修复点**：eval/exec 收敛、文件工具路径白名单、SSRF 目标白名单均需在 GenericAgent 上游（固定 commit `7083b93` 之后的版本）演进，本仓库只负责在编排时同步上游。
-4. **扫描覆盖缺口**：threatModel 阶段未产出 entryPoints（`runStatus: inconclusive`），后续可针对 Tauri 命令面与 GA bridge HTTP 面补一次威胁建模专项；重扫后应更新本文件的 seal 与统计。
+4. **扫描覆盖缺口**：两轮均 `runStatus: inconclusive`——threatModel 阶段未产出 entryPoints（扫描器 enobufs 中断）。后续应针对 Tauri 命令面与 GA bridge HTTP 面补一次威胁建模专项（修复性改动不影响该缺口，需另行触发）。
