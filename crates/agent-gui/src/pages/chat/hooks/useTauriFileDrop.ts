@@ -8,6 +8,17 @@ type UseTauriFileDropParams = {
   setErrorMessage: Dispatch<SetStateAction<string | null>>;
 };
 
+type TauriRuntimeWindow = Window & {
+  __TAURI__?: unknown;
+  __TAURI_INTERNALS__?: unknown;
+};
+
+function isTauriRuntime() {
+  if (typeof window === "undefined") return false;
+  const runtimeWindow = window as TauriRuntimeWindow;
+  return runtimeWindow.__TAURI__ !== undefined || runtimeWindow.__TAURI_INTERNALS__ !== undefined;
+}
+
 /**
  * Tauri webview drag-drop listener: tracks the drop-overlay visibility and
  * routes dropped paths into the upload pipeline (or an error toast while
@@ -18,6 +29,10 @@ export function useTauriFileDrop(params: UseTauriFileDropParams) {
   const [isFileDropActive, setIsFileDropActive] = useState(false);
 
   useEffect(() => {
+    // getCurrentWebview() reads Tauri's injected internals synchronously, so
+    // a normal Vite/browser page must not call it before the Promise catch.
+    if (!isTauriRuntime()) return;
+
     let cancelled = false;
     let unlisten: (() => void) | null = null;
 
