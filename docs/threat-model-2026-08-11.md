@@ -201,7 +201,7 @@ Authenticated bridge request
 
 | ID | 威胁路径 | 影响 | 现有控制/证据 | 剩余风险与处置 |
 |---|---|---|---|---|
-| TM-01 | 不可信 Markdown、MCP/tool output、Git text 或依赖漏洞造成 WebView XSS。 | token / Tauri invoke 被劫持；可扩展到工作区删改、shell/SSH、bridge command/connector 调用。 | 2026-08-12 修复：`tauri.conf.json` 落地可部署 CSP（`script-src 'self'` 严格、无 unsafe-inline/eval）并由 `test/backend/release-csp.test.mjs` 契约门禁钉住（见 §9）。 | **已修复（CSP 层）**；残留：`style-src 'unsafe-inline'` 为 mermaid/xterm 运行时注入所必需（脚本防线不受影响）；dev 模式主页面由 Vite 伺服、不注入 CSP；工作区 HTML 预览因继承严格 script-src 变为静态渲染；sanitizer regression 与 XSS fixture 另行专项。 |
+| TM-01 | 不可信 Markdown、MCP/tool output、Git text 或依赖漏洞造成 WebView XSS。 | token / Tauri invoke 被劫持；可扩展到工作区删改、shell/SSH、bridge command/connector 调用。 | 2026-08-12 修复：`tauri.conf.json` 落地可部署 CSP（`script-src 'self'` 严格、无 unsafe-inline/eval，`test/backend/release-csp.test.mjs` 钉住）＋ `test/chat/markdown-xss.test.mjs` 端到端 XSS fixture（聊天/工作区链、data: URL、mermaid 配置，见 §9）＋ `data:` URL mimeType 白名单加固。 | **已修复（CSP 层 + renderer fixture 层）**；残留：`style-src 'unsafe-inline'` 为 mermaid/xterm 运行时注入所必需（脚本防线不受影响）；dev 模式主页面由 Vite 伺服、不注入 CSP；工作区 HTML 预览为静态渲染。 |
 | TM-02 | 同机进程连接 loopback bridge 或浏览器跨站请求。 | session / profile / automation / connector 控制，敏感 metadata 读取。 | `127.0.0.1` peer check、origin allowlist、min 32 char token、`compare_digest`、no-store（adapter `:145-177`）。 | token 泄露后控制失效；不要记录 bearer / protocol header。 |
 | TM-03 | `/ws` 认证协议与 client 不一致。 | 主要是事件流不可用；若以删除 auth 方式“修复”会变成未授权 bridge。 | 2026-08-12 修复：客户端经 subprotocol 携带 `ga-token.<token>`（`GaBridgeClient.ts`），adapter 等价 handler 协商并回显（`ga_bridge_adapter.py:2029-2077`）；双端契约测试钉住（真实升级 401/101 用例 + 前端 protocols/URL 断言）。 | **已修复**；保留 Windows smoke 复核与“token 不进 URL/日志/telemetry”观测项。 |
 | TM-04 | 恶意 repo 用 traversal / symlink 诱导 file API。 | 读写工作区外文件。 | canonical workdir、relative path sanitizer、existing target containment、symlink-parent 测试。 | TOCTOU 和新平台 path 语义需要持续测试；用户主动选择任意 workdir 仍是有意权限。 |
@@ -244,13 +244,13 @@ Authenticated bridge request
 | bridge start | 打开 chat，触发 `ga_runtime_start`。 | 动态端口绑定 127.0.0.1；token 不出现在 UI、normal log 或错误 toast；health request 需要 token。 |
 | bridge HTTP | 新建 session、stream、读取 profile / automation。 | `Authorization` 存在于 HTTP client；错误 envelope / console 不回显 API key、SSH key、token、真实 upload path。 |
 | bridge WebSocket | 开 chat 后观察 events/reconnect。 | WS 按 adapter contract 携带 `ga-token.<token>` subprotocol 并成功升级（101 + 服务端回显协议）；断线重连仍携带凭据；token 不出现在 DevTools / Network / log。 |
-| renderer hostile content | 在受控 fixture 中显示带 HTML/URL/长 tool output 的模型或 MCP 文本。 | 无 script execution / Tauri invoke / bridge request 旁路；仅经过既有 renderer 安全策略呈现。 |
+| renderer hostile content | 在受控 fixture 中显示带 HTML/URL/长 tool output 的模型或 MCP 文本。 | 无 script execution / Tauri invoke / bridge request 旁路；仅经过既有 renderer 安全策略呈现。回归门禁：`test/chat/markdown-xss.test.mjs`（2026-08-12，聊天/工作区链全向量 + data: URL + mermaid strict）。 |
 | filesystem / Git | 在含外链 symlink 的临时 workdir 测读写/rename/delete；测试 Git panel remote action。 | 越界路径被拒绝；合法 workspace 文件成功；Git 可用性回归不破坏 path guard。 |
 | secrets | 保存 provider / SSH 设置后，查看 UI、bridge response 和 debug log。 | 仅显示 configured flag 或 `[REDACTED]`；无密钥值写入前端错误、automation log 或 bridge telemetry。 |
 
 ### 7.3 建议的下一轮工程项（不在本 WP 中改代码）
 
-1. ~~对 `tauri.conf.json` 的 `csp: null` 制定可部署 CSP；把 renderer HTML/URL sink 清单、依赖审计和 XSS fixture 作为 release gate~~ —— 已于 2026-08-12 完成 CSP 落地与 sink 清单（见 §9），契约门禁 `test/backend/release-csp.test.mjs` 纳入 `pnpm test:release`；sanitizer regression 与 XSS fixture 留作后续安全专项。
+1. ~~对 `tauri.conf.json` 的 `csp: null` 制定可部署 CSP；把 renderer HTML/URL sink 清单、依赖审计和 XSS fixture 作为 release gate~~ —— 已于 2026-08-12 完成全部三项：CSP 落地 + sink 清单（§9）、契约门禁 `test/backend/release-csp.test.mjs`（纳入 `pnpm test:release`）、XSS fixture 回归门禁 `test/chat/markdown-xss.test.mjs`（纳入 `pnpm test:frontend`，真实 streamdown sanitize/harden 链端到端渲染）。
 2. ~~用一个端到端测试钉住 `/ws` credential contract，统一 adapter test 与 `GaWebSocketManager` 行为~~ —— 已于 2026-08-12 完成（adapter 真实升级用例 + 前端契约断言）；Windows smoke 复核项保持不变（§7.2）。
 3. 对 hook / command pack / automation 增加 source/provenance 展示、显式执行确认和可审计日志；对 HTTP outbound 制定产品级 allowlist / deny-private-network 策略（若产品目标包含企业或多用户场景）。
 4. 将 Tauri 142 command 表按“read / write / execute / external network / destructive”生成机器可检验清单，并在新增 command 时要求 threat-model delta。
@@ -301,13 +301,26 @@ Authenticated bridge request
 |---|---|---|
 | Web Worker（monaco） | WorkspaceCodeEditorOverlay.tsx:2-6,55-63 | 同源文件 → `worker-src 'self'` |
 | `dangerouslySetInnerHTML`（mermaid SVG） | streamdown 包内（Markdown.tsx 消费） | SVG 含 `<style>` → style-src 'unsafe-inline'；mermaid securityLevel=strict + DOMPurify |
-| `<img>` data:/blob:/http(s): | ToolImages.tsx、uploadedImagePreview.ts、WorkspaceMarkdownPreview.tsx、WorkspaceFilePreviewOverlay.tsx | img-src 白名单如上 |
+| `<img>` data:/blob:/http(s): | ToolImages.tsx、uploadedImagePreview.ts、WorkspaceMarkdownPreview.tsx、WorkspaceFilePreviewOverlay.tsx | img-src 白名单如上；**2026-08-12 加固**：`data:` URL 仅接受 `image/*` mimeType（`src/lib/chat/imageDataUrl.ts`，模型/工具可控的 text/html 等一律不构造；含参数/空白的原始 mimeType 规范化后拼接），非图片 mimeType 直接进 "unavailable" 错误展示（不渲染空 src img） |
 | `<iframe>` blob:（PDF/HTML 预览） | WorkspaceFilePreviewOverlay.tsx:684-698 | frame-src blob:；HTML 预览沙箱 `sandbox="allow-popups"`（脚本被严格 CSP 继承禁止，见 9.4） |
 | `<audio>/<video>` blob: | WorkspaceFilePreviewOverlay.tsx:788/799 | media-src blob: |
 | 运行时 `<style>` 注入 | @xterm/xterm 4 处、mermaid/monaco | style-src 'unsafe-inline' |
 | eval / new Function | 全仓 0 命中（含 monaco esm） | 无需处理；契约测试不引入 eval 面 |
 | innerHTML（编辑器/预览容器） | MentionComposer.tsx:894（静态 SVG）、WorkspaceFilePreviewOverlay.tsx:649/664（容器清空） | 受信静态内容，无注入面 |
+| **DOCX 预览（已知边界）** | WorkspaceFilePreviewOverlay.tsx:596-618（docx-preview `renderAsync` 直写容器） | 唯一无 sanitizer 的第三方 HTML 写入面；仅由 CSP `script-src 'self'` 兜底（fixture 无法在无 DOM 环境覆盖，Node 无 jsdom 依赖策略下不测） |
+| **工作区 markdown 链（已知边界）** | Markdown.tsx `preserveRelativeUrls` 链 = raw→sanitize（无 harden） | javascript:/data: href 仍被 sanitize 默认 schema 拦截 + `classifyWorkspaceMarkdownTarget` 分类兜底（`test/chat/markdown-xss.test.mjs` 已钉）；不加 harden 是为保留相对路径图片/链接功能 |
 
 ### 9.4 行为变化：工作区 HTML 预览静态化
 
 blob: iframe 继承主文档 CSP：严格 `script-src 'self'` 禁止预览文档内全部脚本（内联与远程），预览变为静态渲染。已移除原 `SANDBOXED_HTML_PREVIEW_BOOTSTRAP`（localStorage shim）注入，并将 iframe `sandbox` 收紧为 `allow-popups`（保留 target=_blank 新窗口；若 CSP 未来回退，sandbox 仍禁止脚本）。样式/图片/音频视频预览不受影响。
+
+### 9.5 XSS fixture 回归门禁（2026-08-12）
+
+`test/chat/markdown-xss.test.mjs`（纳入 `pnpm test:frontend`）：真实 `react-dom/server` renderToStaticMarkup + 真实 streamdown sanitize/harden 链（streamdown 与 @streamdown/* 为 ESM-only，经 ESM import 映射进 loader mock 表，管线不被 mock 削弱），覆盖：
+
+- **聊天链**（raw→sanitize→harden）：`<script>`、事件属性（onerror/onload）、`<iframe>/<object>/<embed>/<form>/<base>`、mathml 注入、`javascript:`/`vbscript:`/`data:` href（含 HTML 实体、`\t` 混淆、大小写变体）、markdown 语法注入、`//` 协议相对 URL、mermaid 恶意 label；断言输出无 `<script`、无 `on\w+=`、无危险协议、无 `<img`（文本回退）；链接在 linkSafety 模式下渲染为**无 href 的 button**（点击经 ExternalLinkModal 确认后 openUrl）。
+- **工作区链**（preserveRelativeUrls，无 harden）：javascript: href 仍被 sanitize 剥除；img 保持文本回退；`classifyWorkspaceMarkdownTarget` 纯函数断言（javascript:/file:→unsupported、data:/blob:→inline、`//`→external+https 补全、相对路径→workspace）。
+- **data: URL 面**：`buildSafeImageDataUrl` 白名单（image/* 放行、text/html/application/xhtml+xml/octet-stream 拒绝、原始 mimeType 规范化）；ToolImages SSR 断言 image/svg+xml 数据渲染为 inert `<img>`、非图片 mimeType 不渲染 img 且不构造 data: URL。
+- **mermaid 配置**：静态断言 `@streamdown/mermaid` 默认 `securityLevel:"strict"` 且 Markdown.tsx 不覆盖（防回退 loose 绕过 DOMPurify）；SSR 下 mermaid 块仅占位。真实 DOMPurify 渲染属浏览器行为，归 Phase 9 smoke 复核。
+
+测试基础设施备注：load-ts-module 的 CJS 解析无法处理 ESM-only 包（streamdown 系与部分依赖），以及 `~icons/*` 默认结构 mock 不可渲染——fixture 采用「ESM import 真实模块映射 mock 表 + 绝对路径 no-op 组件占位」（icons/ImagePreview），语义与真实管线等价。
