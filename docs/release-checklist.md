@@ -7,7 +7,7 @@
 - [x] `pnpm exec tsc --noEmit` 0 错误
 - [x] `pnpm build`（vite 生产构建）
 - [x] `pnpm test:frontend --run` 全绿（settings/chat/debug/memory/providers/subagents/tools/i18n/skills/context-menu/system）
-- [x] `pnpm test:release --run`（后端 release 契约，含 shipping build 不得引入 `tauri-plugin-mcp-bridge` / `mcp-bridge`）
+- [x] `pnpm test:release --run`（后端 release 契约：shipping build 不得引入 `tauri-plugin-mcp-bridge` / `mcp-bridge`；CSP 配置与 dist 零内联门禁见 `release-csp.test.mjs`）
 - [x] `git diff --check` 无空白错误
 
 ## B. CI（push 后盯 GitHub Actions 全绿）
@@ -44,6 +44,8 @@
 - [x] Phase 9 剩余-Hive 可视化：**判定闭环**（2026-08-09）——官方 `/hive` 仅为提示词入口（build_hive_prompt→Goal Hive 多 worker 模式），无独立状态端点；多 Agent 运行态已由 GaConductorSection（ga.conductor.v1 快照：subagents/messages/counts）覆盖，按"不建第二真相源"原则不新增专用端点
 - [x] Phase 9 剩余-高级 Hook 编辑：**判定闭环**（2026-08-06 P5.8）——官方 plugins/hooks.py 为纯内存注册表（无编辑/持久化/超时语义），保留只读快照入口，不建编辑面
 - [x] 质量加固冲刺（2026-08-11）：Biome 104 → 0 warnings；Remote/Gateway residue 移除；死 i18n 键经模板感知 census 清除（833 键/locale，1666 行）；Tauri/GA bridge threat model 见 [`threat-model-2026-08-11.md`](threat-model-2026-08-11.md)。对应提交 `f26a0ead`–`0dfafde8`、`baf46f9b`、`3ccaad87`、`d4189da7`。
+- [x] WS 鉴权契约修复（2026-08-12）：`/ws` 恢复 `ga-token.<token>` subprotocol 凭据 + adapter 等价 handler 协商回显；双端契约测试钉住（详见 threat-model §4.3/TM-03）。**每次 Windows desktop smoke 仍应检查**：WS 升级成功、token 不出现在 DevTools/Network/log。
+- [x] CSP 落地（2026-08-12）：`tauri.conf.json` 落地可部署 CSP（prod `script-src 'self'` 严格、devCsp 含 Vite HMR）；`test/backend/release-csp.test.mjs` 契约门禁纳入 `pnpm test:release`；白名单与 sink 清单见 threat-model §9。**行为变化**：工作区 HTML 预览不再执行脚本（静态渲染，CSP 继承 + sandbox 收紧）；打包产物运行时 CSP 验证归 Phase 9 安装态验收。
 - [x] Phase 6 最终删除复核（2026-08-11）：`crates/agent-gateway/` 和 `railway.json` 已分别由 `f9224d4a` / `ce9fa68a` 删除；HEAD、工作树及 live-reference 检查均为 0（本地 ignored 的 `docs/project/phase6_final_deletion.md` 保留完整命令输出与物证）。
 - [x] 无认证 desktop MCP bridge 处置（2026-08-11）：`tauri-plugin-mcp-bridge`（修复前默认 `0.0.0.0:9223`、无认证 WebView JS/截屏/IPC 控制面）已从产品 dependency、Rust builder 与 main-window capability 完整移除；`test/backend/release-mcp-bridge.test.mjs` 防止回归。每次 Windows desktop smoke 仍应确认 `ozawaagent.exe` 不监听 9223–9322。
 - [ ] 接受残留（发布引用，非“已安全”结论）：39 个 vendored GenericAgent findings（仅上游可修）；Mimosa `scanner_enobufs` / `entryPoints=0`（人工 threat model 已补，但扫描仍不完整）；`src/index.css` xterm `!important`（第三方主题覆盖，已注释）；WebView 持有 **GA runtime bridge** bearer token（**最高风险边界：XSS = bridge/Tauri capability compromise**）。

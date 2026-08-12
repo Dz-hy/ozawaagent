@@ -166,15 +166,15 @@ WebView Settings
 | token 被本机其他进程偷取 | 高 | token 只在 Rust 与 JS 内存中，不通过 URL；但同用户进程内存读取、恶意浏览器扩展式注入、log 泄露等仍是威胁。 | 每次新 runtime 产生两个 UUID 拼接的 64 hex 字符（256 bits；`ga_supervisor.rs:245-249, 795-802`）；不写进持久化配置；response `Cache-Control: no-store`。 |
 | 跨站页面滥用 bridge | 中 | 浏览器 CSRF / CORS 与 loopback probing。 | loopback peer check；only allow `tauri.localhost`（debug 时增加 Vite origin）；origin 不允许即 403；实际请求要求 token。 |
 
-### 4.3 Bridge `/ws` token 通道：需在 Windows 冒烟复核的契约差异
+### 4.3 Bridge `/ws` token 通道（2026-08-12 已修复，契约由双端测试钉住）
 
-Adapter 只在 WebSocket upgrade 的 `Sec-WebSocket-Protocol` 中接受 `ga-token.<token>`，并优先接受 `Authorization: Bearer …`（`ga_bridge_adapter.py:128-142`）；middleware 对所有实际请求仍做该 credential 比较（`:165-175`）。其单元测试明确断言该 subprotocol credential 可用（`runtime/ga/tests/test_ga_bridge_adapter.py:954-965`）。
+Adapter 只在 WebSocket upgrade 的 `Sec-WebSocket-Protocol` 中接受 `ga-token.<token>`，并优先接受 `Authorization: Bearer …`（`ga_bridge_adapter.py:128-142`）；middleware 对所有实际请求仍做该 credential 比较（`:165-175`）。其单元测试明确断言该 subprotocol credential 可用（`runtime/ga/tests/test_ga_bridge_adapter.py:1034-1040`）。
 
-但当前 `GaWebSocketManager` **刻意不传 protocols**（`GaBridgeClient.ts:397-403`），注释称 server 不协商协议。浏览器 WebSocket API 无法像 fetch 一样设置 Authorization header；若 adapter middleware 覆盖官方 `/ws` 路由（当前 `app.middlewares.insert(0, security_middleware(...))` 显示它会覆盖），则这两个实现的契约存在可用性风险：WS upgrade 可能 401，或只在上游 bridge 存在未见的额外认证逻辑时可工作。
+2026-08-12 修复此前契约差异：客户端一度不传 protocols（旧 `GaBridgeClient.ts`），且官方 `ws_handler`（pinned 7083b937，`frontends/desktop_bridge.py:1372-1395`）构造 `WebSocketResponse(heartbeat=30)` 不协商 subprotocol——客户端即使带凭据升级，浏览器也会因服务端不回显协议而按 WHATWG 规范判定握手失败。修复为 adapter 以等价 handler 替换官方 `/ws`（`_install_authenticated_ws_handler`，`ga_bridge_adapter.py:2029-2077`）：协商并回显 `ga-token.<token>`，`bridge-ready`/`services.snapshot` 初始消息与 ping/pong 语义逐行镜像官方实现；客户端恢复携带 subprotocol 凭据（`GaBridgeClient.ts:399-406`）。
 
-- 本文**不把“WS 已被 token 保护且客户端可用”写为已验证事实**。
-- 最终 Windows smoke 应检查：WebSocket 是否升级成功、请求是否确实带可验证的 credential、token 是否没有出现在 DevTools/log/telemetry、断线后是否仍只把 WS 当 refresh hint。
-- 安全目标不变：若恢复 `ga-token.<token>` subprotocol，token 会出现在本机协议头但不得进日志；若维持无 subprotocol，应实现并测试等效的认证协议。不能为修复可用性去掉 middleware token 校验。
+- 契约已由双端测试钉住：adapter 真实 WS 升级用例（无凭据/错误 token → 401；正确凭据 → 101 + 协议回显 + 初始消息；ping→pong；hub 广播经已鉴权 socket 可达，`runtime/ga/tests/test_ga_bridge_adapter.py:1047-1095`）；前端断言凭据经 subprotocol 携带、URL 不含 token、重连仍携带（`crates/agent-gui/test/chat/ga-bridge-client.test.mjs`）。
+- 最终 Windows smoke 仍应检查：WebSocket 是否升级成功、token 是否没有出现在 DevTools/log/telemetry、断线后是否仍只把 WS 当 refresh hint。
+- 安全目标不变：token 只出现在本机 `Sec-WebSocket-Protocol` 协议头，不得进 URL、日志或 telemetry；middleware 的 loopback / Origin / token 校验对所有路由（含 `/ws`）不做任何豁免。
 
 ### 4.4 Bridge → GenericAgent / MCP subprocess
 
@@ -201,9 +201,9 @@ Authenticated bridge request
 
 | ID | 威胁路径 | 影响 | 现有控制/证据 | 剩余风险与处置 |
 |---|---|---|---|---|
-| TM-01 | 不可信 Markdown、MCP/tool output、Git text 或依赖漏洞造成 WebView XSS。 | token / Tauri invoke 被劫持；可扩展到工作区删改、shell/SSH、bridge command/connector 调用。 | loopback/token 只防 WebView 外部主体，**不防同 origin XSS**；capability 绑定 main window。 | **最高、接受但必须持续治理**：CSP 当前为 `null`，应在 release 前做 CSP 与 renderer injection 专项审查；所有 HTML/URL render path 需 sanitizer regression。 |
+| TM-01 | 不可信 Markdown、MCP/tool output、Git text 或依赖漏洞造成 WebView XSS。 | token / Tauri invoke 被劫持；可扩展到工作区删改、shell/SSH、bridge command/connector 调用。 | 2026-08-12 修复：`tauri.conf.json` 落地可部署 CSP（`script-src 'self'` 严格、无 unsafe-inline/eval）并由 `test/backend/release-csp.test.mjs` 契约门禁钉住（见 §9）。 | **已修复（CSP 层）**；残留：`style-src 'unsafe-inline'` 为 mermaid/xterm 运行时注入所必需（脚本防线不受影响）；dev 模式主页面由 Vite 伺服、不注入 CSP；工作区 HTML 预览因继承严格 script-src 变为静态渲染；sanitizer regression 与 XSS fixture 另行专项。 |
 | TM-02 | 同机进程连接 loopback bridge 或浏览器跨站请求。 | session / profile / automation / connector 控制，敏感 metadata 读取。 | `127.0.0.1` peer check、origin allowlist、min 32 char token、`compare_digest`、no-store（adapter `:145-177`）。 | token 泄露后控制失效；不要记录 bearer / protocol header。 |
-| TM-03 | `/ws` 认证协议与 client 不一致。 | 主要是事件流不可用；若以删除 auth 方式“修复”会变成未授权 bridge。 | Adapter 测试 credential 提取；client 有 WS unit test 但仅验证不传 protocol。 | **待 Windows smoke / 单测对齐**；只能通过携带安全 credential 或服务端等效认证修复。 |
+| TM-03 | `/ws` 认证协议与 client 不一致。 | 主要是事件流不可用；若以删除 auth 方式“修复”会变成未授权 bridge。 | 2026-08-12 修复：客户端经 subprotocol 携带 `ga-token.<token>`（`GaBridgeClient.ts`），adapter 等价 handler 协商并回显（`ga_bridge_adapter.py:2029-2077`）；双端契约测试钉住（真实升级 401/101 用例 + 前端 protocols/URL 断言）。 | **已修复**；保留 Windows smoke 复核与“token 不进 URL/日志/telemetry”观测项。 |
 | TM-04 | 恶意 repo 用 traversal / symlink 诱导 file API。 | 读写工作区外文件。 | canonical workdir、relative path sanitizer、existing target containment、symlink-parent 测试。 | TOCTOU 和新平台 path 语义需要持续测试；用户主动选择任意 workdir 仍是有意权限。 |
 | TM-05 | 恶意 Git remote、Git hooks、submodule / clone 内容。 | 网络泄露、任意用户级命令、repo 破坏/错误 push。 | 参数数组、timeout、禁交互 prompt；UI 操作与 user-selected repo。 | Git hooks 是 Git 设计行为；external remote 与 hook 内容视为用户信任决策，破坏性操作需 UI confirmation。 |
 | TM-06 | Hook / command pack / scheduled automation 执行未信任脚本或 HTTP。 | 本机代码执行、SSRF、长时间资源占用、数据外传。 | Hook workdir required、timeout clamp、cancellation、环境变量前缀；automation 有 store/scheduler 状态。 | **设计上的高权限执行面**；只有受审配置/明确用户动作可创建，日志/提示不得将敏感 context 回显。 |
@@ -230,8 +230,8 @@ Authenticated bridge request
 
 ### 7.1 已有回归证据
 
-- Bridge adapter tests：`runtime/ga/tests/test_ga_bridge_adapter.py` 61 passed（包含 token minimum length、origin defaults、WS credential extraction、response redaction、stdio launcher allowlist）。
-- Frontend suite：`pnpm test:frontend` 711/711 passed（包含 bridge client Authorization header / typed routes，以及 WS manager 的 duplicate handling）。
+- Bridge adapter tests：`runtime/ga/tests/test_ga_bridge_adapter.py` 66 passed（另 2 项由 GA_TEST_ROOT 门控，设置时 67 passed；包含 token minimum length、origin defaults、WS credential extraction、**真实 WS 升级契约用例**——无凭据/错误 token 401、101+subprotocol 回显、ping/pong、hub 广播、response redaction、stdio launcher allowlist）。
+- Frontend suite：`pnpm test:frontend` 713/713 passed（包含 bridge client Authorization header / typed routes，以及 WS manager 的 duplicate handling、credential 契约断言——凭据经 subprotocol 携带、URL 不含 token、重连仍携带）。
 - Rust 侧的 workspace path tests 覆盖 relative traversal 与越界 symlink；`cargo check --tests` 应持续执行。
 - Shipping 配置契约：`test/backend/release-mcp-bridge.test.mjs` 断言产品 manifest、Rust builder 与 main-window capability 不引入 `tauri-plugin-mcp-bridge` / `mcp-bridge`；桌面 dev smoke 还应确认没有 9223–9322 listener。
 - 每次 commit 的 Mimosa hook 在本冲刺中仍报告 `scanner_enobufs`，因此不把 hook 放行表述成“完整扫描已通过”。
@@ -243,15 +243,15 @@ Authenticated bridge request
 | desktop listener | 启动 desktop dev app，检查 `ozawaagent.exe` listener。 | 不监听 9223–9322；产品不含 `tauri-plugin-mcp-bridge` 的无认证 WebView 控制接口。 |
 | bridge start | 打开 chat，触发 `ga_runtime_start`。 | 动态端口绑定 127.0.0.1；token 不出现在 UI、normal log 或错误 toast；health request 需要 token。 |
 | bridge HTTP | 新建 session、stream、读取 profile / automation。 | `Authorization` 存在于 HTTP client；错误 envelope / console 不回显 API key、SSH key、token、真实 upload path。 |
-| bridge WebSocket | 开 chat 后观察 events/reconnect。 | WS 要么按照 adapter contract 携带可验证 credential 并成功升级，要么明确显示/记录其等效机制；绝不以移除 token middleware 换取“可用”。 |
+| bridge WebSocket | 开 chat 后观察 events/reconnect。 | WS 按 adapter contract 携带 `ga-token.<token>` subprotocol 并成功升级（101 + 服务端回显协议）；断线重连仍携带凭据；token 不出现在 DevTools / Network / log。 |
 | renderer hostile content | 在受控 fixture 中显示带 HTML/URL/长 tool output 的模型或 MCP 文本。 | 无 script execution / Tauri invoke / bridge request 旁路；仅经过既有 renderer 安全策略呈现。 |
 | filesystem / Git | 在含外链 symlink 的临时 workdir 测读写/rename/delete；测试 Git panel remote action。 | 越界路径被拒绝；合法 workspace 文件成功；Git 可用性回归不破坏 path guard。 |
 | secrets | 保存 provider / SSH 设置后，查看 UI、bridge response 和 debug log。 | 仅显示 configured flag 或 `[REDACTED]`；无密钥值写入前端错误、automation log 或 bridge telemetry。 |
 
 ### 7.3 建议的下一轮工程项（不在本 WP 中改代码）
 
-1. 对 `tauri.conf.json` 的 `csp: null` 制定可部署 CSP；把 renderer HTML/URL sink 清单、依赖审计和 XSS fixture 作为 release gate。
-2. 用一个端到端测试钉住 `/ws` credential contract，统一 adapter test 与 `GaWebSocketManager` 行为。
+1. ~~对 `tauri.conf.json` 的 `csp: null` 制定可部署 CSP；把 renderer HTML/URL sink 清单、依赖审计和 XSS fixture 作为 release gate~~ —— 已于 2026-08-12 完成 CSP 落地与 sink 清单（见 §9），契约门禁 `test/backend/release-csp.test.mjs` 纳入 `pnpm test:release`；sanitizer regression 与 XSS fixture 留作后续安全专项。
+2. ~~用一个端到端测试钉住 `/ws` credential contract，统一 adapter test 与 `GaWebSocketManager` 行为~~ —— 已于 2026-08-12 完成（adapter 真实升级用例 + 前端契约断言）；Windows smoke 复核项保持不变（§7.2）。
 3. 对 hook / command pack / automation 增加 source/provenance 展示、显式执行确认和可审计日志；对 HTTP outbound 制定产品级 allowlist / deny-private-network 策略（若产品目标包含企业或多用户场景）。
 4. 将 Tauri 142 command 表按“read / write / execute / external network / destructive”生成机器可检验清单，并在新增 command 时要求 threat-model delta。
 5. 在上游 GenericAgent 更新评估中重新审查 CWE-22/95/918 及 manifest pinned hash；不要以本地 adapter 修复替代上游审计。
@@ -267,3 +267,47 @@ Authenticated bridge request
 5. **高权限用户配置能力**：shell hook、MCP stdio/HTTP、provider URL、Git remote、SSH/SFTP 与 automation 都是功能性授权面；应以用户意图、可见性、path/network policy 和 renderer integrity 管控，不能通过静态扫描将其“消除”。
 
 **结论**：当前产品最重要的安全前置条件不是“loopback bridge 只监听 localhost”，而是 **Tauri WebView 不被执行任意脚本**。Bridge 的 loopback/origin/token 三重检查有效地降低了外部和普通本机连接风险；一旦 renderer 被 XSS 控制，bearer token 和 Tauri capability 同时使该边界失效。后续 release 判断应将 CSP / XSS 防护、WS credential 对齐、Windows 实测和上游 GenericAgent 评估放在高于新增功能的优先级。
+
+## 9. CSP 处置记录（2026-08-12）
+
+### 9.1 交付物
+
+- `crates/agent-gui/src-tauri/tauri.conf.json`：`app.security.csp`（prod）与 `app.security.devCsp`（dev）落地为对象格式；平台/发布变体均不覆盖 `security`。
+- `crates/agent-gui/test/backend/release-csp.test.mjs`：契约门禁（纳入 `pnpm test:release`），断言 CSP 非 null、必需指令齐全、prod `script-src` 无 `unsafe-inline`/`unsafe-eval`、变体不覆盖 security、`dist/index.html` 零内联。
+- 运行时效果验证：dev 模式主页面由 Vite 直接伺服、Tauri 不注入 CSP，无法在 dev 观察；打包产物的 CSP 行为归 Phase 9 安装态验收（§7.2）。
+
+### 9.2 指令白名单与理由
+
+| 指令 | 值 | 理由 |
+|---|---|---|
+| `default-src` | `'self'` | 页面 origin（Windows：`http://tauri.localhost`）；零远程兜底 |
+| `script-src` | `'self'` | **脚本防线**：dist 零内联、全仓无 eval/new Function；Tauri init 脚本为宿主注入不受 CSP 约束；monaco 无 eval |
+| `style-src` | `'self' 'unsafe-inline'` | mermaid SVG `<style>` 与 `setAttribute("style")`（mermaid.core.mjs:1075-1077/991）、xterm 4 处 `createElement("style")` 为运行时所必需；CSS 注入不构成脚本执行 |
+| `img-src` | `'self' data: blob: https: http:` | 工具图/附件=data:（ToolImages.tsx:39、uploadedImagePreview.ts:57）、工作区预览=blob:/http(s):（WorkspaceMarkdownPreview.tsx:62/150），与既有功能对等；chat markdown 图片为文本回退不加载 |
+| `font-src` | `'self'` | 全自托管（KaTeX woff2/woff/ttf、OpenAISans、codicon） |
+| `connect-src` | `'self' ipc: http://ipc.localhost http://127.0.0.1:* ws://127.0.0.1:*` | Tauri IPC fetch 双通道 + GA bridge 动态端口（每次启动随机）；`*` 端口通配为动态端口所必需 |
+| `frame-src` | `blob:` | PDF / 工作区 HTML 预览 iframe（WorkspaceFilePreviewOverlay.tsx） |
+| `media-src` | `'self' blob:` | 音视频预览 |
+| `worker-src` | `'self'` | monaco `?worker` 同源 worker；mermaid/xterm 无 worker |
+| `object-src` | `'none'` | 无 object/embed 使用 |
+| `base-uri` | `'self'` | 防 base 标签劫持 |
+| `form-action` | `'self'` | React 表单 onSubmit 阻止原生提交；防注入表单外发 |
+| `frame-ancestors` | `'none'` | 禁止被第三方嵌入 |
+| devCsp 增量 | `script-src 'unsafe-inline'`、connect-src 加 `http://localhost:1420 ws://localhost:1420` | @vitejs/plugin-react 的 react-refresh preamble 内联脚本 + Vite HMR |
+
+### 9.3 renderer sink 清单（2026-08-12 核实的注入/加载面）
+
+| Sink | 位置 | 处置 |
+|---|---|---|
+| Web Worker（monaco） | WorkspaceCodeEditorOverlay.tsx:2-6,55-63 | 同源文件 → `worker-src 'self'` |
+| `dangerouslySetInnerHTML`（mermaid SVG） | streamdown 包内（Markdown.tsx 消费） | SVG 含 `<style>` → style-src 'unsafe-inline'；mermaid securityLevel=strict + DOMPurify |
+| `<img>` data:/blob:/http(s): | ToolImages.tsx、uploadedImagePreview.ts、WorkspaceMarkdownPreview.tsx、WorkspaceFilePreviewOverlay.tsx | img-src 白名单如上 |
+| `<iframe>` blob:（PDF/HTML 预览） | WorkspaceFilePreviewOverlay.tsx:684-698 | frame-src blob:；HTML 预览沙箱 `sandbox="allow-popups"`（脚本被严格 CSP 继承禁止，见 9.4） |
+| `<audio>/<video>` blob: | WorkspaceFilePreviewOverlay.tsx:788/799 | media-src blob: |
+| 运行时 `<style>` 注入 | @xterm/xterm 4 处、mermaid/monaco | style-src 'unsafe-inline' |
+| eval / new Function | 全仓 0 命中（含 monaco esm） | 无需处理；契约测试不引入 eval 面 |
+| innerHTML（编辑器/预览容器） | MentionComposer.tsx:894（静态 SVG）、WorkspaceFilePreviewOverlay.tsx:649/664（容器清空） | 受信静态内容，无注入面 |
+
+### 9.4 行为变化：工作区 HTML 预览静态化
+
+blob: iframe 继承主文档 CSP：严格 `script-src 'self'` 禁止预览文档内全部脚本（内联与远程），预览变为静态渲染。已移除原 `SANDBOXED_HTML_PREVIEW_BOOTSTRAP`（localStorage shim）注入，并将 iframe `sandbox` 收紧为 `allow-popups`（保留 target=_blank 新窗口；若 CSP 未来回退，sandbox 仍禁止脚本）。样式/图片/音频视频预览不受影响。
