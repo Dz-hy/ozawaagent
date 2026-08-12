@@ -396,11 +396,16 @@ export class GaWebSocketManager {
     void this.runtime()
       .then((runtime) => {
         if (this.stopped || this.ws) return;
-        // The GA runtime's ws endpoint does not negotiate subprotocols; sending
-        // "ga-token.<token>" only produces "don't overlap server-known ones"
-        // warnings server-side (aiohttp logs, still upgrades). Authentication
-        // for /ws is handled by the runtime itself, so connect without protocols.
-        const socket = new WebSocket(`${runtime.baseUrl.replace(/^http/, "ws")}/ws`);
+        // The GA bridge requires a credential on every /ws upgrade, but browsers
+        // cannot set an Authorization header on WebSocket requests; the
+        // Sec-WebSocket-Protocol subprotocol is the only usable channel. The
+        // adapter's security middleware extracts and constant-time-compares the
+        // token after "ga-token.", and the server echoes the negotiated
+        // protocol so the handshake succeeds (without the echo browsers fail
+        // the connection). The token never appears in the URL or logs.
+        const socket = new WebSocket(`${runtime.baseUrl.replace(/^http/, "ws")}/ws`, [
+          `ga-token.${runtime.token}`,
+        ]);
         this.ws = socket;
         socket.onopen = () => {
           this.reconnectAttempt = 0;

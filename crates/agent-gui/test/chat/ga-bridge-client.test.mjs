@@ -210,9 +210,44 @@ test("WebSocket manager delivers duplicate event ids exactly once", async () => 
     sockets[0].onmessage({ data: duplicate });
     assert.equal(events.length, 1);
     assert.equal(events[0].event_id, "evt-1");
-    // The runtime ws endpoint does not negotiate subprotocols; the client no
-    // longer sends a "ga-token.<token>" protocol (server-side noise only).
-    assert.equal(sockets[0].protocols, undefined);
+    // The /ws credential rides the Sec-WebSocket-Protocol subprotocol (the
+    // only channel browsers allow for WS auth); it must never appear in the URL.
+    assert.deepEqual(sockets[0].protocols, [`ga-token.${runtime.token}`]);
+    assert.equal(sockets[0].url.includes(runtime.token), false);
+    unsubscribe();
+  } finally {
+    globalThis.WebSocket = previousWebSocket;
+  }
+});
+
+test("WebSocket manager reconnects with the credential on every attempt", async () => {
+  const previousWebSocket = globalThis.WebSocket;
+  const sockets = [];
+  class FakeWebSocket {
+    constructor(url, protocols) {
+      this.url = url;
+      this.protocols = protocols;
+      this.closed = false;
+      sockets.push(this);
+      queueMicrotask(() => this.onopen?.());
+    }
+    close() {
+      this.closed = true;
+      this.onclose?.();
+    }
+  }
+  globalThis.WebSocket = FakeWebSocket;
+  try {
+    const { GaWebSocketManager } = loader.loadModule("src/lib/ga/GaBridgeClient.ts");
+    const manager = new GaWebSocketManager(async () => runtime);
+    const unsubscribe = manager.subscribe(() => {});
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    sockets[0].close();
+    // First reconnect uses the 250ms exponential backoff base.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    assert.equal(sockets.length, 2);
+    assert.deepEqual(sockets[1].protocols, [`ga-token.${runtime.token}`]);
+    assert.equal(sockets[1].url.includes(runtime.token), false);
     unsubscribe();
   } finally {
     globalThis.WebSocket = previousWebSocket;

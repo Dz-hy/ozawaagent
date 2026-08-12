@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import ast
+import asyncio
+import contextlib
 import importlib.util
 import json
 import os
@@ -12,7 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 import pytest_asyncio
-from aiohttp import web
+from aiohttp import WSMsgType, WSServerHandshakeError, web
 from aiohttp.test_utils import TestClient, TestServer
 
 MODULE_PATH = Path(__file__).parents[1] / "ga_bridge_adapter.py"
@@ -33,6 +35,27 @@ def redact_fixture(value: str) -> str:
     避免静态凭据扫描把测试假值误报为硬编码凭据，断言语义不变。
     """
     return value
+
+
+class FakeHub:
+    """测试用 WsHub 等价物：维护 websockets 集合并向其广播事件。"""
+
+    def __init__(self):
+        self.websockets = set()
+
+    def emit(self, obj: dict) -> None:
+        loop = asyncio.get_running_loop()
+        loop.create_task(self._broadcast(obj))
+
+    async def _broadcast(self, obj: dict) -> None:
+        data = json.dumps(obj, ensure_ascii=False, default=str)
+        dead = set()
+        for ws in list(self.websockets):
+            try:
+                await ws.send_str(data)
+            except Exception:
+                dead.add(ws)
+        self.websockets.difference_update(dead)
 
 
 def fake_official_module():
@@ -74,17 +97,59 @@ def fake_official_module():
             "password": redact_fixture("history-secret"),
         }], "snap": {"secret": "not-returned"}})
 
+    hub = FakeHub()
+    services = SimpleNamespace(list_state=lambda: {"git": "running"})
+    manager = SimpleNamespace(
+        ga_root=r"D:\sensitive\ga",
+        mykey_path=r"D:\sensitive\mykey.json",
+    )
+
+    # 镜像官方 ws_handler（pinned 7083b937 desktop_bridge.py:1372-1395）：
+    # 不协商 subprotocol，仅注册 hub、广播初始消息并响应 ping。adapter 的
+    # _install_authenticated_ws_handler 会替换 namespace.ws_handler，因此
+    # create_app 必须在调用期从 namespace 动态解析（与官方模块全局查找一致）。
+    async def ws_handler(request):
+        ws = web.WebSocketResponse(heartbeat=30)
+        await ws.prepare(request)
+        hub.websockets.add(ws)
+        await ws.send_str(json.dumps({
+            "type": "bridge-ready",
+            "gaRoot": manager.ga_root,
+            "mykeyPath": manager.mykey_path,
+            "http": True,
+            "wsEventsOnly": True,
+        }, ensure_ascii=False))
+        await ws.send_str(json.dumps({
+            "type": "services.snapshot",
+            "services": services.list_state(),
+        }, ensure_ascii=False, default=str))
+        async for msg in ws:
+            if msg.type == WSMsgType.TEXT:
+                with contextlib.suppress(Exception):
+                    data = json.loads(msg.data)
+                    if data.get("action") == "ping":
+                        await ws.send_str(json.dumps({"type": "pong", "ts": 1}, ensure_ascii=False))
+        hub.websockets.discard(ws)
+        return ws
+
+    namespace = SimpleNamespace(
+        token_stats_handler=token_stats_handler,
+        get_token_history_handler=get_token_history_handler,
+        hub=hub,
+        services=services,
+        manager=manager,
+        ws_handler=ws_handler,
+    )
+
     def create_app():
         app = web.Application(middlewares=[unsafe_legacy_cors])
         app.router.add_get("/status", status)
         app.router.add_get("/explode", explode)
+        app.router.add_get("/ws", namespace.ws_handler)
         return app
 
-    return SimpleNamespace(
-        create_app=create_app,
-        token_stats_handler=token_stats_handler,
-        get_token_history_handler=get_token_history_handler,
-    )
+    namespace.create_app = create_app
+    return namespace
 
 
 def fake_model_manager():
@@ -336,6 +401,16 @@ async def client():
                              allowed_origins=(ORIGIN,), manifest=manifest)
     async with TestClient(TestServer(app)) as test_client:
         yield test_client
+
+
+@pytest_asyncio.fixture
+async def ws_client():
+    manifest = adapter.load_manifest()
+    official = fake_official_module()
+    app = adapter.create_app(official_module=official, token=TOKEN,
+                             allowed_origins=(ORIGIN,), manifest=manifest)
+    async with TestClient(TestServer(app)) as test_client:
+        yield test_client, official.hub
 
 
 @pytest_asyncio.fixture
@@ -963,6 +1038,62 @@ def test_token_strength_origin_defaults_and_websocket_credential():
     assert adapter._credential(ws) == TOKEN
     assert adapter._credential(http) == ""
     assert adapter._credential(bearer) == "preferred"
+
+
+WS_PROTOCOL = f"ga-token.{TOKEN}"
+
+
+@pytest.mark.asyncio
+async def test_ws_upgrade_without_credential_is_rejected(ws_client):
+    client_, _hub = ws_client
+    with pytest.raises(WSServerHandshakeError) as exc_info:
+        await client_.ws_connect("/ws")
+    assert exc_info.value.status == 401
+
+
+@pytest.mark.asyncio
+async def test_ws_upgrade_rejects_wrong_subprotocol_token(ws_client):
+    client_, _hub = ws_client
+    with pytest.raises(WSServerHandshakeError) as exc_info:
+        await client_.ws_connect("/ws", protocols=["ga-token.some-other-token"])
+    assert exc_info.value.status == 401
+
+
+@pytest.mark.asyncio
+async def test_ws_upgrade_negotiates_credential_subprotocol(ws_client):
+    client_, _hub = ws_client
+    async with client_.ws_connect("/ws", protocols=[WS_PROTOCOL]) as ws:
+        assert ws.protocol == WS_PROTOCOL
+        ready = await ws.receive_json()
+        assert ready["type"] == "bridge-ready"
+        assert ready.get("wsEventsOnly") is True
+        snapshot = await ws.receive_json()
+        assert snapshot["type"] == "services.snapshot"
+        assert snapshot["services"] == {"git": "running"}
+
+
+@pytest.mark.asyncio
+async def test_ws_ping_pong_roundtrip(ws_client):
+    client_, _hub = ws_client
+    async with client_.ws_connect("/ws", protocols=[WS_PROTOCOL]) as ws:
+        await ws.receive_json()  # bridge-ready
+        await ws.receive_json()  # services.snapshot
+        await ws.send_json({"action": "ping"})
+        pong = await ws.receive_json()
+        assert pong["type"] == "pong"
+        assert isinstance(pong.get("ts"), (int, float))
+
+
+@pytest.mark.asyncio
+async def test_ws_hub_broadcast_reaches_authenticated_socket(ws_client):
+    client_, hub = ws_client
+    async with client_.ws_connect("/ws", protocols=[WS_PROTOCOL]) as ws:
+        await ws.receive_json()  # bridge-ready
+        await ws.receive_json()  # services.snapshot
+        hub.emit({"type": "runtime.warning", "payload": {"code": "demo"}})
+        event = await ws.receive_json()
+        assert event["type"] == "runtime.warning"
+        assert event["payload"] == {"code": "demo"}
 
 
 def test_pinned_official_bridge_contract_without_importing_user_runtime():

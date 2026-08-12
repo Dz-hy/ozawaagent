@@ -6,6 +6,7 @@ import argparse
 import asyncio
 from collections import deque
 from contextvars import ContextVar
+import contextlib
 import copy
 import hashlib
 import importlib.util
@@ -25,11 +26,15 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
-from aiohttp import ClientSession, ClientTimeout, web
+from aiohttp import ClientSession, ClientTimeout, WSMsgType, web
 
 ADAPTER_VERSION = "1.5.0"
 API_VERSION = "v1"
 COMMAND_API_VERSION = "1"
+# WebSocket 唯一可携带凭据的通道（浏览器无法为 WS 请求设置 Authorization 头）。
+# security_middleware 从 Sec-WebSocket-Protocol 提取并常量时间校验该前缀后的
+# token；服务端 WebSocketResponse 必须协商并回显同一协议，否则浏览器拒绝握手。
+_WS_SUBPROTOCOL_PREFIX = "ga-token."
 MAX_COMMAND_ARGUMENT_CHARS = 32_768
 MAX_AUTOMATION_PROMPT_CHARS = 32_768
 MAX_TOKEN_RECORDS = 1_000
@@ -137,8 +142,8 @@ def _credential(request: web.Request) -> str:
     if request.path == "/ws" and request.headers.get("Upgrade", "").lower() == "websocket":
         for protocol in request.headers.get("Sec-WebSocket-Protocol", "").split(","):
             protocol = protocol.strip()
-            if protocol.startswith("ga-token."):
-                return protocol.removeprefix("ga-token.")
+            if protocol.startswith(_WS_SUBPROTOCOL_PREFIX):
+                return protocol.removeprefix(_WS_SUBPROTOCOL_PREFIX)
     return ""
 
 
@@ -2021,6 +2026,59 @@ def _session_for_runtime(manager: Any, sid: str) -> Any:
     return session
 
 
+def _install_authenticated_ws_handler(official_module: Any, token: str) -> None:
+    """让官方 /ws 端点协商并回显 `ga-token.<token>` subprotocol。
+
+    浏览器 WebSocket API 无法设置 Authorization 头，subprotocol 是唯一的凭据
+    通道（security_middleware 经 _credential 恒定时间校验）。但官方 ws_handler
+    （pinned 7083b937，frontends/desktop_bridge.py:1372-1395）构造
+    WebSocketResponse(heartbeat=30) 时不声明 protocols：客户端带凭据升级后，
+    服务端不回应 Sec-WebSocket-Protocol，浏览器按 WHATWG 规范判定握手失败。
+    此处以等价实现替换官方 ws_handler——仅多出协议协商，其余语义（hub 注册、
+    bridge-ready/services.snapshot 初始化消息、ping/pong、退出清理）逐行镜像。
+    """
+    original = getattr(official_module, "ws_handler", None)
+    if original is None:
+        return
+    if getattr(original, "_ozawa_ws_credential", None) == token:
+        return
+
+    async def ws_handler(request: web.Request) -> web.WebSocketResponse:
+        ws = web.WebSocketResponse(heartbeat=30, protocols=[f"{_WS_SUBPROTOCOL_PREFIX}{token}"])
+        await ws.prepare(request)
+        hub = getattr(official_module, "hub", None)
+        websockets = getattr(hub, "websockets", None)
+        if websockets is not None:
+            websockets.add(ws)
+        manager = getattr(official_module, "manager", None)
+        await ws.send_str(json.dumps({
+            "type": "bridge-ready",
+            "gaRoot": getattr(manager, "ga_root", None),
+            "mykeyPath": getattr(manager, "mykey_path", None),
+            "http": True,
+            "wsEventsOnly": True,
+        }, ensure_ascii=False))
+        services = getattr(official_module, "services", None)
+        list_state = getattr(services, "list_state", None)
+        await ws.send_str(json.dumps({
+            "type": "services.snapshot",
+            "services": list_state() if callable(list_state) else {},
+        }, ensure_ascii=False, default=str))
+        async for msg in ws:
+            if msg.type == WSMsgType.TEXT:
+                # WS 不是数据/命令通道（与官方一致），只响应 ping 心跳。
+                with contextlib.suppress(Exception):
+                    data = json.loads(msg.data)
+                    if data.get("action") == "ping":
+                        await ws.send_str(json.dumps({"type": "pong", "ts": time.time()}, ensure_ascii=False))
+        if websockets is not None:
+            websockets.discard(ws)
+        return ws
+
+    ws_handler._ozawa_ws_credential = token
+    official_module.ws_handler = ws_handler
+
+
 def _install_project_session_support(official_module: Any) -> None:
     manager = getattr(official_module, "manager", None)
     if manager is None or getattr(manager, "_ga_project_session_support", False):
@@ -2122,6 +2180,7 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
     if len(token) < 32:
         raise ValueError("Bridge token must contain at least 32 characters")
     _install_project_session_support(official_module)
+    _install_authenticated_ws_handler(official_module, token)
     app = official_module.create_app()
     app.middlewares.insert(0, project_session_middleware())
     app.middlewares.insert(0, security_middleware(token, allowed_origins))
