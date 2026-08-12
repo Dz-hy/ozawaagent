@@ -180,59 +180,11 @@ function hashString(value: string) {
   return Math.abs(hash).toString(36);
 }
 
-const SANDBOXED_HTML_PREVIEW_BOOTSTRAP = [
-  "<script data-ozawaagent-html-preview-bootstrap>",
-  "(() => {",
-  "  function createStorage() {",
-  "    const values = new Map();",
-  "    const storage = {",
-  "      get length() { return values.size; },",
-  "      key(index) { return Array.from(values.keys())[Number(index)] ?? null; },",
-  "      getItem(key) { key = String(key); return values.has(key) ? values.get(key) : null; },",
-  "      setItem(key, value) { values.set(String(key), String(value)); },",
-  "      removeItem(key) { values.delete(String(key)); },",
-  "      clear() { values.clear(); }",
-  "    };",
-  "    return new Proxy(storage, {",
-  "      get(target, key, receiver) {",
-  "        if (typeof key !== 'string' || key in target) return Reflect.get(target, key, receiver);",
-  "        return target.getItem(key);",
-  "      },",
-  "      set(target, key, value, receiver) {",
-  "        if (typeof key !== 'string' || key in target) return Reflect.set(target, key, value, receiver);",
-  "        target.setItem(key, value);",
-  "        return true;",
-  "      },",
-  "      deleteProperty(target, key) {",
-  "        if (typeof key === 'string') { target.removeItem(key); return true; }",
-  "        return Reflect.deleteProperty(target, key);",
-  "      }",
-  "    });",
-  "  }",
-  "  for (const name of ['localStorage', 'sessionStorage']) {",
-  "    try {",
-  "      Object.defineProperty(window, name, { value: createStorage(), configurable: true });",
-  "    } catch {}",
-  "  }",
-  "})();",
-  "</" + "script>",
-].join("");
-
+// 预览为静态渲染：blob: iframe 继承主文档的严格 CSP（script-src 'self'），
+// 预览文档内的内联/远程脚本一律不执行，因此不再注入 localStorage bootstrap
+// shim（原 SANDBOXED_HTML_PREVIEW_BOOTSTRAP 已随 CSP 落地移除）。
 function buildSandboxedHtmlPreviewSource(html: string) {
-  const source = html.startsWith("\uFEFF") ? html.slice(1) : html;
-  const headMatch = /<head(?:\s[^>]*)?>/i.exec(source);
-  if (headMatch) {
-    const insertionIndex = headMatch.index + headMatch[0].length;
-    return `${source.slice(0, insertionIndex)}${SANDBOXED_HTML_PREVIEW_BOOTSTRAP}${source.slice(
-      insertionIndex,
-    )}`;
-  }
-
-  const doctypeMatch = /^\s*<!doctype[^>]*>\s*/i.exec(source);
-  const insertionIndex = doctypeMatch ? doctypeMatch[0].length : 0;
-  return `${source.slice(0, insertionIndex)}${SANDBOXED_HTML_PREVIEW_BOOTSTRAP}${source.slice(
-    insertionIndex,
-  )}`;
+  return html.startsWith("\uFEFF") ? html.slice(1) : html;
 }
 
 function getPreviewIcon(kind: WorkspacePreviewKind): FileTypeIconComponent {
@@ -693,7 +645,10 @@ function PreviewBody(props: {
     return (
       <iframe
         className="h-full w-full border-0 bg-background"
-        sandbox="allow-scripts allow-forms allow-modals allow-pointer-lock allow-popups"
+        // 严格 CSP（script-src 'self'）已禁止预览文档内任何脚本；sandbox 只
+        // 保留 allow-popups（target=_blank 链接仍可开新窗口），其余 allow-*
+        // 移除，作为 CSP 未来回退时的兜底。
+        sandbox="allow-popups"
         src={preview.blobUrl}
         title={basename(preview.path)}
       />
