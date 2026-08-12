@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 
+import { buildSafeImageDataUrl } from "../../../lib/chat/imageDataUrl";
+
 type UploadedImagePreviewResponse = {
   mimeType: string;
   data: string;
@@ -52,7 +54,9 @@ async function loadUploadedImagePreview(params: { workspaceRoot: string; absolut
           ? result.mimeType
           : "application/octet-stream";
       const data = typeof result.data === "string" ? result.data.trim() : "";
-      const next = data ? `data:${mimeType};base64,${data}` : null;
+      // 仅 image/* 构造 data: URL；非图片 mimeType（含未识别的
+      // application/octet-stream）不产生预览。
+      const next = data ? buildSafeImageDataUrl(mimeType, data) : null;
       if (next) {
         writeUploadedImagePreviewCache(cacheKey, next);
       }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ImagePreview, type ImagePreviewSlide } from "../../../../components/chat/ImagePreview";
 import { ImageOff, Loader2 } from "../../../../components/icons";
 import { useLocale } from "../../../../i18n";
+import { buildSafeImageDataUrl } from "../../../../lib/chat/imageDataUrl";
 import type { ToolTraceItem } from "../../../../lib/chat/messages/uiMessages";
 import { prepareImageProxyUrl } from "../../../../lib/providers/proxy";
 import { cn } from "../../../../lib/shared/utils";
@@ -36,7 +37,9 @@ export type NativeDisplayImageSourceState = {
 type ToolImageLoadState = "loading" | "loaded" | "error";
 
 function getImageDataUrl(image: ImageContent) {
-  return `data:${image.mimeType};base64,${image.data}`;
+  // 非 image/* 的 mimeType（模型/工具可控）不构造 data: URL，调用方以空串
+  // 走 "unavailable" 错误展示。
+  return buildSafeImageDataUrl(image.mimeType, image.data) ?? "";
 }
 
 function isDisplayImageItemDetails(value: unknown): value is DisplayImageItemDetails {
@@ -173,7 +176,8 @@ function useNativeDisplayImageSources(entries: NativeDisplayImageEntry[]) {
 
   return entries.map((entry, index) => {
     if (entry.image) {
-      return { src: getImageDataUrl(entry.image), status: "ready" as const };
+      const src = getImageDataUrl(entry.image);
+      return src ? { src, status: "ready" as const } : { src: "", status: "error" as const };
     }
     if (!getProxyImageSource(entry.detail)) {
       return { src: "", status: "error" as const };
@@ -325,7 +329,7 @@ export function ToolResultImagePreview(props: {
               className="absolute inset-0 min-h-32"
             />
           ) : null}
-          {imageStatus !== "error" ? (
+          {imageStatus !== "error" && src ? (
             <img
               key={id}
               src={src}
