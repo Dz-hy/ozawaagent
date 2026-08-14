@@ -25,6 +25,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
+from urllib.parse import urlparse
 
 from aiohttp import ClientSession, ClientTimeout, WSMsgType, web
 
@@ -386,6 +387,39 @@ def _wire_desktop_ga_root(module: Any, root: Path) -> None:
 
 HOOK_OBSERVATIONS: deque[dict[str, str]] = deque(maxlen=100)
 HOOK_OBSERVATIONS_LOCK = threading.Lock()
+
+# --- Governance audit (adapter-facing execution history, bounded in-memory ring) ---
+AUDIT_SCHEMA = "ga.governance_audit.v1"
+MAX_AUDIT_RECORDS = 500
+MAX_AUDIT_PARAM_CHARS = 256
+AUDIT_ITEMS: deque[dict[str, Any]] = deque(maxlen=MAX_AUDIT_RECORDS)
+AUDIT_LOCK = threading.Lock()
+# 参数摘要中的凭据形态（键=值 / 键:值）最佳努力脱敏，词表与 SENSITIVE_KEYS 一致。
+AUDIT_SECRET_PATTERN = re.compile(
+    r"(?i)\b(?:mykey|token|secret|password|passwd|api[_-]?key|authorization|bearer|cookie)"
+    r"\s*[=:]\s*[^\s,;]+")
+# GA 自动化运行历史：<sche_tasks>/done/<YYYY-MM-DD>_<HHMM>_<id>.md（与 automation_runs_handler 同源）。
+AUDIT_RUN_FILENAME = re.compile(
+    r"^(\d{4}-\d{2}-\d{2})_(\d{2})(\d{2})_([A-Za-z0-9][A-Za-z0-9_-]{0,63})\.md$")
+
+# --- High-risk confirmation gate (session-scoped approval registry) ---
+# 治理确认流：带风险标签的资产首次执行必须先在 GUI 内获得人工批准；
+# 决策按 f"{category}:{target}" 键记入会话级注册表并写入审计。
+CONFIRMATION_CATEGORIES = ("command", "connector")
+CONFIRMATION_DECISIONS: dict[str, str] = {}
+CONFIRMATION_LOCK = threading.Lock()
+
+# --- Governance policy (adapter-owned declarative registry, ticket 06) ---
+# <ga_root>/governance/policy.json：资产启用/禁用（global / project 作用域）与
+# 出站 HTTP 域名 allowlist。策略只覆盖 adapter 有执行面的两类资产（command /
+# connector）——其余类型没有执行入口，做成开关就是无强制力的死开关。
+GOVERNANCE_POLICY_SCHEMA = "ga.governance_policy.v1"
+GOVERNANCE_DIR = "governance"
+GOVERNANCE_POLICY_FILENAME = "policy.json"
+POLICY_SCOPES = ("global", "project")
+MAX_POLICY_ENTRIES = 256
+MAX_ALLOWLIST_DOMAINS = 128
+ALLOWLIST_DOMAIN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$")
 HOOK_INSTALL_LOCK = threading.Lock()
 
 
@@ -1216,6 +1250,24 @@ MCP_MAX_RESPONSE_BYTES = 512 * 1024
 MCP_TOOLS_TIMEOUT_SECONDS = 10.0
 MCP_CALL_TIMEOUT_SECONDS = 30.0
 
+# --- Governance inventory (read-only unified asset listing) ---
+GOVERNANCE_SCHEMA = "ga.governance_inventory.v1"
+# 风险标签词表（UI 按此渲染）：shell/write/delete/network/credentials/scheduled。
+# 推导刻意保守：仅把 requires_capabilities 词表中语义明确的标识映射为风险，
+# 未知能力不做推断、保持空列表（诚实呈现，绝不虚构风险）。
+CAPABILITY_RISK_LABELS: dict[str, str] = {
+    "bash": "shell", "console": "shell", "terminal": "shell",
+    "exec": "shell", "code_exec": "shell",
+    "file_write": "write", "write_file": "write", "apply_patch": "write",
+    "file_delete": "delete", "delete": "delete",
+    "network": "network", "http": "network", "web": "network", "internet": "network",
+    "credential": "credentials", "credentials": "credentials", "secrets": "credentials",
+    "api_key": "credentials", "oauth": "credentials",
+}
+GOVERNANCE_CATEGORY_ORDER = ("command", "command_pack", "skill", "connector", "hook", "automation")
+# 清单描述字段最大长度：自动化 prompt 可长达 32K，清单只带截断摘要。
+MAX_GOVERNANCE_DESCRIPTION_CHARS = 200
+
 
 def _load_connectors(ga_root: Path) -> list[dict[str, Any]]:
     """Load MCP connector declarations from the adapter-owned connectors dir."""
@@ -1700,6 +1752,454 @@ def knowledge_catalog(root: Path | None) -> dict[str, Any]:
     except (OSError, UnicodeError, json.JSONDecodeError):
         return snapshot
     return snapshot
+
+
+def _command_risks(command: dict[str, Any]) -> list[str]:
+    """Derive risk labels from a command's declared capabilities (conservative)."""
+    risks: list[str] = []
+    for capability in command.get("requires_capabilities") or ():
+        if not isinstance(capability, str):
+            continue
+        risk = CAPABILITY_RISK_LABELS.get(capability.strip().lower())
+        if risk and risk not in risks:
+            risks.append(risk)
+    return risks
+
+
+def _inventory_owner_source(owner: Any) -> str:
+    owner_text = str(owner or "")
+    if owner_text == "ga":
+        return "builtin"
+    if owner_text.startswith("pack:"):
+        return "user"
+    if owner_text.startswith("plugin:"):
+        return "third_party"
+    return "unknown"
+
+
+def _inventory_pack_item(kind: str, pack_id: str, members: list[dict[str, Any]],
+                         source: str) -> dict[str, Any]:
+    risks: list[str] = []
+    for member in members:
+        for risk in _command_risks(member):
+            if risk not in risks:
+                risks.append(risk)
+    return {
+        "category": "command_pack", "id": pack_id, "name": f"{kind}:{pack_id}",
+        "description": f"{len(members)} command(s)",
+        "kind": kind, "source": source, "risk": risks, "scope": "global",
+        "enabled": None, "valid": True,
+        "detail": {"command_ids": [member["id"] for member in members]},
+    }
+
+
+def governance_inventory(root: Path | None) -> dict[str, Any]:
+    """统一只读清单：adapter 可见的全部可执行资产（五类）。
+
+    纯聚合，无第二数据源：复用与各分类端点完全相同的装载函数，逐条元数据
+    限定为安全、不含密钥的字段；风险标签保守推导，未知即空。
+    """
+    items: list[dict[str, Any]] = []
+
+    commands: list[dict[str, Any]] = []
+    if root is not None:
+        try:
+            _, commands = load_command_registry(root)
+        except Exception:
+            commands = []
+    for command in commands:
+        items.append({
+            "category": "command", "id": command["id"],
+            "name": command.get("name", command["id"]),
+            "description": command.get("description", ""),
+            "kind": command.get("kind", "prompt"),
+            "source": _inventory_owner_source(command.get("owner")),
+            "risk": _command_risks(command),
+            "scope": "global", "enabled": None, "valid": True,
+            "detail": {"requires_capabilities": command.get("requires_capabilities", [])},
+        })
+
+    if root is not None:
+        try:
+            pack_commands = load_command_packs(root)
+        except Exception:
+            pack_commands = []
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for command in pack_commands:
+            grouped.setdefault(str(command.get("owner", "")), []).append(command)
+        for owner, members in sorted(grouped.items()):
+            pack_id = owner.removeprefix("pack:")
+            items.append(_inventory_pack_item("pack", pack_id, members, "user"))
+        try:
+            _, plugin_commands = load_command_plugins(root)
+        except Exception:
+            plugin_commands = []
+        grouped = {}
+        for command in plugin_commands:
+            grouped.setdefault(str(command.get("owner", "")), []).append(command)
+        for owner, members in sorted(grouped.items()):
+            plugin_id = owner.removeprefix("plugin:")
+            items.append(_inventory_pack_item("plugin", plugin_id, members, "third_party"))
+
+    catalog = knowledge_catalog(root)
+    for skill in catalog.get("skills", []):
+        items.append({
+            "category": "skill", "id": skill["id"], "name": skill["id"],
+            "description": ", ".join(skill.get("triggers", [])),
+            "kind": skill.get("kind", "unknown"),
+            "source": "builtin" if skill.get("verified") else "user",
+            "risk": [], "scope": "global", "enabled": None, "valid": True,
+            "detail": {"verified": skill.get("verified", False),
+                       "trigger_count": len(skill.get("triggers", []))},
+        })
+
+    connectors = _load_connectors(root) if root is not None else []
+    for connector in connectors:
+        transport = connector.get("transport", "")
+        risks = _connector_risks(connector)
+        items.append({
+            "category": "connector", "id": connector["name"], "name": connector["name"],
+            "description": f"MCP {transport}", "kind": transport,
+            "source": "user", "risk": risks, "scope": "global",
+            "enabled": None, "valid": connector.get("valid", False),
+            "detail": {"transport": transport, "error": connector.get("error")},
+        })
+
+    for registration in hook_snapshot().get("registrations", []):
+        module = str(registration.get("module", ""))
+        source = "builtin" if module.startswith(("plugins.", "ga")) else "third_party"
+        items.append({
+            "category": "hook",
+            "id": f'{registration.get("event")}:{module}:{registration.get("handler")}',
+            "name": registration.get("handler", ""),
+            "description": registration.get("event", ""),
+            "kind": "observer", "source": source, "risk": [],
+            "scope": "global", "enabled": None, "valid": True,
+            "detail": {"event": registration.get("event", ""),
+                       "module": module,
+                       "handler": registration.get("handler", "")},
+        })
+
+    if root is not None:
+        try:
+            directory = automation_directory(root)
+        except ValueError:
+            directory = None
+        if directory is not None and directory.is_dir():
+            for path in sorted(directory.glob("*.json")):
+                try:
+                    if path.is_symlink():
+                        raise ValueError("symbolic link definitions are forbidden")
+                    definition = normalize_automation(
+                        json.loads(path.read_text(encoding="utf-8")),
+                        automation_id=path.stem)
+                except Exception:
+                    continue
+                items.append({
+                    "category": "automation", "id": definition["id"],
+                    "name": definition["id"],
+                    "description": definition["prompt"][:MAX_GOVERNANCE_DESCRIPTION_CHARS],
+                    "kind": definition["repeat"],
+                    "source": "user",
+                    "risk": ["scheduled"] if definition["repeat"] != "once" else [],
+                    "scope": "global",
+                    "enabled": definition["enabled"], "valid": True,
+                    "detail": {"schedule": definition["schedule"],
+                               "repeat": definition["repeat"]},
+                })
+
+    # 策略叠加（票 06）：条目覆盖清单的 enabled/scope 默认值（全局只读呈现）。
+    policy = load_governance_policy(root)
+    policy_by_key = {(entry["category"], entry["target"]): entry for entry in policy["entries"]}
+    for item in items:
+        entry = policy_by_key.get((item["category"], item["id"]))
+        if entry is not None:
+            item["enabled"] = entry["enabled"]
+            item["scope"] = entry["scope"]
+            item["detail"]["policy"] = {"scope": entry["scope"],
+                                        "project_id": entry.get("project_id"),
+                                        "enabled": entry["enabled"]}
+
+    items.sort(key=lambda item: (GOVERNANCE_CATEGORY_ORDER.index(item["category"]), item["id"].lower()))
+    return {"schema": GOVERNANCE_SCHEMA, "read_only": True, "items": items}
+
+
+def audit_params_summary(value: Any) -> str:
+    """审计参数摘要：递归脱敏 + 凭据键值形态擦除 + 截断（审计写入的唯一通道）。"""
+    if isinstance(value, dict):
+        text = json.dumps(redact(value), ensure_ascii=False)
+    elif isinstance(value, str):
+        text = value
+    else:
+        text = str(value)
+    text = AUDIT_SECRET_PATTERN.sub("[REDACTED]", text)
+    text = str(redact(text))
+    return text[:MAX_AUDIT_PARAM_CHARS]
+
+
+def record_audit(category: str, target: str, outcome: str, params_summary: str,
+                 error: str | None = None, *, source: str = "adapter") -> None:
+    """追加一条审计记录（线程安全、有界环形存储）。"""
+    with AUDIT_LOCK:
+        AUDIT_ITEMS.append({
+            "id": uuid.uuid4().hex,
+            "category": category,
+            "target": target[:128],
+            "timestamp": utc_now(),
+            "outcome": "ok" if outcome == "ok" else "error",
+            "params_summary": params_summary,
+            "error": (error or "")[:200] or None,
+            "source": "adapter" if source == "adapter" else "ga",
+        })
+
+
+def audit_history(ga_root: Path | None, limit: int = 200) -> dict[str, Any]:
+    """统一审计历史：adapter 直面执行记录（内存环）+ GA 自动化运行（done 目录）。
+
+    纯聚合无第二存储：自动化运行来自 GA 调度器实际落盘的运行文件，只读展示。
+    """
+    with AUDIT_LOCK:
+        items: list[dict[str, Any]] = list(AUDIT_ITEMS)
+    if ga_root is not None:
+        try:
+            done = automation_directory(ga_root) / "done"
+        except ValueError:
+            done = None
+        if done is not None and done.is_dir() and not done.is_symlink():
+            for path in sorted(done.glob("*.md"), reverse=True):
+                if path.is_symlink():
+                    continue
+                match = AUDIT_RUN_FILENAME.fullmatch(path.name)
+                if not match:
+                    continue
+                items.append({
+                    "id": path.stem,
+                    "category": "automation",
+                    "target": match.group(4),
+                    "timestamp": f"{match.group(1)}T{match.group(2)}:{match.group(3)}:00",
+                    "outcome": "ok",
+                    "params_summary": None,
+                    "error": None,
+                    "source": "ga",
+                })
+    items.sort(key=lambda item: item["timestamp"], reverse=True)
+    return {"schema": AUDIT_SCHEMA, "items": items[:max(0, min(limit, MAX_AUDIT_RECORDS))]}
+
+
+def _connector_risks(connector: dict[str, Any]) -> list[str]:
+    """连接器风险推导（清单与确认门禁共用）：http→network；stdio→shell；env→credentials。"""
+    transport = connector.get("transport", "")
+    risks = ["network"] if transport == "http" else (["shell"] if transport == "stdio" else [])
+    if connector.get("env"):
+        risks.append("credentials")
+    return risks
+
+
+def _asset_risk_profile(root: Path | None, category: str, target: str) -> dict[str, Any] | None:
+    """按执行入口解析单个资产的风险画像（供确认查询与门禁共用）。
+
+    target 形态与审计一致：command 为命令 id；connector 为 "<name>:<tool>"。
+    未知资产返回 None（不虚构风险）。
+    """
+    if root is None:
+        return None
+    if category == "command":
+        try:
+            _, commands = load_command_registry(root)
+        except Exception:
+            return None
+        command = next((item for item in commands if item["id"] == target), None)
+        if command is None:
+            return None
+        return {
+            "category": "command", "target": target,
+            "name": command.get("name", target),
+            "risks": _command_risks(command),
+            "source": _inventory_owner_source(command.get("owner")),
+        }
+    if category == "connector":
+        name, sep, _ = target.partition(":")
+        if not sep:
+            return None
+        connector = next((item for item in _load_connectors(root) if item["name"] == name), None)
+        if connector is None:
+            return None
+        return {
+            "category": "connector", "target": target, "name": f"{name}:{target.split(':', 1)[1]}",
+            "risks": _connector_risks(connector),
+            "source": "user",
+        }
+    return None
+
+
+def _confirmation_state(root: Path | None, category: str, target: str,
+                        decision: str | None = None) -> dict[str, Any]:
+    """确认状态机：not_required（无风险）| required | approved | denied。
+
+    decision 仅在会话内有效（进程生命周期）；决策写入审计（category=
+    confirmation），批准记 ok、拒绝记 error，均可从治理审计历史复核。
+    """
+    asset = _asset_risk_profile(root, category, target)
+    if asset is None:
+        raise ValueError("unknown asset")
+    if not asset["risks"]:
+        return {**asset, "state": "not_required"}
+    key = f"{category}:{target}"
+    if decision in ("approved", "denied"):
+        with CONFIRMATION_LOCK:
+            CONFIRMATION_DECISIONS[key] = decision
+            state = decision
+        record_audit(
+            "confirmation", target,
+            "ok" if decision == "approved" else "error",
+            audit_params_summary(decision),
+            error=None if decision == "approved" else "denied by user",
+        )
+        return {**asset, "state": state}
+    with CONFIRMATION_LOCK:
+        state = CONFIRMATION_DECISIONS.get(key, "required")
+    return {**asset, "state": state}
+
+
+def _confirmation_gate(root: Path | None, category: str, target: str) -> dict[str, Any] | None:
+    """执行端门禁：无风险或已批准 → None（放行）；否则返回 409 载荷。"""
+    asset = _asset_risk_profile(root, category, target)
+    if asset is None or not asset["risks"]:
+        return None
+    with CONFIRMATION_LOCK:
+        state = CONFIRMATION_DECISIONS.get(f"{category}:{target}", "required")
+    return None if state == "approved" else {**asset, "state": state}
+
+
+def governance_policy_path(root: Path) -> Path:
+    """<ga_root>/governance/policy.json，路径安全约束与自动化目录一致。"""
+    resolved_root = root.resolve()
+    candidate = root / GOVERNANCE_DIR
+    if candidate.is_symlink():
+        raise ValueError("governance directory cannot be a symbolic link")
+    directory = candidate.resolve()
+    if directory.parent != resolved_root:
+        raise ValueError("governance directory is outside GenericAgent root")
+    path = directory / GOVERNANCE_POLICY_FILENAME
+    if path.is_symlink() or path.resolve().parent != directory:
+        raise ValueError("invalid governance policy path")
+    return path
+
+
+def normalize_policy_entry(value: Any) -> dict[str, Any]:
+    """校验单条策略条目；project 作用域必须携带合法 project_id。"""
+    if not isinstance(value, dict):
+        raise ValueError("entry must be an object")
+    allowed = {"category", "target", "enabled", "scope", "project_id"}
+    if set(value) - allowed:
+        raise ValueError("invalid entry fields")
+    category = value.get("category")
+    target = value.get("target")
+    scope = value.get("scope")
+    enabled = value.get("enabled")
+    if category not in CONFIRMATION_CATEGORIES or not isinstance(target, str) \
+            or not target.strip() or len(target) > 128:
+        raise ValueError("invalid category or target")
+    if scope not in POLICY_SCOPES or not isinstance(enabled, bool):
+        raise ValueError("invalid scope or enabled")
+    project_id = value.get("project_id")
+    if scope == "project":
+        try:
+            project_id = _normalize_project_id(project_id)
+        except ValueError:
+            project_id = None
+        if project_id is None:
+            raise ValueError("project scope requires a valid project_id")
+    elif project_id is not None:
+        raise ValueError("project_id is only allowed with project scope")
+    return {"category": category, "target": target.strip(), "scope": scope,
+            "enabled": enabled, "project_id": project_id}
+
+
+def load_governance_policy(root: Path | None) -> dict[str, Any]:
+    """读取治理策略；缺失或非法文件回退为无策略默认值（不虚构、不阻断）。"""
+    default: dict[str, Any] = {"schema": GOVERNANCE_POLICY_SCHEMA,
+                               "allowlist": [], "entries": []}
+    if root is None:
+        return default
+    try:
+        path = governance_policy_path(root)
+    except ValueError:
+        return default
+    try:
+        if path.is_symlink() or not path.is_file():
+            return default
+        document = json.loads(path.read_text(encoding="utf-8"))
+        if document.get("schema") != GOVERNANCE_POLICY_SCHEMA:
+            return default
+        allowlist = document.get("allowlist")
+        entries = document.get("entries")
+        if not isinstance(allowlist, list) or not isinstance(entries, list):
+            return default
+        domains = sorted({str(domain) for domain in allowlist
+                          if isinstance(domain, str) and ALLOWLIST_DOMAIN.fullmatch(domain)})
+        normalized_entries = []
+        for raw in entries:
+            try:
+                normalized_entries.append(normalize_policy_entry(raw))
+            except ValueError:
+                continue
+        return {"schema": GOVERNANCE_POLICY_SCHEMA,
+                "allowlist": domains, "entries": normalized_entries}
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return default
+
+
+def normalize_governance_policy(value: Any) -> dict[str, Any]:
+    """校验整份策略文档（PUT 入口）：字段、域名、条目、数量上限全部严格。"""
+    if not isinstance(value, dict):
+        raise ValueError("policy must be an object")
+    if set(value) - {"allowlist", "entries"}:
+        raise ValueError("invalid policy fields")
+    allowlist = value.get("allowlist")
+    entries = value.get("entries")
+    if not isinstance(allowlist, list) or not isinstance(entries, list):
+        raise ValueError("allowlist and entries must be lists")
+    if len(allowlist) > MAX_ALLOWLIST_DOMAINS or len(entries) > MAX_POLICY_ENTRIES:
+        raise ValueError("policy exceeds size limits")
+    domains: list[str] = []
+    for domain in allowlist:
+        if not isinstance(domain, str) or not ALLOWLIST_DOMAIN.fullmatch(domain):
+            raise ValueError(f"invalid allowlist domain: {domain!r}")
+        if domain not in domains:
+            domains.append(domain)
+    return {"schema": GOVERNANCE_POLICY_SCHEMA,
+            "allowlist": domains,
+            "entries": [normalize_policy_entry(entry) for entry in entries]}
+
+
+def atomic_write_governance_policy(path: Path, policy: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        temporary.write_text(json.dumps(policy, ensure_ascii=False, indent=2) + "\n",
+                             encoding="utf-8")
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def policy_blocks(root: Path | None, category: str, target: str,
+                  project_id: str | None = None) -> bool:
+    """策略门禁：enabled=false 且（global，或 project 命中执行上下文）则阻断。
+
+    project 作用域仅在执行上下文能解析出 project_id 时生效——上下文不明的
+    执行（如无 session 的 prompt 命令、MCP 调用）不受 project 级条目约束。
+    """
+    for entry in load_governance_policy(root)["entries"]:
+        if entry["category"] != category or entry["target"] != target or entry["enabled"]:
+            continue
+        if entry["scope"] == "global" or (entry["scope"] == "project"
+                                          and project_id is not None
+                                          and entry["project_id"] == project_id):
+            return True
+    return False
 
 
 def safe_token_count(value: Any) -> int:
@@ -2515,6 +3015,18 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
                           if c["valid"] and c["name"] == name), None)
         if connector is None:
             return mcp_connector_error(request, f"unknown or invalid connector '{name}'", 404)
+        # 治理策略同样约束 tools/list：被禁用的连接器不可枚举，出站 allowlist
+        # 对 http 连接器的任何协议调用生效（无绕过路径，票 06）。
+        if policy_blocks(ga_root, "connector", name):
+            return mcp_connector_error(request,
+                                       "connector is disabled by the governance policy", 403)
+        if connector["transport"] == "http":
+            host = urlparse(connector.get("url", "")).hostname or ""
+            allowlist = load_governance_policy(ga_root)["allowlist"]
+            if allowlist and host not in allowlist:
+                return mcp_connector_error(
+                    request,
+                    f"outbound host '{host}' is not in the governance allowlist", 403)
         try:
             results = await _mcp_rpc(connector, [("tools/list", {})],
                                      MCP_TOOLS_TIMEOUT_SECONDS)
@@ -2539,6 +3051,33 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
                                    "tools": safe_tools}, 200, request_id)
 
     async def mcp_call_handler(request: web.Request) -> web.Response:
+        """MCP 工具调用入口：调用内层实现并按响应状态记录治理审计。"""
+        name = request.match_info["name"]
+        arguments_summary = ""
+        tool = ""
+        try:
+            body = json.loads((await request.read()).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            body = None
+        if isinstance(body, dict):
+            tool = body.get("tool") if isinstance(body.get("tool"), str) else ""
+            if tool and body.get("arguments") is not None:
+                arguments_summary = audit_params_summary(body["arguments"])
+        response = await _mcp_call_inner(request)
+        outcome = "ok" if response.status < 400 else "error"
+        error = None
+        if outcome == "error":
+            try:
+                document = json.loads(response.text or "{}")
+                message = (document.get("payload") or {}).get("message")
+                if isinstance(message, str):
+                    error = message
+            except (json.JSONDecodeError, ValueError, AttributeError):
+                error = None
+        record_audit("connector", f"{name}:{tool or '?'}", outcome, arguments_summary, error)
+        return response
+
+    async def _mcp_call_inner(request: web.Request) -> web.Response:
         """Invoke one MCP tool with size limits, timeouts and response redaction."""
         request_id = request.headers.get("X-Request-Id", "")
         if ga_root is None:
@@ -2565,6 +3104,23 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
             return mcp_connector_error(request, "invalid arguments")
         if len(arguments_json) > MCP_MAX_ARGUMENT_CHARS:
             return mcp_connector_error(request, "arguments exceed size limit")
+        confirmation = _confirmation_gate(ga_root, "connector", f"{name}:{tool}")
+        if confirmation is not None:
+            return _json("error", {"code": "confirmation_required",
+                                    "message": "High-risk connector tool requires approval",
+                                    "confirmation": confirmation}, 409,
+                         request.headers.get("X-Request-Id", ""))
+        # 治理策略门禁（票 06）：先于确认流——被禁用的资产直接拒绝，无需弹窗。
+        if ga_root is not None and policy_blocks(ga_root, "connector", name):
+            return mcp_connector_error(request,
+                                       "connector is disabled by the governance policy", 403)
+        if ga_root is not None and connector["transport"] == "http":
+            host = urlparse(connector.get("url", "")).hostname or ""
+            allowlist = load_governance_policy(ga_root)["allowlist"]
+            if allowlist and host not in allowlist:
+                return mcp_connector_error(
+                    request,
+                    f"outbound host '{host}' is not in the governance allowlist", 403)
         try:
             results = await _mcp_rpc(connector, [("tools/call", {
                 "name": tool, "arguments": arguments})], connector["timeout"])
@@ -2685,6 +3241,30 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
         }, 200, request.headers.get("X-Request-Id", ""))
 
     async def execute_command_handler(request: web.Request) -> web.Response:
+        """命令执行入口：调用内层实现并按响应状态记录治理审计。"""
+        command_id = request.match_info["command_id"]
+        args_summary = ""
+        try:
+            body = json.loads((await request.read()).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            body = None
+        if isinstance(body, dict) and isinstance(body.get("args_text"), str):
+            args_summary = body["args_text"]
+        response = await _execute_command_inner(request)
+        outcome = "ok" if response.status < 400 else "error"
+        error = None
+        if outcome == "error":
+            try:
+                document = json.loads(response.text or "{}")
+                message = (document.get("payload") or {}).get("message")
+                if isinstance(message, str):
+                    error = message
+            except (json.JSONDecodeError, ValueError, AttributeError):
+                error = None
+        record_audit("command", command_id, outcome, audit_params_summary(args_summary), error)
+        return response
+
+    async def _execute_command_inner(request: web.Request) -> web.Response:
         if ga_root is None:
             return command_registry_error(request)
         command_id = request.match_info["command_id"]
@@ -2709,6 +3289,31 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
             return _json("error", {"code": "invalid_command_input",
                                     "message": f"args_text must be a string of at most {MAX_COMMAND_ARGUMENT_CHARS} characters"}, 400,
                          request.headers.get("X-Request-Id", ""))
+        confirmation = _confirmation_gate(ga_root, "command", command_id)
+        if confirmation is not None:
+            return _json("error", {"code": "confirmation_required",
+                                    "message": "High-risk command requires approval",
+                                    "confirmation": confirmation}, 409,
+                         request.headers.get("X-Request-Id", ""))
+        # 治理策略门禁（票 06）：project 作用域需要执行上下文能解析出 project_id
+        # （control 命令经 session 解析；无 session 的执行不受 project 级条目约束）。
+        if ga_root is not None:
+            policy_project_id = None
+            if command["kind"] == "control":
+                session_id_value = body.get("session_id")
+                manager = getattr(official_module, "manager", None)
+                if (isinstance(session_id_value, str) and session_id_value.strip()
+                        and manager is not None):
+                    try:
+                        policy_project_id = getattr(
+                            _session_for_runtime(manager, session_id_value.strip()),
+                            "project_id", None)
+                    except (KeyError, LookupError):
+                        policy_project_id = None
+            if policy_blocks(ga_root, "command", command_id, project_id=policy_project_id):
+                return _json("error", {"code": "disabled_by_policy",
+                                        "message": "Command is disabled by the governance policy"},
+                             403, request.headers.get("X-Request-Id", ""))
         if command["kind"] == "control":
             session_id = body.get("session_id")
             if not isinstance(session_id, str) or not session_id.strip():
@@ -2975,6 +3580,80 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
         return _json("automation.runs", {"id": automation_id, "runs": runs}, 200,
                      request.headers.get("X-Request-Id", ""))
 
+    async def governance_inventory_handler(request: web.Request) -> web.Response:
+        """统一只读治理清单：五类资产的来源/风险/范围/启用状态（纯聚合，无写入）。"""
+        return _json("governance.inventory", governance_inventory(ga_root), 200,
+                     request.headers.get("X-Request-Id", ""))
+
+    async def governance_audit_handler(request: web.Request) -> web.Response:
+        """治理审计历史：adapter 直面执行记录 + GA 自动化运行，统一时间倒序。"""
+        limit = 200
+        raw_limit = request.query.get("limit")
+        try:
+            limit = max(1, min(int(raw_limit), MAX_AUDIT_RECORDS))
+        except (TypeError, ValueError):
+            limit = 200
+        return _json("governance.audit", audit_history(ga_root, limit), 200,
+                     request.headers.get("X-Request-Id", ""))
+
+    async def governance_confirm_handler(request: web.Request) -> web.Response:
+        """确认流：查询高危资产确认状态，或提交人工批准/拒绝决策（写入审计）。"""
+        request_id = request.headers.get("X-Request-Id", "")
+        try:
+            raw = await request.read()
+            if len(raw) > MCP_MAX_BODY_BYTES:
+                raise ValueError("request body too large")
+            body = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+            return _json("error", {"code": "invalid_confirmation", "message": "invalid JSON body"},
+                         400, request_id)
+        except ValueError:
+            return _json("error", {"code": "invalid_confirmation", "message": "request body too large"},
+                         400, request_id)
+        category = body.get("category") if isinstance(body, dict) else None
+        target = body.get("target") if isinstance(body, dict) else None
+        decision = body.get("decision") if isinstance(body, dict) else None
+        if category not in CONFIRMATION_CATEGORIES or not isinstance(target, str) or not target.strip():
+            return _json("error", {"code": "invalid_confirmation",
+                                   "message": "category and target are required"}, 400, request_id)
+        if decision is not None and decision not in ("approved", "denied"):
+            return _json("error", {"code": "invalid_confirmation",
+                                   "message": "decision must be 'approved' or 'denied'"}, 400, request_id)
+        try:
+            state = _confirmation_state(ga_root, category, target.strip(), decision)
+        except ValueError:
+            return _json("error", {"code": "unknown_asset", "message": "Asset not found"}, 404, request_id)
+        return _json("governance.confirm", state, 200, request_id)
+
+    async def governance_policy_handler(request: web.Request) -> web.Response:
+        """治理策略：GET 读取、PUT 整体原子替换（变更写入审计，票 06）。"""
+        request_id = request.headers.get("X-Request-Id", "")
+        if request.method == "GET":
+            return _json("governance.policy", load_governance_policy(ga_root), 200, request_id)
+        if ga_root is None:
+            return runtime_error(request, "governance_policy_unavailable",
+                                 "GenericAgent governance policy is unavailable", 503)
+        try:
+            policy = normalize_governance_policy(await request.json())
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return runtime_error(request, "invalid_policy", "invalid JSON body", 400)
+        except ValueError as exc:
+            return runtime_error(request, "invalid_policy", str(exc), 400)
+        # 条目必须引用真实存在的资产，防止产生无强制力的死策略。
+        for entry in policy["entries"]:
+            if _asset_risk_profile(ga_root, entry["category"], entry["target"]) is None:
+                return runtime_error(request, "invalid_policy",
+                                     f"unknown asset: {entry['category']}:{entry['target']}", 400)
+        try:
+            atomic_write_governance_policy(governance_policy_path(ga_root), policy)
+        except (OSError, ValueError) as exc:
+            return runtime_error(request, "governance_policy_unavailable",
+                                 f"cannot persist governance policy: {exc}", 503)
+        record_audit("policy", "policy", "ok",
+                     audit_params_summary({"entries": len(policy["entries"]),
+                                           "allowlist": len(policy["allowlist"])}))
+        return _json("governance.policy.updated", policy, 200, request_id)
+
     app.router.add_get("/api/v1/version", version_handler)
     app.router.add_get("/api/v1/capabilities", capabilities_handler)
     app.router.add_get("/api/v1/health", health_handler)
@@ -3004,6 +3683,11 @@ def create_app(*, official_module: Any, token: str, allowed_origins: Iterable[st
     app.router.add_post("/api/v1/connectors/{name}/tools/list", mcp_tools_handler)
     app.router.add_post("/api/v1/connectors/{name}/tools/call", mcp_call_handler)
     app.router.add_post("/api/v1/morphling/classify", morphling_classify_handler)
+    app.router.add_get("/api/v1/governance/inventory", governance_inventory_handler)
+    app.router.add_get("/api/v1/governance/audit", governance_audit_handler)
+    app.router.add_post("/api/v1/governance/confirm", governance_confirm_handler)
+    app.router.add_get("/api/v1/governance/policy", governance_policy_handler)
+    app.router.add_put("/api/v1/governance/policy", governance_policy_handler)
     return app
 
 

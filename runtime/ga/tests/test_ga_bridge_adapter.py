@@ -2079,6 +2079,11 @@ async def test_mcp_stdio_tools_list_and_call_with_redaction(mcp_client):
     payload = (await listed.json())["payload"]
     assert payload["protocol"] == "mcp"
     assert payload["tools"][0]["name"] == "echo"
+    # stdio 连接器带 shell 风险：首次调用前需人工批准（门禁 05）
+    approved = await mcp_client.post("/api/v1/governance/confirm", headers=AUTH,
+                                     json={"category": "connector", "target": "echo:echo",
+                                           "decision": "approved"})
+    assert approved.status == 200
     called = await mcp_client.post(
         "/api/v1/connectors/echo/tools/call", headers=AUTH,
         json={"tool": "echo", "arguments": {"text": "hi"}})
@@ -2379,3 +2384,491 @@ def test_private_remap_session_llm_no_remaps_sessions_across_deleted_index(tmp_p
     assert sessions["s-d"].agent.llm_no == 2
     assert sessions["s-e"].agent.llm_no == 6
     assert persisted == ["s-c", "s-d", "s-e"]  # only changed sessions persisted
+
+
+@pytest_asyncio.fixture
+async def governance_client(tmp_path):
+    """ga_root 齐全的夹具：slash 命令、命令包、插件、连接器、自动化、技能注册表。"""
+    frontends = tmp_path / "frontends"
+    frontends.mkdir()
+    (frontends / "slash_cmds.py").write_text(
+        "PALETTE_ENTRIES = [('/goal', '<objective>', 'Run a goal')]\n"
+        "def prompt_for(cmd, args_text):\n"
+        "    return f'GOAL:{args_text}' if cmd == '/goal' else None\n",
+        encoding="utf-8",
+    )
+    pack_dir = tmp_path / "command_packs"
+    pack_dir.mkdir()
+    (pack_dir / "tools.json").write_text(json.dumps({
+        "schema": "ga.command_pack.v1", "pack_id": "tools",
+        "commands": [{
+            "id": "scrape", "title": "/scrape", "description": "fetch a page",
+            "arg_hint": "<url>", "prompt_template": "Fetch {args} with curl",
+            "requires_capabilities": ["bash", "network"],
+        }],
+    }), encoding="utf-8")
+    plugin_dir = tmp_path / "command_plugins"
+    plugin_dir.mkdir()
+    (plugin_dir / "example_plugin.py").write_text(
+        "def _edit(cmd, args_text):\n"
+        "    return f'EDIT:{args_text}'\n"
+        "COMMANDS = (\n"
+        "    {'id': 'patch', 'title': '/patch', 'description': 'patch it',\n"
+        "     'arg_hint': '[text]', 'prompt_for': _edit,\n"
+        "     'requires_capabilities': ['file_write']},\n"
+        ")\n",
+        encoding="utf-8",
+    )
+    conn_dir = tmp_path / "connectors"
+    conn_dir.mkdir()
+    (conn_dir / "web.json").write_text(json.dumps({
+        "schema": "ga.connector.v1", "name": "web", "transport": "http",
+        "url": "https://example.invalid/mcp", "env": {"TOKEN": "secret-value-must-not-leak"},
+    }), encoding="utf-8")
+    (conn_dir / "local.json").write_text(json.dumps({
+        "schema": "ga.connector.v1", "name": "local", "transport": "stdio",
+        "command": "python", "args": [],
+    }), encoding="utf-8")
+    tasks = tmp_path / "sche_tasks"
+    tasks.mkdir()
+    (tasks / "daily.json").write_text(json.dumps({
+        "schedule": "08:30", "repeat": "daily", "enabled": True,
+        "prompt": "Prepare the daily report", "max_delay_hours": 4,
+    }), encoding="utf-8")
+    done = tasks / "done"
+    done.mkdir()
+    (done / "2026-08-12_0830_daily.md").write_text("completed", encoding="utf-8")
+    skill_dir = tmp_path / "GA-local" / "skills"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "skill_registry.json").write_text(json.dumps({
+        "schema": "ga.skill_registry.v1",
+        "skills": {"skill:review": {"kind": "sop", "triggers": ["review"], "verified": True}},
+    }), encoding="utf-8")
+    manager = ProjectManager()
+    official = fake_official_module()
+    official.manager = manager
+    app = adapter.create_app(
+        official_module=official, token=TOKEN, allowed_origins=(ORIGIN,),
+        manifest=adapter.load_manifest(), ga_root=tmp_path,
+    )
+    async with TestClient(TestServer(app)) as client:
+        yield client, tmp_path
+
+
+@pytest.mark.asyncio
+async def test_governance_inventory_covers_all_categories(governance_client):
+    client, _ = governance_client
+    response = await client.get("/api/v1/governance/inventory", headers=AUTH)
+    assert response.status == 200
+    payload = (await response.json())["payload"]
+    assert payload["schema"] == "ga.governance_inventory.v1"
+    assert payload["read_only"] is True
+    items = payload["items"]
+    categories = {item["category"] for item in items}
+    assert categories == {"command", "command_pack", "skill", "connector", "automation"}
+
+    by_id = {(item["category"], item["id"]): item for item in items}
+    # 命令：GA 内置 /goal 无风险标签；插件命令 /patch 声明 file_write -> write
+    assert by_id[("command", "goal")]["source"] == "builtin"
+    assert by_id[("command", "goal")]["risk"] == []
+    assert by_id[("command", "patch")]["source"] == "third_party"
+    assert by_id[("command", "patch")]["risk"] == ["write"]
+    # 命令包：用户创建；风险 = 成员命令风险并集（bash + network）
+    pack = by_id[("command_pack", "tools")]
+    assert pack["source"] == "user"
+    assert set(pack["risk"]) == {"shell", "network"}
+    assert "scrape" in pack["detail"]["command_ids"]
+    plugin = by_id[("command_pack", "example_plugin")]
+    assert plugin["source"] == "third_party"
+    assert by_id[("skill", "skill:review")]["source"] == "builtin"
+    assert by_id[("skill", "skill:review")]["kind"] == "sop"
+    # 连接器：http+env -> network+credentials；stdio -> shell
+    web_connector = by_id[("connector", "web")]
+    assert set(web_connector["risk"]) == {"network", "credentials"}
+    assert web_connector["valid"] is True
+    assert by_id[("connector", "local")]["risk"] == ["shell"]
+    # 自动化：重复任务 -> scheduled；enabled 来自定义
+    automation = by_id[("automation", "daily")]
+    assert automation["risk"] == ["scheduled"]
+    assert automation["enabled"] is True
+    assert automation["detail"]["schedule"] == "08:30"
+    assert automation["detail"]["repeat"] == "daily"
+    # 清单全程只读且不带密钥/URL 明文
+    assert "secret-value-must-not-leak" not in json.dumps(payload)
+
+
+@pytest.mark.asyncio
+async def test_governance_inventory_includes_hook_registrations(governance_client, monkeypatch):
+    client, _ = governance_client
+    def callback(_ctx):
+        return None
+
+    callback.__module__ = "plugins.hooks"
+    callback.__qualname__ = "observe_turn"
+
+    def vendor_watch(_ctx):
+        return None
+
+    vendor_watch.__module__ = "vendor.extra"
+    vendor_watch.__qualname__ = "watch"
+    fake_hooks = SimpleNamespace(_registry={"agent_before": [callback], "vendor.event": [vendor_watch]})
+    monkeypatch.setitem(adapter.sys.modules, "plugins.hooks", fake_hooks)
+
+    response = await client.get("/api/v1/governance/inventory", headers=AUTH)
+    assert response.status == 200
+    items = (await response.json())["payload"]["items"]
+    hooks = [item for item in items if item["category"] == "hook"]
+    assert len(hooks) == 2
+    by_name = {item["name"]: item for item in hooks}
+    assert by_name["observe_turn"]["source"] == "builtin"
+    assert by_name["observe_turn"]["detail"]["event"] == "agent_before"
+    assert by_name["observe_turn"]["detail"]["module"] == "plugins.hooks"
+    assert by_name["watch"]["source"] == "third_party"
+
+
+@pytest.mark.asyncio
+async def test_governance_inventory_degrades_without_root():
+    app = adapter.create_app(
+        official_module=fake_official_module(), token=TOKEN, allowed_origins=(ORIGIN,),
+        manifest=adapter.load_manifest(), ga_root=None,
+    )
+    async with TestClient(TestServer(app)) as client:
+        response = await client.get("/api/v1/governance/inventory", headers=AUTH)
+        assert response.status == 200
+        payload = (await response.json())["payload"]
+        assert payload["schema"] == "ga.governance_inventory.v1"
+        assert payload["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_governance_audit_records_command_executions(governance_client):
+    adapter.AUDIT_ITEMS.clear()
+    client, _ = governance_client
+    ok = await client.post("/api/v1/commands/goal/execute", headers=AUTH,
+                           json={"args_text": "write a plan"})
+    assert ok.status == 200
+    bad = await client.post("/api/v1/commands/goal/execute", headers=AUTH,
+                            json={"args_text": 42})
+    assert bad.status == 400
+
+    body = (await (await client.get("/api/v1/governance/audit", headers=AUTH)).json())["payload"]
+    assert body["schema"] == "ga.governance_audit.v1"
+    commands = [item for item in body["items"] if item["category"] == "command"]
+    assert len(commands) == 2
+    by_outcome = {item["outcome"]: item for item in commands}
+    assert set(by_outcome) == {"error", "ok"}
+    assert by_outcome["error"]["target"] == "goal"
+    assert "args_text" in by_outcome["error"]["error"]
+    assert by_outcome["ok"]["params_summary"] == "write a plan"
+    assert by_outcome["ok"]["source"] == "adapter"
+
+
+@pytest.mark.asyncio
+async def test_governance_audit_redacts_sensitive_params(governance_client):
+    adapter.AUDIT_ITEMS.clear()
+    client, _ = governance_client
+    ok = await client.post("/api/v1/commands/goal/execute", headers=AUTH,
+                           json={"args_text": r"save to D:\tmp\report.txt token=leak-abc"})
+    assert ok.status == 200
+
+    body = (await (await client.get("/api/v1/governance/audit", headers=AUTH)).json())["payload"]
+    command = next(item for item in body["items"] if item["category"] == "command")
+    summary = command["params_summary"]
+    assert "leak-abc" not in summary
+    assert r"D:\tmp\report.txt" not in summary
+    assert "[REDACTED]" in summary
+
+
+@pytest.mark.asyncio
+async def test_governance_audit_covers_mcp_calls(mcp_client):
+    adapter.AUDIT_ITEMS.clear()
+    approved = await mcp_client.post("/api/v1/governance/confirm", headers=AUTH,
+                                     json={"category": "connector", "target": "echo:echo",
+                                           "decision": "approved"})
+    assert approved.status == 200
+    called = await mcp_client.post("/api/v1/connectors/echo/tools/call", headers=AUTH,
+                                   json={"tool": "echo",
+                                         "arguments": {"text": "hi", "api_key": "top-secret-key"}})
+    assert called.status == 200
+
+    body = (await (await mcp_client.get("/api/v1/governance/audit", headers=AUTH)).json())["payload"]
+    record = body["items"][0]
+    assert record["category"] == "connector"
+    assert record["target"] == "echo:echo"
+    assert record["outcome"] == "ok"
+    assert "top-secret-key" not in json.dumps(body)
+    assert "[REDACTED]" in record["params_summary"]
+
+
+@pytest.mark.asyncio
+async def test_governance_audit_includes_automation_runs_and_limit(governance_client):
+    adapter.AUDIT_ITEMS.clear()
+    client, _ = governance_client
+
+    body = (await (await client.get("/api/v1/governance/audit", headers=AUTH)).json())["payload"]
+    assert [item["category"] for item in body["items"]] == ["automation"]
+    run = body["items"][0]
+    assert run["target"] == "daily"
+    assert run["outcome"] == "ok"
+    assert run["source"] == "ga"
+    assert run["timestamp"].startswith("2026-08-12T08:30:00")
+
+    limited = (await (await client.get("/api/v1/governance/audit?limit=1", headers=AUTH)).json())["payload"]
+    assert len(limited["items"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_governance_audit_degrades_without_root():
+    adapter.AUDIT_ITEMS.clear()
+    app = adapter.create_app(
+        official_module=fake_official_module(), token=TOKEN, allowed_origins=(ORIGIN,),
+        manifest=adapter.load_manifest(), ga_root=None,
+    )
+    async with TestClient(TestServer(app)) as client:
+        response = await client.get("/api/v1/governance/audit", headers=AUTH)
+        assert response.status == 200
+        payload = (await response.json())["payload"]
+        assert payload["schema"] == "ga.governance_audit.v1"
+        assert payload["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_high_risk_command_gate_blocks_until_approved(governance_client):
+    adapter.AUDIT_ITEMS.clear()
+    adapter.CONFIRMATION_DECISIONS.clear()
+    client, _ = governance_client
+
+    blocked = await client.post("/api/v1/commands/scrape/execute", headers=AUTH,
+                                json={"args_text": "fetch example.com"})
+    assert blocked.status == 409
+    payload = (await blocked.json())["payload"]
+    assert payload["code"] == "confirmation_required"
+    confirmation = payload["confirmation"]
+    assert confirmation["category"] == "command"
+    assert confirmation["target"] == "scrape"
+    assert set(confirmation["risks"]) == {"shell", "network"}
+    assert confirmation["state"] == "required"
+    assert confirmation["source"] == "user"
+    # 被拦截的尝试照常写入审计（失败原因可复核）
+    attempts = [item for item in (await (await client.get(
+        "/api/v1/governance/audit", headers=AUTH)).json())["payload"]["items"]
+        if item["category"] == "command"]
+    assert attempts[0]["outcome"] == "error"
+    assert "approval" in attempts[0]["error"]
+
+    approved = await client.post("/api/v1/governance/confirm", headers=AUTH,
+                                 json={"category": "command", "target": "scrape",
+                                       "decision": "approved"})
+    assert approved.status == 200
+    assert (await approved.json())["payload"]["state"] == "approved"
+
+    executed = await client.post("/api/v1/commands/scrape/execute", headers=AUTH,
+                                 json={"args_text": "fetch example.com"})
+    assert executed.status == 200
+    history = (await (await client.get("/api/v1/governance/audit", headers=AUTH)).json())["payload"]["items"]
+    decisions = [item for item in history if item["category"] == "confirmation"]
+    assert decisions[0]["target"] == "scrape"
+    assert decisions[0]["outcome"] == "ok"
+    executed_again = await client.post("/api/v1/commands/scrape/execute", headers=AUTH,
+                                       json={"args_text": "again"})
+    assert executed_again.status == 200  # 会话内已批准：后续放行
+
+
+@pytest.mark.asyncio
+async def test_high_risk_denial_sticks_until_reapproved(governance_client):
+    adapter.AUDIT_ITEMS.clear()
+    adapter.CONFIRMATION_DECISIONS.clear()
+    client, _ = governance_client
+
+    blocked = await client.post("/api/v1/commands/scrape/execute", headers=AUTH,
+                                json={"args_text": "x"})
+    assert blocked.status == 409
+    denied = await client.post("/api/v1/governance/confirm", headers=AUTH,
+                               json={"category": "command", "target": "scrape",
+                                     "decision": "denied"})
+    assert denied.status == 200
+    assert (await denied.json())["payload"]["state"] == "denied"
+
+    still_blocked = await client.post("/api/v1/commands/scrape/execute", headers=AUTH,
+                                      json={"args_text": "x"})
+    assert still_blocked.status == 409
+    assert (await still_blocked.json())["payload"]["confirmation"]["state"] == "denied"
+
+    reapproved = await client.post("/api/v1/governance/confirm", headers=AUTH,
+                                   json={"category": "command", "target": "scrape",
+                                         "decision": "approved"})
+    assert reapproved.status == 200
+    executed = await client.post("/api/v1/commands/scrape/execute", headers=AUTH,
+                                 json={"args_text": "x"})
+    assert executed.status == 200
+    history = (await (await client.get("/api/v1/governance/audit", headers=AUTH)).json())["payload"]["items"]
+    denials = [item for item in history if item["category"] == "confirmation"
+               and item["outcome"] == "error"]
+    assert denials and "denied" in denials[0]["error"]
+
+
+@pytest.mark.asyncio
+async def test_read_only_assets_skip_the_confirmation_gate(governance_client):
+    adapter.AUDIT_ITEMS.clear()
+    adapter.CONFIRMATION_DECISIONS.clear()
+    client, _ = governance_client
+    executed = await client.post("/api/v1/commands/goal/execute", headers=AUTH,
+                                 json={"args_text": "no risk here"})
+    assert executed.status == 200
+    history = (await (await client.get("/api/v1/governance/audit", headers=AUTH)).json())["payload"]["items"]
+    assert not [item for item in history if item["category"] == "confirmation"]
+
+
+@pytest.mark.asyncio
+async def test_confirmation_endpoint_validates_input(governance_client):
+    client, _ = governance_client
+    bad_category = await client.post("/api/v1/governance/confirm", headers=AUTH,
+                                     json={"category": "skill", "target": "x",
+                                           "decision": "approved"})
+    assert bad_category.status == 400
+    bad_decision = await client.post("/api/v1/governance/confirm", headers=AUTH,
+                                     json={"category": "command", "target": "goal",
+                                           "decision": "maybe"})
+    assert bad_decision.status == 400
+    unknown = await client.post("/api/v1/governance/confirm", headers=AUTH,
+                                json={"category": "command", "target": "ghost",
+                                      "decision": "approved"})
+    assert unknown.status == 404
+    malformed = await client.post("/api/v1/governance/confirm", headers=AUTH, json="not-json")
+    assert malformed.status == 400
+
+
+@pytest.mark.asyncio
+async def test_governance_policy_crud_and_validation(governance_client):
+    adapter.AUDIT_ITEMS.clear()
+    client, root = governance_client
+
+    default = (await (await client.get("/api/v1/governance/policy", headers=AUTH)).json())["payload"]
+    assert default == {"schema": "ga.governance_policy.v1", "allowlist": [], "entries": []}
+
+    put = await client.put("/api/v1/governance/policy", headers=AUTH, json={
+        "allowlist": ["example.invalid", "api.example.invalid"],
+        "entries": [{"category": "command", "target": "scrape",
+                     "enabled": False, "scope": "global"}],
+    })
+    assert put.status == 200
+    assert (await put.json())["payload"]["entries"][0]["target"] == "scrape"
+    # 原子落盘，无临时文件残留
+    saved = json.loads((root / "governance" / "policy.json").read_text(encoding="utf-8"))
+    assert saved["allowlist"] == ["example.invalid", "api.example.invalid"]
+    assert not list((root / "governance").glob("*.tmp"))
+    # 策略变更写入审计
+    history = (await (await client.get("/api/v1/governance/audit", headers=AUTH)).json())["payload"]["items"]
+    assert [item for item in history if item["category"] == "policy"]
+
+    bad_domain = await client.put("/api/v1/governance/policy", headers=AUTH,
+                                  json={"allowlist": ["bad domain"], "entries": []})
+    assert bad_domain.status == 400
+    bad_category = await client.put("/api/v1/governance/policy", headers=AUTH,
+                                    json={"allowlist": [], "entries": [
+                                        {"category": "skill", "target": "x",
+                                         "enabled": False, "scope": "global"}]})
+    assert bad_category.status == 400
+    missing_project = await client.put("/api/v1/governance/policy", headers=AUTH,
+                                       json={"allowlist": [], "entries": [
+                                           {"category": "command", "target": "scrape",
+                                            "enabled": False, "scope": "project"}]})
+    assert missing_project.status == 400
+    unknown_asset = await client.put("/api/v1/governance/policy", headers=AUTH,
+                                     json={"allowlist": [], "entries": [
+                                         {"category": "command", "target": "ghost",
+                                          "enabled": False, "scope": "global"}]})
+    assert unknown_asset.status == 400
+
+
+@pytest.mark.asyncio
+async def test_policy_disables_command_globally(governance_client):
+    adapter.CONFIRMATION_DECISIONS.clear()
+    client, _ = governance_client
+    approved = await client.post("/api/v1/governance/confirm", headers=AUTH,
+                                 json={"category": "command", "target": "scrape",
+                                       "decision": "approved"})
+    assert approved.status == 200
+    assert (await client.post("/api/v1/commands/scrape/execute", headers=AUTH,
+                              json={"args_text": "x"})).status == 200
+
+    put = await client.put("/api/v1/governance/policy", headers=AUTH, json={
+        "allowlist": [],
+        "entries": [{"category": "command", "target": "scrape",
+                     "enabled": False, "scope": "global"}],
+    })
+    assert put.status == 200
+    blocked = await client.post("/api/v1/commands/scrape/execute", headers=AUTH,
+                                json={"args_text": "x"})
+    assert blocked.status == 403
+    assert (await blocked.json())["payload"]["code"] == "disabled_by_policy"
+    # 清单叠加 enabled/scope
+    items = (await (await client.get("/api/v1/governance/inventory", headers=AUTH)).json())["payload"]["items"]
+    scrape = next(item for item in items if item["id"] == "scrape")
+    assert scrape["enabled"] is False
+    assert scrape["scope"] == "global"
+    # 重新启用后放行
+    put = await client.put("/api/v1/governance/policy", headers=AUTH, json={
+        "allowlist": [],
+        "entries": [{"category": "command", "target": "scrape",
+                     "enabled": True, "scope": "global"}],
+    })
+    assert put.status == 200
+    assert (await client.post("/api/v1/commands/scrape/execute", headers=AUTH,
+                              json={"args_text": "x"})).status == 200
+
+
+@pytest.mark.asyncio
+async def test_policy_project_scope_applies_only_to_bound_sessions(governance_client):
+    adapter.CONFIRMATION_DECISIONS.clear()
+    client, root = governance_client
+    put = await client.put("/api/v1/governance/policy", headers=AUTH, json={
+        "allowlist": [],
+        "entries": [
+            {"category": "command", "target": "effort", "enabled": False,
+             "scope": "project", "project_id": "proj-a"},
+            {"category": "command", "target": "goal", "enabled": False,
+             "scope": "project", "project_id": "proj-a"},
+        ],
+    })
+    assert put.status == 200
+    # prompt 命令无 session：解析不出项目上下文，project 级条目不生效
+    free = await client.post("/api/v1/commands/goal/execute", headers=AUTH,
+                             json={"args_text": "x"})
+    assert free.status == 200
+
+    # 独立 app 实例（共享同一 ga_root 策略）：会话绑定 proj-a
+    manager = ProjectManager()
+    bound_session = manager.create_session()
+    bound_session.project_id = "proj-a"
+    official = fake_official_module()
+    official.manager = manager
+    app = adapter.create_app(official_module=official, token=TOKEN, allowed_origins=(ORIGIN,),
+                             manifest=adapter.load_manifest(), ga_root=root)
+    async with TestClient(TestServer(app)) as bound_client:
+        blocked = await bound_client.post("/api/v1/commands/effort/execute", headers=AUTH,
+                                          json={"args_text": "", "session_id": bound_session.id})
+        assert blocked.status == 403
+        assert (await blocked.json())["payload"]["code"] == "disabled_by_policy"
+        # 未绑定项目的会话：project 级条目不生效，正常执行
+        unbound_session = manager.create_session()
+        allowed = await bound_client.post("/api/v1/commands/effort/execute", headers=AUTH,
+                                          json={"args_text": "", "session_id": unbound_session.id})
+        assert allowed.status == 200
+
+
+@pytest.mark.asyncio
+async def test_outbound_allowlist_blocks_unlisted_hosts(governance_client):
+    client, _ = governance_client
+    put = await client.put("/api/v1/governance/policy", headers=AUTH, json={
+        "allowlist": ["other.example"], "entries": []})
+    assert put.status == 200
+    blocked = await client.post("/api/v1/connectors/web/tools/list", headers=AUTH, json={})
+    assert blocked.status == 403
+    assert "allowlist" in (await blocked.json())["payload"]["message"]
+    # allowlist 覆盖后不再以 403 拒绝（example.invalid 不可达 → 走真实协议调用的失败路径）
+    put = await client.put("/api/v1/governance/policy", headers=AUTH, json={
+        "allowlist": ["example.invalid"], "entries": []})
+    assert put.status == 200
+    allowed = await client.post("/api/v1/connectors/web/tools/list", headers=AUTH, json={})
+    assert allowed.status != 403
