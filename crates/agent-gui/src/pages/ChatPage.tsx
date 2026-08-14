@@ -18,6 +18,7 @@ import type {
   MentionComposerHandle,
 } from "../components/chat/MentionComposer";
 import { NotifyToast } from "../components/chat/NotifyToast";
+import { ExecutionConfirmDialog } from "../components/ga/ExecutionConfirmDialog";
 import { PanelRightClose, PanelRightOpen } from "../components/icons";
 import { MacOsTitleBarToggle } from "../components/MacOsTitleBarSpacer";
 import type {
@@ -127,6 +128,7 @@ import { useProjectTerminals } from "./chat/workspace/useProjectTerminals";
 import { useWorkspaceOverlays } from "./chat/workspace/useWorkspaceOverlays";
 import { useWorkspaceProjectRemoval } from "./chat/workspace/useWorkspaceProjectRemoval";
 import { useWorkspaceProjects } from "./chat/workspace/useWorkspaceProjects";
+import { GovernanceHubPage } from "./governance-hub/GovernanceHubPage";
 import { KnowledgeHubPage } from "./knowledge-hub/KnowledgeHubPage";
 import type { SectionId } from "./settings/types";
 
@@ -233,7 +235,7 @@ export function ChatPage(props: ChatPageProps) {
   const conversationReadinessRef = useRef(new Map<string, Promise<string | null>>());
   const initialConversationBootstrapRef = useRef(false);
   const prepareComposerForConversationChangeActionRef = useRef<() => void>(() => undefined);
-  const [activeView, setActiveView] = useState<"chat" | "knowledge-hub">("chat");
+  const [activeView, setActiveView] = useState<"chat" | "knowledge-hub" | "governance-hub">("chat");
   const [rightDockOpen, setRightDockOpen] = useState(false);
   const {
     workspaceProjects,
@@ -1657,6 +1659,11 @@ export function ChatPage(props: ChatPageProps) {
             setRightDockOpen(false);
             setActiveView("knowledge-hub");
           }}
+          onOpenGovernanceHub={() => {
+            cacheActiveComposerDraft();
+            setRightDockOpen(false);
+            setActiveView("governance-hub");
+          }}
         />
 
         {confirmDialog}
@@ -1677,7 +1684,9 @@ export function ChatPage(props: ChatPageProps) {
               : undefined
           }
         >
-          {activeView === "knowledge-hub" ? (
+          {activeView === "governance-hub" ? (
+            <GovernanceHubPage sidebarOpen={sidebarOpen} onOpenSidebar={handleOpenSidebar} />
+          ) : activeView === "knowledge-hub" ? (
             <KnowledgeHubPage sidebarOpen={sidebarOpen} onOpenSidebar={handleOpenSidebar} />
           ) : (
             <>
@@ -1856,6 +1865,7 @@ export function ChatPage(props: ChatPageProps) {
         onInsertCommitMention={handleRightDockInsertCommitMention}
         onInsertGitFileMention={handleRightDockInsertGitFileMention}
       />
+      <ExecutionConfirmDialog />
     </div>
   );
 }

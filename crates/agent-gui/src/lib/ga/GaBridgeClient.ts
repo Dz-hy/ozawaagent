@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { confirmationBroker } from "./confirmationBroker";
 import type {
   GaAutomation,
   GaAutomationInput,
@@ -12,6 +13,14 @@ import type {
   GaConductorSnapshot,
   GaConnectorsSnapshot,
   GaEnvelope,
+  GaExecutionConfirmation,
+  GaExecutionDecision,
+  GaGovernanceAudit,
+  GaGovernanceInventory,
+  GaGovernancePolicy,
+  GaGovernancePolicyInput,
+  GaGovernanceRisk,
+  GaGovernanceSource,
   GaHooksSnapshot,
   GaKnowledgeCatalog,
   GaMcpCallResult,
@@ -43,6 +52,22 @@ import type {
 import { GaBridgeError } from "./types";
 
 type FetchLike = typeof fetch;
+
+const GOVERNANCE_RISKS: readonly GaGovernanceRisk[] = [
+  "shell",
+  "write",
+  "delete",
+  "network",
+  "credentials",
+  "scheduled",
+];
+const GOVERNANCE_SOURCES: readonly GaGovernanceSource[] = [
+  "builtin",
+  "user",
+  "third_party",
+  "unknown",
+];
+const CONFIRMATION_STATES: readonly string[] = ["required", "approved", "denied", "not_required"];
 
 function unwrap<T>(value: T | GaEnvelope<T>): T {
   if (value && typeof value === "object" && "payload" in value) {
@@ -114,6 +139,7 @@ export class GaBridgeClient {
         String(detail.code ?? "bridge_request_failed"),
         response.status,
         response.status >= 500,
+        detail,
       );
     }
     return unwrap(body as T | GaEnvelope<T>);
@@ -200,14 +226,85 @@ export class GaBridgeClient {
   getCapabilities(): Promise<GaBridgeCapabilities> {
     return this.request("/api/v1/capabilities");
   }
+  private extractConfirmation(error: GaBridgeError): GaExecutionConfirmation | null {
+    const payload = error.details ?? {};
+    const raw = payload.confirmation;
+    if (!raw || typeof raw !== "object") return null;
+    const confirmation = raw as Record<string, unknown>;
+    if (confirmation.category !== "command" && confirmation.category !== "connector") {
+      return null;
+    }
+    if (typeof confirmation.target !== "string" || !confirmation.target) return null;
+    const risks = Array.isArray(confirmation.risks)
+      ? confirmation.risks.filter(
+          (risk): risk is GaGovernanceRisk =>
+            typeof risk === "string" && GOVERNANCE_RISKS.includes(risk as GaGovernanceRisk),
+        )
+      : [];
+    const source = GOVERNANCE_SOURCES.includes(confirmation.source as GaGovernanceSource)
+      ? (confirmation.source as GaGovernanceSource)
+      : "unknown";
+    const state = CONFIRMATION_STATES.includes(confirmation.state as string)
+      ? (confirmation.state as GaExecutionConfirmation["state"])
+      : "required";
+    return {
+      category: confirmation.category,
+      target: confirmation.target,
+      name: typeof confirmation.name === "string" ? confirmation.name : confirmation.target,
+      risks,
+      source,
+      state,
+    };
+  }
+
+  /**
+   * 高危执行确认包装（票 05）：adapter 返回 409 confirmation_required 时，
+   * 经确认总线弹窗征求人工决策；批准则提交 confirm 后重试原请求，拒绝则抛
+   * 出 execution_denied。无风险或已批准的执行不经过弹窗，行为不变。
+   */
+  private async withExecutionConfirmation<T>(attempt: () => Promise<T>): Promise<T> {
+    try {
+      return await attempt();
+    } catch (error) {
+      if (!(error instanceof GaBridgeError) || error.code !== "confirmation_required") {
+        throw error;
+      }
+      const confirmation = this.extractConfirmation(error);
+      if (!confirmation) throw error;
+      const granted = await confirmationBroker.request(confirmation);
+      if (!granted) {
+        throw new GaBridgeError("Execution was rejected.", "execution_denied", 403);
+      }
+      await this.confirmExecution({
+        category: confirmation.category,
+        target: confirmation.target,
+        decision: "approved",
+      });
+      return attempt();
+    }
+  }
+
+  confirmExecution(input: {
+    category: "command" | "connector";
+    target: string;
+    decision: GaExecutionDecision;
+  }): Promise<GaExecutionConfirmation> {
+    return this.request("/api/v1/governance/confirm", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
   executeCommand(id: string, argsText = "", sessionId?: string): Promise<GaCommandResult> {
     const body: { args_text: string; session_id?: string } = { args_text: argsText };
     const normalizedSessionId = sessionId?.trim();
     if (normalizedSessionId) body.session_id = normalizedSessionId;
-    return this.request(`/api/v1/commands/${encodeURIComponent(id)}/execute`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
+    return this.withExecutionConfirmation(() =>
+      this.request(`/api/v1/commands/${encodeURIComponent(id)}/execute`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    );
   }
   getProjectMemoryStatus(projectId: string): Promise<GaProjectMemoryStatus> {
     return this.request(`/api/v1/projects/${encodeURIComponent(projectId)}/memory-status`);
@@ -275,10 +372,12 @@ export class GaBridgeClient {
     tool: string,
     arguments_: Record<string, unknown>,
   ): Promise<GaMcpCallResult> {
-    return this.request(`/api/v1/connectors/${encodeURIComponent(name)}/tools/call`, {
-      method: "POST",
-      body: JSON.stringify({ tool, arguments: arguments_ }),
-    });
+    return this.withExecutionConfirmation(() =>
+      this.request(`/api/v1/connectors/${encodeURIComponent(name)}/tools/call`, {
+        method: "POST",
+        body: JSON.stringify({ tool, arguments: arguments_ }),
+      }),
+    );
   }
   classifyMorphling(text: string): Promise<GaMorphlingClassifyResult> {
     return this.request("/api/v1/morphling/classify", {
@@ -288,6 +387,21 @@ export class GaBridgeClient {
   }
   getKnowledgeCatalog(): Promise<GaKnowledgeCatalog> {
     return this.request("/api/v1/knowledge");
+  }
+  getGovernanceInventory(): Promise<GaGovernanceInventory> {
+    return this.request("/api/v1/governance/inventory");
+  }
+  getGovernanceAudit(limit = 200): Promise<GaGovernanceAudit> {
+    return this.request(`/api/v1/governance/audit?limit=${limit}`);
+  }
+  getGovernancePolicy(): Promise<GaGovernancePolicy> {
+    return this.request("/api/v1/governance/policy");
+  }
+  putGovernancePolicy(input: GaGovernancePolicyInput): Promise<GaGovernancePolicy> {
+    return this.request("/api/v1/governance/policy", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
   }
   listAutomations(): Promise<GaAutomationsSnapshot> {
     return this.request("/api/v1/automations");

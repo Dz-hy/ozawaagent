@@ -239,6 +239,83 @@ export type GaKnowledgeCatalog = {
     skill_ids: string[];
   };
 };
+export type GaGovernanceCategory =
+  | "command"
+  | "command_pack"
+  | "skill"
+  | "connector"
+  | "hook"
+  | "automation";
+export type GaGovernanceAuditCategory = GaGovernanceCategory | "confirmation" | "policy";
+export type GaGovernanceSource = "builtin" | "user" | "third_party" | "unknown";
+export type GaGovernanceRisk =
+  | "shell"
+  | "write"
+  | "delete"
+  | "network"
+  | "credentials"
+  | "scheduled";
+// 高危执行确认（票 05）：adapter 409 载荷 + /governance/confirm 请求/响应。
+export type GaExecutionDecision = "approved" | "denied";
+export type GaExecutionConfirmation = {
+  category: "command" | "connector";
+  target: string;
+  name: string;
+  risks: GaGovernanceRisk[];
+  source: GaGovernanceSource;
+  state: "required" | "approved" | "denied" | "not_required";
+};
+export type GaGovernanceItem = {
+  category: GaGovernanceCategory;
+  id: string;
+  name: string;
+  description: string;
+  kind: string;
+  source: GaGovernanceSource;
+  risk: GaGovernanceRisk[];
+  scope: string;
+  enabled: boolean | null;
+  valid: boolean;
+  detail: Record<string, unknown>;
+};
+export type GaGovernanceInventory = {
+  schema: "ga.governance_inventory.v1";
+  read_only: true;
+  items: GaGovernanceItem[];
+};
+// 治理策略（票 06）：资产启用/禁用（global/project 作用域）与出站 HTTP 域名 allowlist。
+export type GaGovernancePolicyScope = "global" | "project";
+export type GaGovernancePolicyEntry = {
+  category: "command" | "connector";
+  target: string;
+  enabled: boolean;
+  scope: GaGovernancePolicyScope;
+  project_id: string | null;
+};
+export type GaGovernancePolicy = {
+  schema: "ga.governance_policy.v1";
+  allowlist: string[];
+  entries: GaGovernancePolicyEntry[];
+};
+export type GaGovernancePolicyInput = {
+  allowlist: string[];
+  entries: GaGovernancePolicyEntry[];
+};
+export type GaGovernanceAuditOutcome = "ok" | "error";
+export type GaGovernanceAuditRecord = {
+  id: string;
+  category: GaGovernanceAuditCategory;
+  target: string;
+  timestamp: string;
+  outcome: GaGovernanceAuditOutcome;
+  params_summary: string | null;
+  error: string | null;
+  source: "adapter" | "ga";
+};
+export type GaGovernanceAudit = {
+  schema: "ga.governance_audit.v1";
+  items: GaGovernanceAuditRecord[];
+};
 export type GaHookRegistration = { event: string; module: string; handler: string };
 export type GaHookObservation = { id: string; event: string; timestamp: string };
 export type GaHooksSnapshot = {
@@ -393,6 +470,7 @@ export class GaBridgeError extends Error {
     readonly code: string,
     readonly status?: number,
     readonly retryable = false,
+    readonly details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "GaBridgeError";

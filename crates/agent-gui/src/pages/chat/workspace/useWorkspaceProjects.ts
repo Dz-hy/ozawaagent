@@ -41,7 +41,7 @@ type UseWorkspaceProjectsParams = {
   workdir: string;
   t: (key: string) => string;
   setErrorMessage: Dispatch<SetStateAction<string | null>>;
-  setActiveView: Dispatch<SetStateAction<"chat" | "knowledge-hub">>;
+  setActiveView: Dispatch<SetStateAction<"chat" | "knowledge-hub" | "governance-hub">>;
   setRightDockOpen: Dispatch<SetStateAction<boolean>>;
   startNewConversationActionRef: MutableRefObject<
     (options?: {

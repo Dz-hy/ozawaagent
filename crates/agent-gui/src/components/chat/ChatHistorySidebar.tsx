@@ -41,6 +41,7 @@ import {
   PinOff,
   Plus,
   Settings,
+  Shield,
   Trash2,
   Wrench,
   X,
@@ -78,7 +79,7 @@ type ChatHistorySidebarProps = {
   renameDraft: string;
   isOpen: boolean;
   fontScale?: number;
-  activeView?: "chat" | "knowledge-hub";
+  activeView?: "chat" | "knowledge-hub" | "governance-hub";
   showProjects?: boolean;
   // Pre-sorted by the container (activity/running/pinned) — rendered as-is.
   projects?: WorkspaceProject[];
@@ -126,6 +127,7 @@ type ChatHistorySidebarProps = {
   onCloseSidebar: () => void;
   onOpenSettings: () => void;
   onOpenKnowledgeHub?: () => void;
+  onOpenGovernanceHub?: () => void;
 };
 
 const HISTORY_ROW_ESTIMATED_HEIGHT = 30;
@@ -1050,6 +1052,7 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
     onCloseSidebar,
     onOpenSettings,
     onOpenKnowledgeHub,
+    onOpenGovernanceHub,
   } = props;
   const { t } = useLocale();
 
@@ -1729,6 +1732,26 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
                 )}
               />
               <span className="truncate">Knowledge</span>
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenGovernanceHub?.()}
+              className={cn(
+                "sidebar-hub-menu-item h-[30px] w-full justify-start gap-3 rounded-lg px-3 text-[calc(14px*var(--zone-font-scale,1))] font-normal leading-5 shadow-none transition-colors",
+                activeView === "governance-hub"
+                  ? "bg-foreground/[0.06] text-foreground hover:bg-foreground/[0.08] hover:text-foreground focus-visible:bg-foreground/[0.08]"
+                  : "text-foreground/80 hover:bg-foreground/[0.08] hover:text-foreground focus-visible:bg-foreground/[0.08]",
+              )}
+              title={t("governance.navTitle")}
+            >
+              <Shield
+                className={cn(
+                  "h-4 w-4 shrink-0",
+                  activeView === "governance-hub" ? "text-sky-500" : "text-foreground/85",
+                )}
+              />
+              <span className="truncate">{t("governance.navShort")}</span>
             </Button>
           </div>
         </div>
